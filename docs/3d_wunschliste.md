@@ -64,9 +64,11 @@ Ziel für das ganze Spiel: **unter 25 MB Modelle**, je Ort höchstens etwa 6 MB 
 | **Sketchfab** – sketchfab.com (Filter „Downloadable“ + Lizenz „CC0“ oder „CC Attribution“) | CC0 / CC-BY | Seltenes: Fischkutter, Leuchtturm, Glocke, Kran | Braucht ein Konto zum Herunterladen. Vorsicht: viele Modelle sind zu groß oder „NC“. |
 | **Kenney** – kenney.nl, **Quaternius** – quaternius.com | CC0 | Notfall-Ersatz | Sehr comichaft, passt nicht zu „realistisch“. |
 
-Hinweis zum Herunterladen: Pixabay sperrt Programme (403). In dieser Umgebung waren am 21.11.2026 auch polyhaven.com und ambientcg.com
-gesperrt – wie bei den Geräuschen braucht es dafür einen Thread mit freigeschalteter Umgebung, oder Kristian lädt selbst herunter.
-Die Suchwörter unten sind deshalb Vorschläge und **nicht einzeln nachgeprüft**, ob es das Modell dort genau so gibt.
+Hinweis zum Herunterladen (Stand 21.11.2026): Poly Haven und ambientCG sind in der Umgebung „Spiele (Sound-Quellen)“ freigeschaltet und gehen.
+Poly Pizza und Kenney sperren Programme von sich aus (403, wie Pixabay), Sketchfab braucht ein Konto.
+**Schon geladen:** 35 Modelle von Poly Haven und 7 Boden- und Wandbilder von ambientCG, siehe `assets/QUELLEN.md` (noch nicht ins Spiel eingebaut).
+Poly Haven hat nur 522 Modelle. Es gibt dort **keine** Figuren, Fahrzeuge, Häuser, Boote, Schließfächer, Spinde, Vitrinen, Poller, Ampeln oder Verkehrsschilder –
+die Suchwörter in den Tabellen unten sind für solche Dinge also Wünsche an 3D AI Studio oder Sketchfab.
 
 ## Schon da: aus Powershot übernehmen (Priorität A, kostet nichts)
 
