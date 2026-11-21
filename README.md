@@ -22,3 +22,9 @@ Das Spiel braucht beim Start Internet (three.js kommt von jsDelivr).
 | Fahren | Pfeiltasten | Knöpfe unten |
 | Funk, Notizbuch, Tasche | F, N, T | Knöpfe oben rechts |
 | Blaulicht | B | Knopf rechts |
+
+## Geräusche
+
+Sirene, Motor, Markt, Möwen, Alarm, Funk, Schritte, Tür, Spind, Pling, Hund und Rumms sind echte Aufnahmen von Freesound
+(alle CC0, also frei nutzbar). Sie liegen in `sounds/`, Quellen und Urheber stehen in [LIZENZEN.md](LIZENZEN.md).
+Fehlt eine Datei, macht das Spiel selbst einen einfachen Ersatz-Ton.

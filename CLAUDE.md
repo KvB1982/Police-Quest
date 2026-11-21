@@ -36,6 +36,7 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
 | `js/story.js` | Die Geschichte (ohne three.js): `beginn`, `AKT` (eine Funktion je Aktion), `funk` (was man gerade funken kann), `ZONEN` (Stellen, an denen von selbst etwas passiert), `SACHEN`, `DURCHLAUF` (zum Prüfen), `MAX_PUNKTE`. Spricht nur über das Werkzeug `S` mit dem Spiel |
 | `js/welt.js` | Baut einen Ort in 3D aus einfachen Formen: `baueOrt`, `figur`, `autoModell`, `schild` |
 | `js/oberflaeche.js` | Sprechblase, Auswahl, Zahlenschloss, Notizbuch/Tasche/Funk, Anzeige, Knöpfe, Startbild, Tagesende |
+| `js/klang.js`, `sounds/` | Alle Geräusche (`KLAENGE`: Datei, Lautstärke, Schleife, `mal` = zufällig etwas höher/tiefer). Lädt die Dateien aus `sounds/liste.json`, sonst Ersatz-Töne. 12 Aufnahmen von Freesound, alle CC0, Quellen in `LIZENZEN.md` (Pixabay sperrt Programme). Dauer-Geräusche sind Schleifen mit weich überblendetem Ende |
 | `js/main.js` | Bild, Licht (`LICHT`: tag, abend, nacht, dunkel), Laufen, Wegsuche A* für das Tippen, Fahren, Kamera, Speichern (`blaulicht.stand.v1`), Töne. Zahlen zum Einstellen oben |
 
 Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `akt` eine Funktion in `story.js`, den Weg in `DURCHLAUF` ergänzen, `node tools/story.mjs` laufen lassen.
@@ -43,7 +44,7 @@ Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `a
 ## Bekannte Grenzen (Stand 21.11.2026)
 
 - Nur Fall 1, Tag 1. Geprüft mit `tools/story.mjs` und in einem Test-Browser ohne Grafikkarte: Ein Test-Programm hat den Tag mit Tasten, Klicks und
-  vorgespulten Bildern bis zum Ende gespielt, dazu Standbilder. Nicht von Hand gespielt, nicht auf dem iPad, Töne nicht angehört.
+  vorgespulten Bildern bis zum Ende gespielt, dazu Standbilder. Nicht von Hand gespielt, nicht auf dem iPad, Töne nicht angehört (die Aufnahmen nur im Test-Browser geladen und als Lautstärke-Verlauf geprüft).
 - Die Stadt ist nur ein Netz aus 3 × 3 Straßen. Es gibt keinen anderen Verkehr, keine Ampeln, keine Fußgänger außer den Leuten der Geschichte.
 - Alles besteht aus einfachen Formen (keine fertigen 3D-Modelle), Figuren haben keine Finger und nur Punkte als Augen.
 - Die Uhr springt mit der Geschichte, sie läuft noch nicht von selbst. Tageszeiten: Tag, Abend, Nacht nur als Lichtstimmung.

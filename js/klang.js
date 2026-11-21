@@ -12,11 +12,11 @@ export const KLAENGE = {
   moewen: { datei: 'moewen.mp3', laut: 0.2, schleife: true },      // Möwen und Hafen
   alarm: { datei: 'alarm.mp3', laut: 0.3, schleife: true },        // Alarmanlage am Museum
   funk: { datei: 'funk.mp3', laut: 0.5 },                          // Knacken, wenn der Funk angeht
-  schritt: { datei: 'schritt.mp3', laut: 0.25 },
+  schritt: { datei: 'schritt.mp3', laut: 0.25, mal: 0.12 },        // mal: jeder Schritt klingt etwas anders
   tuer: { datei: 'tuer.mp3', laut: 0.5 },
   schloss: { datei: 'schloss.mp3', laut: 0.6 },                    // Spind geht auf
   pling: { datei: 'pling.mp3', laut: 0.4 },                        // Sorgfalts-Punkt bekommen
-  hund: { datei: 'hund.mp3', laut: 0.5 },
+  hund: { datei: 'hund.mp3', laut: 0.5, mal: 0.06 },
   rumms: { datei: 'rumms.mp3', laut: 0.6 },                        // irgendwo angestoßen
 };
 
@@ -57,7 +57,10 @@ export function spiel(name, laut = 1) {
   const a = aufnahmen[name];
   if (!a) { if (ERSATZ[name]) ERSATZ[name](); return; }
   const q = ton.createBufferSource(), g = ton.createGain();
-  q.buffer = a; g.gain.value = KLAENGE[name].laut * laut; q.connect(g).connect(ton.destination); q.start();
+  q.buffer = a; g.gain.value = KLAENGE[name].laut * laut; q.connect(g).connect(ton.destination);
+  const mal = KLAENGE[name].mal || 0;                      // etwas höher oder tiefer, damit es nicht immer gleich klingt
+  if (mal) q.playbackRate.value = 1 + (Math.random() * 2 - 1) * mal;
+  q.start();
 }
 
 // Ein Dauer-Geräusch ein- oder ausschalten. laut = 0…1 (0 schaltet es aus), tempo = wie schnell es abgespielt wird.
