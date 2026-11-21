@@ -95,6 +95,24 @@ export const AKT = {
     await S.sag('Hanne', 'Du bist also neu an Ottos Seite? Hanne. Bei mir gibt es mittags Frikadellen – und alles, was in dieser Stadt geredet wird.');
     await S.sag('Hanne', 'Pass auf den Otto auf. Der geht bald in Rente und tut so, als wäre ihm das egal. Dabei gibt es einen alten Fall, der ihm keine Ruhe lässt.');
   },
+  // Die Kollegen in der Wache: Jeder hat einen Satz für den Morgen und einen für später, wenn schon etwas passiert ist.
+  async kollege(S, d) {
+    const spaet = S.hat('jagdFertig');
+    if (d.id === 'dirks') {
+      if (spaet) return S.sag('Jan Dirks', 'Saubere Fahrt vorhin, Berger. Wir kamen kaum hinterher – und ich fahre Möwe 12 seit acht Jahren.');
+      await S.sag('Jan Dirks', 'Moin! Du bist neu bei Otto? Jan Dirks, Möwe 12. Wenn es draußen eng wird und du Verstärkung rufst, sind das meistens wir.');
+      return S.sag('Jan Dirks', 'Ein Tipp: Ruf lieber einmal zu früh als einmal zu spät. Dafür lacht dich hier keiner aus.');
+    }
+    if (d.id === 'tammen') {
+      if (spaet) return S.sag('Meike Tammen', 'Der Kombi steht auf dem Hof der Spurensicherung. Den Bericht dazu schreibst aber du – Otto drückt sich seit dreißig Jahren davor.');
+      return S.sag('Meike Tammen', 'Meike Tammen, ich fahre mit Jan. Selin will die Streifenpläne vor der Besprechung haben. Bis später auf der Straße!');
+    }
+    if (d.id === 'okafor') {
+      await S.sag('Ben Okafor', 'Reifen, Lichter, Kofferraum – jeden Morgen. Vor zwei Jahren stand ich nachts mit einem Platten am Hafen. Seitdem prüfe ich alles zweimal.');
+      return S.sag('Ben Okafor', 'Möwe 9 fährt heute den Stadtring. Wenn du uns siehst: einmal kurz die Hand heben, das gehört sich so.');
+    }
+    return S.sag('Linh Lührs', spaet ? 'Die Anzeige zum Unfall am Wall liegt schon bei mir. Kennzeichen, Uhrzeit, Zeugen – deine Notizen will ich nachher sehen.' : 'Lührs, Wachdienst. Alles, was ihr draußen aufnehmt, landet am Ende bei mir auf dem Tisch. Schreib leserlich, dann verstehen wir uns.');
+  },
   async petersen(S) {
     await S.sag(FUNK, 'Ich bin Frau Petersen. Wenn du draußen „Möwe 14 an Leitstelle“ sagst, bin ich das am anderen Ende.');
     await S.sag(FUNK, 'Merk dir: Erst sagen, wer du bist. Dann, wo du bist. Dann, was du brauchst.');

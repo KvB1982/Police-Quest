@@ -76,6 +76,18 @@ L.update({
  'sani': dict(M, gender=1.0, age=0.48, weight=0.55, muscle=0.6, height=0.55, haut='young_caucasian_male2', haare='short04', augenfarbe='blue',
             kleidung=['male_worksuit01', 'shoes04'], toenen={'worksuit': dict(farbe=ROT, hell=2.2)}),
 })
+# Kolleginnen und Kollegen der Wache im dunkelblauen Einsatzanzug (eine richtige Uniform gibt es in den Paketen nicht). Alle ausgedacht.
+BLAU = [0.11, 0.14, 0.3]
+L.update({
+ 'pol1': dict(M, gender=1.0, age=0.6, weight=0.55, muscle=0.65, height=0.62, haut='middleage_caucasian_male', haare='short04', augenfarbe='blue',
+            kleidung=['male_worksuit01', 'shoes04'], toenen={'worksuit': dict(farbe=BLAU, hell=2.2)}, farbe={'short04': [0.75, 0.55, 0.38]}),
+ 'pol2': dict(F, gender=0.0, age=0.45, weight=0.45, muscle=0.6, height=0.52, haut='young_caucasian_female', haare='ponytail01', augenfarbe='green',
+            kleidung=['male_worksuit01', 'shoes04'], toenen={'worksuit': dict(farbe=BLAU, hell=2.2)}),
+ 'pol3': dict(M, gender=1.0, age=0.48, weight=0.5, muscle=0.6, height=0.58, haut='young_african_male', haare='short01', augenfarbe='brown',
+            kleidung=['male_worksuit01', 'shoes04'], toenen={'worksuit': dict(farbe=BLAU, hell=2.2)}),
+ 'pol4': dict(F, gender=0.0, age=0.62, weight=0.5, muscle=0.5, height=0.48, haut='middleage_asian_female', haare='toigo_blunt_bob', augenfarbe='brown',
+            kleidung=['male_worksuit01', 'shoes04'], toenen={'worksuit': dict(farbe=BLAU, hell=2.2), 'blunt_bob': dict(farbe=[0.12, 0.1, 0.1], hell=2.0)}),
+})
 L['p4'].update(haare='short04'); L['p4']['farbe'] = {'short04': [0.3, 0.27, 0.27]}
 L['p5'].update(haare='toigo_curled_under_bob'); L['p5']['toenen'] = {'elegantsuit': dict(farbe=[0.75, 0.68, 0.52], hell=3.2, ohne=[0, 0, 0.78, 0.53]), 'bob': dict(farbe=[0.84, 0.84, 0.86], hell=2.2)}
 L['p7'].update(kleidung=['female_casualsuit01', 'shoes05'], toenen={'casualsuit': dict(farbe=[0.5, 0.68, 0.92], hell=2.6, ohne=JEANS_F)})

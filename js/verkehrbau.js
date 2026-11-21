@@ -8,6 +8,7 @@ import * as BILD from './bilder.js';
 import { autoForm, AUTO_FARBEN, radForm, RAD_BREIT } from './stadtbau.js';
 import { AUTOS, LEUTE } from './verkehr.js';
 import { ladePolizist, polizistBewegen } from './polizist.js';
+import { autoModell, autoRaeder } from './welt.js';
 
 // Die Passanten in der Nähe sind richtige Menschen (acht ausgedachte Leute aus MakeHuman, gebaut mit tools/figur/leute.py).
 // Weil so eine Figur viele Dreiecke hat, gibt es nur NAH_LEUTE davon: Wer näher als NAH_BIS Meter kommt, bekommt eine,
@@ -32,6 +33,8 @@ export function baueVerkehr(verkehr) {
   const raeder = new THREE.InstancedMesh(radForm(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), AUTOS * 4);
   raeder.frustumCulled = false; raeder.count = 0; raeder.castShadow = true; gruppe.add(raeder);
   const rad4 = new THREE.Matrix4(), radQ = new THREE.Quaternion(), radE = new THREE.Euler(), radP = new THREE.Vector3(), radS = new THREE.Vector3();
+  // Streifenwagen der Kollegen: Sie fahren im Verkehr mit wie alle anderen, sehen aber aus wie dein Wagen (ohne eigene Lampen, das spart Rechenzeit).
+  for (const c of verkehr.autos) if (c.polizei) { c.wagen = autoModell('#f4f4f4', true, 'auto_kombi', true); c.wagen.visible = false; gruppe.add(c.wagen); }
   // Scheinwerfer-Licht auf der Straße (nur abends und nachts)
   const licht = new THREE.InstancedMesh(new THREE.PlaneGeometry(4.4, 9).rotateX(-Math.PI / 2).translate(0, 0.07, 6.6),
     new THREE.MeshBasicMaterial({ map: BILD.schein('rgba(255,240,200,1)', 'rgba(255,240,200,0)'), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }), AUTOS);
@@ -54,10 +57,16 @@ export function baueVerkehr(verkehr) {
     // jedes Bild: alle Autos und Leute an ihre Stelle setzen
     schritt(dt = 1 / 60, sx = 0, sz = 0) {
       const n = [0, 0, 0, 0]; let l = 0, w = 0;
+      for (const c of verkehr.autos) if (c.wagen && !c.da) c.wagen.visible = false;
       for (const c of verkehr.autos) {
         if (!c.da) continue;
         const s = sorten[c.art];
         o.position.set(c.x, 0, c.z); o.rotation.set(0, c.h, 0); o.scale.set(1, 1, 1); o.updateMatrix();
+        if (c.wagen) {       // Streifenwagen: ein eigenes Modell statt einer Instanz
+          const weit = Math.hypot(c.x - (c.bx ?? c.x), c.z - (c.bz ?? c.z)); c.bx = c.x; c.bz = c.z; if (weit < 3) c.roll = (c.roll || 0) + weit;
+          c.wagen.visible = true; c.wagen.position.set(c.x, 0, c.z); c.wagen.rotation.y = c.h; autoRaeder(c.wagen, c.roll, 0);
+          licht.setMatrixAt(l++, o.matrix); continue;
+        }
         s.im.setMatrixAt(n[c.art], o.matrix); s.im.setColorAt(n[c.art], f.set(s.modell && c.art > 1 ? '#ffffff' : AUTO_FARBEN[c.farbe])); n[c.art]++;
         licht.setMatrixAt(l++, o.matrix);
         // wie weit ist das Auto seit dem letzten Bild gerollt? (ein Sprung an eine neue Stelle zählt nicht)
