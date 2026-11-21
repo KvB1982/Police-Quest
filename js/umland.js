@@ -4,6 +4,8 @@
 // Hinaus kann man nicht – das Umland ist nur zum Ansehen da. Alles ist ausgedacht.
 
 import * as THREE from 'three';
+import { WIND, LUFT } from './wetterplan.js';
+import { imWind } from './wetter.js';
 import * as BILD from './bilder.js';
 import * as MOD from './modelle.js';
 import { Eimer, farbe, instanzen, instanzenGeteilt, baumForm, tanneForm } from './stadtbau.js';
@@ -63,7 +65,7 @@ export function baueUmland() {
   }
   for (let i = 0; i < 420; i++) { const x = zw(-2600, 2600), z = zw(UFER + 60, 2600); if (!inStadt(x, z, 14)) laub.push({ x, z, h: zw(7, 13) }); }
   const GRUEN = ['#4f8040', '#5a8c46', '#44763a', '#648f48', '#4c7c42'];
-  const baumMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const baumMat = imWind(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
   gruppe.add(instanzenGeteilt(baumForm(), baumMat, laub, (o, b, i) => { o.position.set(b.x, 0, b.z); o.rotation.y = i * 1.7; o.scale.setScalar(b.h); return GRUEN[i % 5]; }, false, 900).gruppe);
   gruppe.add(instanzenGeteilt(tanneForm(), baumMat, tannen, (o, b, i) => { o.position.set(b.x, 0, b.z); o.scale.setScalar(b.h * 1.2); return ['#3f6f4a', '#4a7a52', '#37634a'][i % 3]; }, false, 900).gruppe);
 
@@ -161,18 +163,18 @@ export function baueUmland() {
   // Seezeichen vor der Hafeneinfahrt (geladenes Modell)
   MOD.lade('seezeichen').then(m => { if (m) { m.geo.translate(0, -1.2, 0); gruppe.add(instanzen(m.geo, m.mat, [[-492, -330], [652, -330], [80, -420]].map(([x, z]) => ({ x, z })), (o, d) => { o.position.set(d.x, 0, d.z); }, false)); } });
 
-  let uhr = 0, nacht = false;
+  let uhr = 0, nacht = false, strahlHell = 0.2;
   return {
     gruppe,
     schritt(dt) {
       uhr += dt;
-      for (const r of raeder) r.rotor.rotation.z += r.tempo * dt;
+      for (const r of raeder) r.rotor.rotation.z += r.tempo * dt * (0.35 + WIND.uWind.value * 1.3);      // mehr Wind = die Windräder drehen schneller
       for (const s of schiffe) { s.g.position.x += s.tempo * dt; if (s.g.position.x > s.bis) s.g.position.x = s.von; if (s.g.position.x < s.von) s.g.position.x = s.bis; s.g.position.y = -0.9 + Math.sin(uhr * 0.8 + s.von) * 0.15; }
-      if (nacht) { strahl.rotation.y = uhr * 0.7; const an = Math.floor(uhr * 0.8) % 2 === 0; for (const b of blinker) b.visible = an; }
+      if (nacht) { strahl.rotation.y = uhr * 0.7; strahlMat.opacity = strahlHell * LUFT.sicht; const an = Math.floor(uhr * 0.8) % 2 === 0; for (const b of blinker) b.visible = an; }
     },
     licht(name) {
       nacht = name === 'abend' || name === 'nacht';
-      strahl.visible = funkeln.visible = nacht; strahlMat.opacity = name === 'nacht' ? 0.2 : 0.09;
+      strahl.visible = funkeln.visible = nacht; strahlHell = name === 'nacht' ? 0.2 : 0.09;
       glas.material.emissiveIntensity = nacht ? 2.5 : 0.3;
       for (const b of blinker) b.visible = nacht;
     },
