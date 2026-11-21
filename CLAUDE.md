@@ -28,7 +28,7 @@ node tools/stadt.mjs            # prüft die große Stadt: Stadtplan (kein Haus 
 node tools/plan.mjs             # malt den Stadtplan als tools/plan.svg zum Ansehen und nennt zu kurze Straßenstücke
 ```
 
-Im Browser: `window.__polizei` enthält `Z` (Spielstand), `S` (Werkzeug der Geschichte), `spieler`, `welt`, `tu(aktion, ding)`, `step(n)`.
+Im Browser: `window.__polizei` enthält `Z` (Spielstand), `S` (Werkzeug der Geschichte), `spieler`, `welt`, `tu(aktion, ding)`, `step(n)`, dazu `jagd` (die laufende Verfolgung), `verbSetzen('sieh')`, `antippbar()`, `aufSchirm(ding)`.
 `__polizei.angehalten = true` hält die eigene Schleife an, `step(n)` spult n Bilder vor.
 Dazu `ortLaden(name, x, z)`, `lichtSetzen('tag' | 'abend' | 'nacht')`, `verkehr`, `KARTE`, `renderer` und `frei = { von: [x, y, z], nach: [x, y, z] }`
 (stellt die Kamera zum Ansehen an eine feste Stelle, `null` = wieder normal). Adresse mit `?einfach` = Spar-Modus von Anfang an, `?schoen` = nie sparen.
@@ -49,20 +49,42 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
 | `js/himmel.js` | Himmel wie im Reitturnier: Kuppel mit Farbverlauf, Sonne oder Mond, Sterne, 46 ziehende Wolken (`STIMMUNG` je Lichtstimmung). Wandert mit der Kamera |
 | `js/umland.js` | Alles rund um die Stadt, nur zum Ansehen: Felder, Deich, Strand, Landstraßen mit Alleen, Wälder, sechs Dörfer mit Kirche, Bauernhöfe, elf Windräder (drehen sich), Hügel am Horizont, Molen, Leuchtturminsel (`INSEL`, nachts mit kreisendem Lichtstrahl), Frachter, Fähre, Segelboote |
 | `js/verkehr.js`, `js/verkehrbau.js` | Verkehr und Fußgänger. Regeln ohne three.js: 46 Autos fahren rechts auf dem Straßennetz von Kreuzung zu Kreuzung (nicht durch Gassen, auf der Autobahn schneller), fahren im Bogen durch die Kreuzung, halten Abstand, immer nur ein Auto in der Kreuzung, bremsen für den Spieler, bilden mit Blaulicht eine Rettungsgasse (`GASSE`); 44 Fußgänger laufen auf dem Gehweg an den Straßen entlang und biegen an Kreuzungen ab (erst um die Hausecke: `m.ecke`). Beide gibt es nur in der Nähe des Spielers (werden sonst versetzt). `verkehrbau.js` zeichnet sie als Instanzen |
+| `js/jagd.js` | Verfolgungsfahrt (ohne three.js, in node testbar): `strecke(def)` sucht den Weg des Fluchtwagens über das Straßennetz (Dijkstra, weicht parkenden Autos aus, Ecken abgerundet), `jagdSchritt` fährt ihn wie an einem Gummiband (nah = schnell, weit zurück = langsam, ab `WARTET_AB` bleibt er stehen – man kann ihn nicht verlieren), `bilanz` = Rempler und ob die Sirene lief. Start und Ziel stehen als `JAGD` in `story.js`. In `main.js`: `jagdLauf` (Merker `flucht` startet, am Ziel kommt die Stelle `jagd_ende`) |
 | `js/karte.js` | Radar (rund, oben rechts; zu Fuß Norden oben, im Auto Fahrtrichtung oben; Ziel gelb, Streifenwagen weiß, am Rand festgehalten) und große Stadtkarte (Taste M oder Radar antippen; verschieben, zoomen, Straßennamen). Beide aus `PLAN` gemalt, Vorbild Reitturnier |
 | `js/story.js` | Die Geschichte (ohne three.js): `beginn`, `AKT` (eine Funktion je Aktion), `funk` (was man gerade funken kann), `ZONEN` (Stellen, an denen von selbst etwas passiert), `SACHEN`, `DURCHLAUF` (zum Prüfen, mit Fehlversuchen), `BESTE` (die richtigen Antworten), `MAX_PUNKTE`. Spricht nur über das Werkzeug `S` mit dem Spiel |
 | `js/welt.js` | Baut einen Ort in 3D: drinnen aus einfachen Formen, die Stadt über `baueStadt`. `baueOrt`, `figur`, `autoModell` (Kombi-Modell mit Blaulicht, bis es geladen ist Kisten), `schild` |
-| `js/oberflaeche.js` | Sprechblase, Auswahl, Zahlenschloss, Notizbuch/Tasche/Funk, Anzeige, Knöpfe, Startbild, Tagesende |
+| `js/oberflaeche.js` | Sprechblase, Auswahl, Zahlenschloss, Notizbuch/Tasche/Funk, Anzeige, Knöpfe, Leiste mit den vier Tätigkeiten (`verb`), Satz-Zeile (`satz`), Namens-Schildchen der Lupe (`marken`), Blaulicht-Knopf (`blaulicht`), Startbild, Tagesende |
 | `js/klang.js`, `sounds/` | Alle Geräusche (`KLAENGE`: Datei, Lautstärke, Schleife, `mal` = zufällig etwas höher/tiefer). Lädt die Dateien aus `sounds/liste.json`, sonst Ersatz-Töne. 12 Aufnahmen von Freesound, alle CC0, Quellen in `LIZENZEN.md` (Pixabay sperrt Programme). Dauer-Geräusche sind Schleifen mit weich überblendetem Ende |
 | `js/main.js` | Bild, Licht (`LICHT`: tag, abend, nacht, dunkel), Schatten der Sonne rund um den Spieler (`SCHATTEN`), Laufen, Wegsuche A* für das Tippen (in der Stadt nur in einem Fenster von 180 m um die Figur), Hindernisse in einem Raster (`rasterBauen`, `nahe`), Fahren, Kamera (rückt im Auto näher, wenn sie in ein Haus geriete), Spar-Modus (`tempoMessen`), Speichern (`blaulicht.stand.v1`), Töne. Zahlen zum Einstellen oben |
 
 Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `akt` eine Funktion in `story.js`, den Weg in `DURCHLAUF` ergänzen, `node tools/story.mjs` laufen lassen.
 
+## Steuerung: Point and Click (seit 21.11.2026)
+
+- Wie in einem klassischen Adventure: unten links vier Tätigkeiten (🚶 Gehen, 👁 Ansehen, 💬 Reden, ✋ Benutzen; Tasten 1–4, rechte Maustaste = nächste).
+  Erst Tätigkeit wählen, dann auf ein Ding, eine Person oder den Boden tippen – die Figur läuft von selbst hin (`klickAuf`, `hinlaufen` in `main.js`).
+  Auf den Boden tippen heißt immer „dorthin gehen“. Passt die Tätigkeit nicht, kommt ein kurzer Hinweis, kein Fehler.
+- Welche Tätigkeit passt, steht in `daten.js`: Leute = Reden, Dinge = Benutzen, mit `verb: 'sieh'` = Ansehen (Spuren, Fahrzeuge, die Prüfstellen am Wagen).
+  `sieh: '…'` ist der Satz, den man mit 👁 bei allem anderen bekommt (ohne hinzulaufen). Neue Dinge und Leute sollen so einen Satz haben.
+- Getroffen wird auf dem Bildschirm, nicht auf dem Boden (`unterZeiger`: `TREFF_MAUS` 46, `TREFF_FINGER` 64 Bildpunkte) – das ist für Finger gedacht.
+  Nichts hängt am „Schweben“ des Mauszeigers: Die Satz-Zeile zeigt mit der Maus das Ding unter dem Zeiger, auf dem iPad das zuletzt angetippte.
+  Die Lupe 🔍 (Taste H) zeigt vier Sekunden lang die Namen von allem, was man antippen kann. Spuren im dunklen Museum zählen erst, wenn die Taschenlampe darauf zeigt.
+- Geblieben sind Pfeiltasten zum Laufen und die Knöpfe „was hier gerade geht“ (Taste E) unten rechts – sie fragen nicht nach der Tätigkeit.
+- Im Auto gibt es keine Tätigkeiten, dort sind Fahr-Knöpfe und der Blaulicht-Knopf. Blaulicht hat drei Stufen (`Z.blaulicht`: 0 aus, 1 nur Blaulicht, 2 mit Sirene; Knopf oder Taste B schaltet reihum).
+  Schnell fahren darf man mit 1 und 2, Platz machen die anderen nur bei 2. Beim Aussteigen geht die Sirene aus, das Blaulicht bleibt an (sichert die Unfallstelle).
+- Für das iPad vorbereitet: nur Zeiger-Ereignisse (Maus und Finger gleich), große Knöpfe, Abstand zum Bildschirmrand (`env(safe-area-inset-…)`), Vollbild vom Home-Bildschirm.
+  Auf einem echten iPad nicht erprobt.
+
 ## Bekannte Grenzen (Stand 21.11.2026)
 
-- Dienstwaffe, Handschellen und Pfefferspray gibt es bisher nur in der Tasche und in Auswahl-Fragen (Waffenkammer, Taschendieb, Einbrecher im Museum).
-  Einen eigenen Knopf „Ausrüstung“ oder „Waffe ziehen“ gibt es noch nicht, Verfolgung und Festnahme sind Text mit Auswahl, kein Mini-Spiel.
+- Dienstwaffe, Handschellen und Pfefferspray gibt es bisher nur in der Tasche und in Auswahl-Fragen (Waffenkammer, Unfall, Taschendieb, Einbrecher im Museum).
+  Einen eigenen Knopf „Ausrüstung“ oder „Waffe ziehen“ gibt es noch nicht, Sachen aus der Tasche kann man nicht mit etwas benutzen. Festnahmen sind Text mit Auswahl, kein Mini-Spiel.
   Der Einbrecher im Museum und der verletzte Wärter werden nur beschrieben: Brinkmann steht als Figur an der Wand, den Flüchtenden sieht man nicht.
+- Verkehrsunfall und Verfolgungsfahrt (Stand 21.11.2026): geprüft mit `tools/story.mjs` und im Test-Browser, wo ein Test-Fahrer die 670 m über die echten Tasten gefahren ist
+  (er stieß dabei achtmal an). Nicht von Hand gefahren – ob Tempo und Abstand für ein Kind passen, ist geschätzt (Zahlen oben in `js/jagd.js`).
+  Der Fluchtwagen fährt durch den übrigen Verkehr hindurch, die Autos hinter ihm bremsen nur. Sein Fahrer ist beim Fahren und bei der Festnahme nicht zu sehen (nur Text),
+  die Unfallwagen sehen unbeschädigt aus, die Verletzte steht neben ihrem Wagen statt darin zu sitzen. Rettungswagen und Feuerwehr kommen nur im Text.
+  Lädt man mitten in der Verfolgung neu, beginnt sie von vorn.
 - Nur Fall 1, Tag 1. Geprüft mit `tools/story.mjs`, `tools/stadt.mjs` und in einem Test-Browser ohne Grafikkarte: Ein Test-Programm hat den Tag in der großen Stadt
   über die echte Oberfläche bis zum Ende gespielt (zu den Stellen wurde dabei gesprungen, nicht gefahren), dazu ein Stück gelaufen (Tippen) und gefahren.
   Nicht von Hand gespielt, nicht auf dem iPad, Töne nicht angehört.

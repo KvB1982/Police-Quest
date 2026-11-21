@@ -15,13 +15,18 @@ Das Spiel braucht beim Start Internet (three.js kommt von jsDelivr).
 
 ## Steuerung
 
+Point and Click wie in einem klassischen Adventure: unten links eine Tätigkeit wählen, dann auf ein Ding, eine Person oder den Boden tippen.
+
 | Was | PC | iPad |
 |---|---|---|
-| Laufen | Pfeiltasten oder WASD, oder auf den Boden klicken | auf den Boden tippen |
-| Benutzen, Sprechen | E oder Knopf unten | Knopf unten, oder auf die Person tippen |
+| Tätigkeit wählen (🚶 Gehen, 👁 Ansehen, 💬 Reden, ✋ Benutzen) | Knöpfe unten links, Tasten 1–4 oder rechte Maustaste | Knöpfe unten links |
+| Laufen | auf den Boden klicken, oder Pfeiltasten / WASD | auf den Boden tippen |
+| Zeigen, was man antippen kann | 🔍 oder Taste H | 🔍 |
+| Das Nächstliegende tun | E oder Knopf unten rechts | Knopf unten rechts |
 | Fahren | Pfeiltasten | Knöpfe unten |
 | Funk, Notizbuch, Tasche | F, N, T | Knöpfe oben rechts |
-| Blaulicht | B | Knopf rechts |
+| Blaulicht: aus → nur Blaulicht → Blaulicht mit Sirene | B | Knopf rechts |
+| Stadtkarte | M | Radar antippen |
 
 ## Geräusche
 

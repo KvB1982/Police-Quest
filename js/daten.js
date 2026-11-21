@@ -12,9 +12,15 @@
 //   leute   – Personen zum Ansprechen
 // "wenn" und "bis" sind Merker aus der Geschichte: Das Ding gibt es erst, wenn der Merker "wenn"
 // gesetzt ist, und nur so lange, bis der Merker "bis" gesetzt ist.
+//
+// Für die Point-and-Click-Steuerung:
+//   verb  – welche Tätigkeit passt: 'sieh' = Ansehen. Ohne Angabe: Leute = Reden, Dinge = Benutzen.
+//   sieh  – der Satz, der kommt, wenn man etwas nur ansieht (👁), ohne es zu benutzen oder anzusprechen.
+//   verkehr: true – steht auf der Straße: Die anderen Autos bremsen davor.
 
 import { PLAN, GROSS } from './stadtplan.js';
 
+const OTTO_SIEH = 'Otto Brandl, dein Ausbilder. Grauer Bart, breite Schultern, die Mütze gerade. Seine Stiefel sind die saubersten der ganzen Wache.';
 const POLIZEI = { hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#5a3b22', muetze: '#f4f4f4' };
 
 // Eine dünne Wand von (x1, z1) nach (x2, z2) – entweder waagerecht oder senkrecht.
@@ -60,22 +66,22 @@ const wache = {
     { x: 9.5, z: -9.8, text: 'Leitstelle · Kantine' }, { x: -13.6, z: 3, text: 'Waffenkammer' }, { x: 0, z: 21.5, text: 'Hof' },
   ],
   dinge: [
-    { id: 'spind', x: -13.2, z: -6, name: 'Dein Spind', art: 'spind', akt: 'spind', fest: [1, 1.2] },
+    { id: 'spind', x: -13.2, z: -6, name: 'Dein Spind', art: 'spind', akt: 'spind', fest: [1, 1.2], sieh: 'Ein schmaler Stahlspind mit Zahlenschloss. Auf dem Namensschild steht: K. Berger.' },
     { id: 'auto', x: 6, z: 14, art: 'auto', polizei: true, h: 0, fest: [2, 4.4] },
-    { id: 'c_vorn', x: 6, z: 17.2, name: 'Scheinwerfer und Blinker prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_vorn', nah: 1.6 },
-    { id: 'c_reifen1', x: 4.2, z: 15.3, name: 'Reifen links prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_reifen1', nah: 1.6 },
-    { id: 'c_reifen2', x: 7.8, z: 12.7, name: 'Reifen rechts prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_reifen2', nah: 1.6 },
-    { id: 'c_heck', x: 6, z: 10.8, name: 'Rücklichter und Kofferraum prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_heck', nah: 1.6 },
-    { id: 'einsteigen', x: 4.2, z: 13.6, name: 'In den Streifenwagen einsteigen', art: 'punkt', akt: 'einsteigen_hof', wenn: 'briefing', nah: 1.6, farbe: '#3fa7ff' },
+    { id: 'c_vorn', x: 6, z: 17.2, name: 'Scheinwerfer und Blinker prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_vorn', nah: 1.6, verb: 'sieh' },
+    { id: 'c_reifen1', x: 4.2, z: 15.3, name: 'Reifen links prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_reifen1', nah: 1.6, verb: 'sieh' },
+    { id: 'c_reifen2', x: 7.8, z: 12.7, name: 'Reifen rechts prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_reifen2', nah: 1.6, verb: 'sieh' },
+    { id: 'c_heck', x: 6, z: 10.8, name: 'Rücklichter und Kofferraum prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_heck', nah: 1.6, verb: 'sieh' },
+    { id: 'einsteigen', x: 4.2, z: 13.6, name: 'In den Streifenwagen einsteigen', art: 'punkt', akt: 'einsteigen_hof', wenn: 'briefing', nah: 1.6, farbe: '#3fa7ff', sieh: 'Die Fahrertür von Möwe 14.' },
   ],
   leute: [
-    { id: 'otto', x: 2, z: 3.5, name: 'Otto Brandl', akt: 'otto', bis: 'briefing', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
-    { id: 'otto', x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', wenn: 'briefing', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
-    { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', look: { ...POLIZEI, haar: '#1e1a17', muetze: null } },
-    { id: 'petersen', x: 9, z: -7, name: 'Frau Petersen (Leitstelle)', akt: 'petersen', look: { hemd: '#7a4fa0', hose: '#333', haut: '#f0c8a0', haar: '#d8d2c4' } },
-    { id: 'hanne', x: 11.2, z: -2.5, name: 'Hanne (Kantine)', akt: 'hanne', look: { hemd: '#ffffff', hose: '#444', haut: '#e8b890', haar: '#a03a2a' } },
-    { id: 'harms', x: -11.2, z: 3, name: 'Harms (Waffenkammer)', akt: 'harms', look: { ...POLIZEI, haar: '#3a3a3a', muetze: null, bauch: 1.1 } },
-    { id: 'lotte', x: -3, z: 3.6, name: 'Lotte (Diensthund)', akt: 'lotte', hund: true },
+    { id: 'otto', x: 2, z: 3.5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, bis: 'briefing', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
+    { id: 'otto', x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'briefing', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
+    { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', look: { ...POLIZEI, haar: '#1e1a17', muetze: null }, sieh: 'Selin Aydin leitet die Wache. Kerzengerade, die Uniform wie gebügelt. Sie sieht von ihren Unterlagen auf, bevor du etwas sagst.' },
+    { id: 'petersen', x: 9, z: -7, name: 'Frau Petersen (Leitstelle)', akt: 'petersen', look: { hemd: '#7a4fa0', hose: '#333', haut: '#f0c8a0', haar: '#d8d2c4' }, sieh: 'Frau Petersen sitzt mit Kopfhörer am Funkpult. Vor ihr drei Bildschirme und eine Tasse mit einer Möwe darauf.' },
+    { id: 'hanne', x: 11.2, z: -2.5, name: 'Hanne (Kantine)', akt: 'hanne', look: { hemd: '#ffffff', hose: '#444', haut: '#e8b890', haar: '#a03a2a' }, sieh: 'Hanne steht hinter der Theke der Kantine und wischt, obwohl alles sauber ist. Ihr entgeht hier nichts.' },
+    { id: 'harms', x: -11.2, z: 3, name: 'Harms (Waffenkammer)', akt: 'harms', look: { ...POLIZEI, haar: '#3a3a3a', muetze: null, bauch: 1.1 }, sieh: 'Harms lehnt am Tresen der Waffenkammer. Hinter ihm der Stahlschrank, vor ihm eine Liste. Er sieht aus wie jemand, der jede Zeile zweimal liest.' },
+    { id: 'lotte', x: -3, z: 3.6, name: 'Lotte (Diensthund)', akt: 'lotte', hund: true, sieh: 'Lotte, der Diensthund. Ein Schäferhund mit grauer Schnauze. Sie hebt ein Ohr und lässt es wieder fallen.' },
   ],
 };
 
@@ -99,18 +105,24 @@ const stadt = {
   moebel: marktStaende,
   schilder: [{ x: -40, z: -30, text: 'Marktplatz', hoch: 7 }],
   dinge: [
-    { id: 'falschparker', x: -44, z: 56.4, name: 'Grauer Kombi vor der Ausfahrt', art: 'auto', farbe: '#8d9196', h: Math.PI / 2, akt: 'falschparker', wenn: 'angemeldet', bis: 'kitaFertig', fest: [4.4, 2], nah: 3.4 },
-    { id: 'museumstuer', x: 74, z: 30, name: 'Tür zum Stadtmuseum', art: 'tuer', akt: 'museumstuer', nah: 2.4 },
+    { id: 'falschparker', x: -44, z: 56.4, name: 'Grauer Kombi vor der Ausfahrt', art: 'auto', farbe: '#8d9196', h: Math.PI / 2, akt: 'falschparker', wenn: 'angemeldet', bis: 'kitaFertig', fest: [4.4, 2], nah: 3.4, verb: 'sieh' },
+    // Der Verkehrsunfall in der Marktstraße (gibt es erst, wenn die Leitstelle ihn meldet)
+    { id: 'unfallwagen', x: -87.2, z: 99.4, name: 'Dunkelblauer Kombi', art: 'auto', farbe: '#1c2333', h: -0.12, akt: 'unfallwagen', verb: 'sieh', wenn: 'unfall', bis: 'flucht', fest: [2.2, 4.6], nah: 3.6, verkehr: true },
+    { id: 'roterwagen', x: -92, z: 107.2, name: 'Roter Wagen', art: 'auto', farbe: '#b8322a', h: -0.5, akt: 'roterwagen', verb: 'sieh', wenn: 'unfall', bis: 'marktFertig', fest: [3, 4.4], nah: 3.8, verkehr: true },
+    { id: 'museumstuer', x: 74, z: 30, name: 'Tür zum Stadtmuseum', art: 'tuer', akt: 'museumstuer', nah: 2.4, sieh: 'Eine schwere Holztür mit Messinggriff. Daneben ein Schild: Stadtmuseum Möwenbrück, geöffnet 10 bis 17 Uhr.' },
   ],
   leute: [
-    { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
-    { id: 'erzieherin', x: -44, z: 53.4, name: 'Erzieherin der Kita', akt: 'erzieherin', wenn: 'angemeldet', look: { hemd: '#e86a8a', hose: '#3b5a7a', haut: '#e8b890', haar: '#2a1a12' } },
-    { id: 'baecker', x: -21, z: 53.6, name: 'Bäcker vor der Bäckerei', akt: 'baecker', look: { hemd: '#ffffff', hose: '#f0f0f0', haut: '#f0c8a0', haar: '#7a5a3a', muetze: '#ffffff', bauch: 1.2 } },
-    { id: 'opfer', x: -40, z: -22, name: 'Bestohlene Frau', akt: 'opfer', wenn: 'markt', look: { hemd: '#8a6fa8', hose: '#444', haut: '#f0c8a0', haar: '#d8d2c4' } },
-    { id: 'w1', x: -57, z: -37, name: 'Mann am Gemüsestand', akt: 'verdacht', look: { hemd: '#3f9a4a', hose: '#444', haut: '#f0c8a0', haar: '#3a2a1a', rucksack: '#d23a2a' } },
-    { id: 'w2', x: -25, z: -13.5, name: 'Mann am Käsestand', akt: 'verdacht', bis: 'marktFertig', look: { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', rucksack: '#2a5ad2' } },
-    { id: 'w3', x: -17, z: -40, name: 'Mann am Obststand', akt: 'verdacht', look: { hemd: '#c9772e', hose: '#2a3a5a', haut: '#f0c8a0', haar: '#c9a24a', rucksack: '#2a5ad2' } },
-    { id: 'm1', x: -46, z: -30, name: 'Mann mit Einkaufskorb', akt: 'marktmann', look: { hemd: '#7a8a5a', hose: '#5a4a3a', haut: '#d8a878', haar: '#222' } },
+    { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
+    { id: 'erzieherin', x: -44, z: 53.4, name: 'Erzieherin der Kita', akt: 'erzieherin', wenn: 'angemeldet', look: { hemd: '#e86a8a', hose: '#3b5a7a', haut: '#e8b890', haar: '#2a1a12' }, sieh: 'Eine Erzieherin der Kita Sonnenhang. Sie sieht alle paar Sekunden auf die Uhr und dann die Straße hinunter.' },
+    { id: 'baecker', x: -21, z: 53.6, name: 'Bäcker vor der Bäckerei', akt: 'baecker', look: { hemd: '#ffffff', hose: '#f0f0f0', haut: '#f0c8a0', haar: '#7a5a3a', muetze: '#ffffff', bauch: 1.2 }, sieh: 'Ein Bäcker in weißer Jacke, Mehl bis zu den Ellbogen. Auf dem Schild über der Tür steht: Bäckerei Kruse.' },
+    { id: 'verletzte', x: -90.3, z: 107.6, name: 'Fahrerin im roten Wagen', akt: 'verletzte', wenn: 'unfall', bis: 'flucht', nah: 2.6, sieh: 'Eine Frau um die fünfzig hinter dem Steuer. Blass, eine Hand im Nacken. Der Sicherheitsgurt ist noch angelegt.', look: { hemd: '#3f7f8a', hose: '#444', haut: '#f0c8a0', haar: '#6a4a3a' } },
+    { id: 'unfallfahrer', x: -85.4, z: 100.2, name: 'Fahrer des dunklen Kombi', akt: 'unfallfahrer', wenn: 'unfall', bis: 'flucht', sieh: 'Ein junger Mann, höchstens zwanzig. Kapuzenjacke, an der rechten Hand ein frischer Kratzer. Er wippt auf den Fußballen wie einer, der gleich losrennt.', look: { hemd: '#4a4f57', hose: '#2a2a2a', haut: '#f0c8a0', haar: '#3a2a1a' } },
+    { id: 'zeugin', x: -78.6, z: 104.5, name: 'Radfahrerin', akt: 'zeugin', wenn: 'unfall', bis: 'flucht', sieh: 'Eine Frau mit Fahrradhelm. Sie hält ihr Rad am Lenker fest, die Knöchel sind weiß.', look: { hemd: '#e0b030', hose: '#2a3a5a', haut: '#e8b890', haar: '#2a1a12', muetze: '#d23a2a' } },
+    { id: 'opfer', x: -40, z: -22, name: 'Bestohlene Frau', akt: 'opfer', wenn: 'markt', look: { hemd: '#8a6fa8', hose: '#444', haut: '#f0c8a0', haar: '#d8d2c4' }, sieh: 'Eine ältere Frau mit einer offenen Handtasche. Sie hält sie mit beiden Händen fest und sieht sich immer wieder um.' },
+    { id: 'w1', x: -57, z: -37, name: 'Mann am Gemüsestand', akt: 'verdacht', look: { hemd: '#3f9a4a', hose: '#444', haut: '#f0c8a0', haar: '#3a2a1a', rucksack: '#d23a2a' }, sieh: 'Ein Mann am Gemüsestand. Grüne Jacke, roter Rucksack. Er wiegt in Ruhe Tomaten ab.' },
+    { id: 'w2', x: -25, z: -13.5, name: 'Mann am Käsestand', akt: 'verdacht', bis: 'marktFertig', look: { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', rucksack: '#2a5ad2' }, sieh: 'Ein junger Mann am Käsestand. Grüne Jacke, blauer Rucksack. Er kauft nichts – er schaut den Leuten auf die Taschen.' },
+    { id: 'w3', x: -17, z: -40, name: 'Mann am Obststand', akt: 'verdacht', look: { hemd: '#c9772e', hose: '#2a3a5a', haut: '#f0c8a0', haar: '#c9a24a', rucksack: '#2a5ad2' }, sieh: 'Ein Mann am Obststand. Orange Jacke, blauer Rucksack. Er probiert eine Weintraube.' },
+    { id: 'm1', x: -46, z: -30, name: 'Mann mit Einkaufskorb', akt: 'marktmann', look: { hemd: '#7a8a5a', hose: '#5a4a3a', haut: '#d8a878', haar: '#222' }, sieh: 'Ein Mann mit Einkaufskorb. Obenauf liegt eine Tüte Krabben.' },
   ],
 };
 
@@ -133,16 +145,16 @@ const museum = {
   ],
   schilder: [],
   dinge: [
-    { id: 'spur_feder', x: 0, z: -0.7, name: 'Vitrine in der Mitte ansehen', art: 'spur', akt: 'spur', licht: true, zeig: [0, 1.06, -1.3, 0.12, 0.02, 0.5, '#f2f2f2'] },
-    { id: 'spur_fuss', x: -10.2, z: 1.5, name: 'Boden unter dem Fenster ansehen', art: 'spur', akt: 'spur', licht: true, zeig: [-0.3, 0.02, 0, 0.14, 0.01, 0.34, '#3a2a1a'] },
-    { id: 'spur_kratzer', x: 7, z: -4.4, name: 'Leere Vitrine ansehen', art: 'spur', akt: 'spur', licht: true },
-    { id: 'fenster', x: -11.5, z: 0, name: 'Fenster untersuchen', art: 'fenster', akt: 'fenster', licht: true, nah: 2.6 },
-    { id: 'ausgang', x: 0, z: 7.6, name: 'Hinausgehen', art: 'tuer', akt: 'ausgang', nah: 1.6 },
+    { id: 'spur_feder', x: 0, z: -0.7, name: 'Vitrine in der Mitte ansehen', art: 'spur', akt: 'spur', licht: true, zeig: [0, 1.06, -1.3, 0.12, 0.02, 0.5, '#f2f2f2'], verb: 'sieh' },
+    { id: 'spur_fuss', x: -10.2, z: 1.5, name: 'Boden unter dem Fenster ansehen', art: 'spur', akt: 'spur', licht: true, zeig: [-0.3, 0.02, 0, 0.14, 0.01, 0.34, '#3a2a1a'], verb: 'sieh' },
+    { id: 'spur_kratzer', x: 7, z: -4.4, name: 'Leere Vitrine ansehen', art: 'spur', akt: 'spur', licht: true, verb: 'sieh' },
+    { id: 'fenster', x: -11.5, z: 0, name: 'Fenster untersuchen', art: 'fenster', akt: 'fenster', licht: true, nah: 2.6, verb: 'sieh' },
+    { id: 'ausgang', x: 0, z: 7.6, name: 'Hinausgehen', art: 'tuer', akt: 'ausgang', nah: 1.6, sieh: 'Die Tür nach draußen. Durch den Spalt fällt blaues Flackern herein: euer Streifenwagen.' },
   ],
   leute: [
-    { id: 'otto', x: -2.5, z: 5, name: 'Otto Brandl', akt: 'otto', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
-    { id: 'thomsen', x: 3.5, z: 5.5, name: 'Dr. Thomsen (Museumsleiterin)', akt: 'thomsen', look: { hemd: '#6a2f5a', hose: '#222', haut: '#f0c8a0', haar: '#8a3a1a' } },
-    { id: 'brinkmann', x: 10.6, z: 5.2, name: 'Herr Brinkmann (Wärter)', akt: 'brinkmann', look: { hemd: '#5a5a3a', hose: '#3a3a2a', haut: '#e8b890', haar: '#777', muetze: '#3a3a2a' } },
+    { id: 'otto', x: -2.5, z: 5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
+    { id: 'thomsen', x: 3.5, z: 5.5, name: 'Dr. Thomsen (Museumsleiterin)', akt: 'thomsen', look: { hemd: '#6a2f5a', hose: '#222', haut: '#f0c8a0', haar: '#8a3a1a' }, sieh: 'Dr. Thomsen, die Leiterin des Museums. Mantel über dem Schlafanzug, Schlüsselbund in der Faust. Sie zählt mit den Augen die Vitrinen.' },
+    { id: 'brinkmann', x: 10.6, z: 5.2, name: 'Herr Brinkmann (Wärter)', akt: 'brinkmann', look: { hemd: '#5a5a3a', hose: '#3a3a2a', haut: '#e8b890', haar: '#777', muetze: '#3a3a2a' }, sieh: 'Der Wärter. Er sitzt an der Wand und presst ein Taschentuch an den Hinterkopf. Seine Uniformjacke ist an der Schulter schmutzig.' },
   ],
 };
 

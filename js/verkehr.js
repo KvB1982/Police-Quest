@@ -80,8 +80,9 @@ export function neuerVerkehr(saat = 5) {
   let erstes = true;
   return {
     autos, leute,
-    // dt = vergangene Zeit · sp = { x, z, r } wo du gerade bist (r = wie breit) · blaulicht = fährst du mit Blaulicht?
-    schritt(dt, sp, blaulicht) {
+    // dt = vergangene Zeit · sp = { x, z, r } wo du gerade bist (r = wie breit) · blaulicht = fährst du mit Blaulicht und Sirene?
+    // imWeg = Liste von { x, z, r }: Dinge, die auf der Straße stehen (Unfallwagen, dein abgestellter Streifenwagen …)
+    schritt(dt, sp, blaulicht, imWeg = []) {
       for (const c of autos) {
         if (!c.da || Math.hypot(c.x - sp.x, c.z - sp.z) > WEG_AUTO) { if (c.kurve) belegt[c.kurve.k] = null; setzeAuto(c, sp.x, sp.z, erstes); if (!c.da) continue; }
         const fx = Math.sin(c.h), fz = Math.cos(c.h);
@@ -91,6 +92,7 @@ export function neuerVerkehr(saat = 5) {
         // Mitten in der Kreuzung zählen nur die Autos, die schon auf der neuen Straße vor mir fahren – sonst blockieren sich alle gegenseitig.
         for (const o of autos) if (o !== c && o.da && (!c.kurve || (o.e === c.e && o.richtung === c.richtung && !o.kurve))) pruefe(o.x, o.z, 1.7);
         pruefe(sp.x, sp.z, 1.2 + sp.r);
+        for (const h of imWeg) pruefe(h.x, h.z, 1.2 + h.r);
         let ziel = frei < 7.5 ? 0 : frei < 14 ? TEMPO * 0.45 : frei < 22 ? Math.min(c.max, TEMPO) : c.max;
         const gasse = blaulicht && !c.kurve && Math.hypot(c.x - sp.x, c.z - sp.z) < GASSE;
         if (gasse) ziel = 0;

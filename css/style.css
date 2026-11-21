@@ -2,7 +2,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1430; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff;
-  -webkit-user-select: none; user-select: none; touch-action: none; }
+  -webkit-user-select: none; user-select: none; touch-action: none;
+  -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 #bild { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 [hidden] { display: none !important; }
 
@@ -10,13 +11,13 @@ button { font: inherit; color: #fff; background: #2b5fc0; border: 0; border-radi
 button:hover { background: #3a74e0; }
 
 /* Anzeige oben */
-#oben { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 10px 12px; pointer-events: none; }
+#oben { position: fixed; top: env(safe-area-inset-top, 0px); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 10px 12px; pointer-events: none; }
 #links { background: rgba(10, 20, 45, 0.78); border-radius: 12px; padding: 8px 14px; max-width: 60vw; }
 #ortName { font-size: 13px; opacity: 0.75; }
 #ziel { font-size: 18px; font-weight: 600; }
 #rechts { display: flex; align-items: center; gap: 8px; pointer-events: auto; }
 #rechts span { background: rgba(10, 20, 45, 0.78); border-radius: 12px; padding: 10px 12px; font-weight: 600; white-space: nowrap; }
-#rechts button { font-size: 22px; padding: 8px 12px; background: rgba(10, 20, 45, 0.78); }
+#rechts button { font-size: 22px; padding: 8px 12px; min-width: 48px; min-height: 48px; background: rgba(10, 20, 45, 0.78); }
 
 #pfeil { position: fixed; top: 78px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
 #pfeilBild { font-size: 44px; line-height: 1; color: #ffd23a; text-shadow: 0 2px 6px #000; }
@@ -30,9 +31,24 @@ button:hover { background: #3a74e0; }
 /* Knöpfe unten */
 #knoepfe { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; }
 #knoepfe button { font-size: 18px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4); }
-#blaulicht { position: fixed; bottom: 150px; right: 16px; background: #24304f; }
+#blaulicht { position: fixed; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); background: #24304f; min-height: 56px; font-size: 18px; font-weight: 700; }
 #blaulicht.an { background: #1e66ff; box-shadow: 0 0 18px #4a8cff; }
-#fahren { position: fixed; bottom: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; pointer-events: none; }
+#blaulicht.laut { animation: blink 0.5s steps(2) infinite; }
+@keyframes blink { 50% { background: #0f3fb0; box-shadow: 0 0 30px #7fb0ff; } }
+
+/* Point and Click: Leiste mit den vier Tätigkeiten unten links. Die Knöpfe sind groß genug für einen Finger auf dem iPad. */
+#verben { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; z-index: 2; }
+#verben button { width: 76px; height: 76px; padding: 4px; font-size: 13px; font-weight: 600; background: rgba(10, 20, 45, 0.82); border: 3px solid transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+#verben button b { font-size: 30px; line-height: 1; font-weight: 400; }
+#verben button.an { background: #2b5fc0; border-color: #ffd23a; }
+#kLupe { margin-left: 10px; }
+#satz { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(98px + env(safe-area-inset-bottom, 0px)); background: rgba(10, 20, 45, 0.82); border-radius: 10px; padding: 6px 12px; font-size: 17px; font-weight: 600; pointer-events: none; z-index: 2; }
+#marken { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+#marken div { position: absolute; transform: translate(-50%, -150%); background: #ffd23a; color: #1a2440; font-weight: 700; font-size: 14px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+body:not(.imAuto) #knoepfe { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); left: auto; right: calc(16px + env(safe-area-inset-right, 0px)); transform: none; align-items: flex-end; }
+@media (max-width: 760px) { #verben button { width: 58px; height: 58px; font-size: 0; } #verben button b { font-size: 28px; } #satz { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  body:not(.imAuto) #knoepfe { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); } }
+#fahren { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: calc(16px + env(safe-area-inset-left, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; pointer-events: none; }
 #fahren div { display: flex; gap: 10px; pointer-events: auto; }
 #fahren button { min-width: 84px; height: 84px; font-size: 20px; background: rgba(43, 95, 192, 0.7); }
 

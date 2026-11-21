@@ -11,13 +11,19 @@
 //   S.ziel(text, [ort, x, z])         – was als Nächstes zu tun ist (mit Wegweiser)
 //   S.ort(name, x, z)                 – an einen anderen Ort wechseln
 //   S.klang(name)                     – ein Geräusch abspielen (Namen stehen in klang.js)
-//   S.auto(true/false), S.licht(..), S.uhr(..), S.blaulicht(), S.speichern(), await S.ende(..)
+//   S.auto(true/false), S.licht(..), S.uhr(..), S.speichern(), await S.ende(..)
+//   S.blaulicht()                     – 0 = aus, 1 = nur Blaulicht, 2 = Blaulicht mit Sirene · S.blaulichtAn(stufe) schaltet um
+//   S.jagd()                          – wie lief die Verfolgungsfahrt? { rumms: wie oft angestoßen, sirene: lief die Sirene? }
 // So kann dasselbe auch ohne Bildschirm durchgespielt werden (tools/story.mjs).
 
 const OTTO = 'Otto Brandl', SELIN = 'Selin Aydin', FUNK = 'Leitstelle (Frau Petersen)', KIM = 'Kim', HARMS = 'Harms (Waffenkammer)';
 
 export const START = { ort: 'wache', x: 0, z: 3.5, licht: 'tag', uhr: '06:00' };
-export const MAX_PUNKTE = 45;
+export const MAX_PUNKTE = 61;
+
+// Die Verfolgungsfahrt am Vormittag: Wo der Fluchtwagen losfährt, zu welcher Kreuzung zuerst und wo er am Ende festsitzt
+// (der Wendeplatz in der Sackgasse Finkenstieg). Den Weg dazwischen sucht sich jagd.js selbst.
+export const JAGD = { start: [-87.2, 99.4], erst: [-88, 125], ziel: [-348, 589] };
 
 // Was in der Tasche sein kann.
 export const SACHEN = {
@@ -70,7 +76,10 @@ export const AKT = {
     if (!S.hat('angemeldet')) return S.sag(OTTO, 'Steig ein. Und dann meldest du uns über Funk an.');
     if (!S.hat('kitaFertig')) return S.sag(OTTO, S.hat('halter') ? 'Der Halter ist der Bäcker von nebenan. Sprich ihn an – sachlich, aber deutlich.'
       : S.hat('kennz') ? 'Wem gehört der Wagen? Frag die Leitstelle über Funk (📻).' : 'Sieh dir den grauen Wagen an und schreib das Kennzeichen auf.');
-    if (!S.hat('markt')) return S.sag(OTTO, 'Melde der Leitstelle, dass wir hier fertig sind.');
+    if (!S.hat('unfall')) return S.sag(OTTO, 'Melde der Leitstelle, dass wir hier fertig sind.');
+    if (!S.hat('flucht')) return S.sag(OTTO, !S.hat('ersteHilfe') ? 'Die Frau im roten Wagen, Kim. Verletzte zuerst.'
+      : !S.hat('uKennz') ? 'Sprich mit der Zeugin und mit dem Fahrer. Und sieh dir seinen Wagen genau an.' : 'Frag das Kennzeichen über Funk ab (📻). Und bleib zwischen ihm und seiner Fahrertür.');
+    if (!S.hat('jagdFertig')) return S.sag(OTTO, 'In den Wagen, Kim! Blaulicht und Sirene!');
     if (!S.hat('marktFertig')) return S.sag(OTTO, S.hat('opfer') ? 'Grüne Jacke, blauer Rucksack. Schau genau hin, bevor du jemanden ansprichst. Und die Waffe bleibt, wo sie ist.'
       : 'Sprich zuerst mit der Bestohlenen. Wir brauchen eine Beschreibung.');
     if (!S.hat('alarm')) return S.sag(OTTO, 'Komm, zurück zum Wagen.');
@@ -180,7 +189,8 @@ export const AKT = {
     await S.sag(FUNK, 'Leitstelle an Möwe 14: Morgen, Otto. Willkommen an Bord, Kim.');
     await S.sag(FUNK, 'Erster Auftrag: Kita Sonnenhang im Süden der Stadt. Ein Auto blockiert die Ausfahrt.');
     S.flag('angemeldet'); S.punkte(1, 'Über Funk angemeldet');
-    await S.sag(OTTO, 'Du fährst. Pfeiltasten oder die Knöpfe unten. In der Stadt höchstens 50 – Blaulicht nur, wenn es wirklich eilt. Der Pfeil oben zeigt den Weg.');
+    await S.sag(OTTO, 'Du fährst. Pfeiltasten oder die Knöpfe unten. In der Stadt höchstens 50. Der Pfeil oben zeigt den Weg.');
+    await S.sag(OTTO, 'Der Knopf 🚨 hat drei Stufen: aus, nur Blaulicht, Blaulicht mit Sirene. Beides nur, wenn es wirklich eilt. Ein Falschparker eilt nicht.');
     S.ziel('Fahre zur Kita Sonnenhang', ['stadt', -44, 60]);
     S.speichern();
   },
@@ -193,9 +203,35 @@ export const AKT = {
   },
   async f_kita_fertig(S) {
     await S.sag(KIM, 'Möwe 14 an Leitstelle: Einsatz Kita erledigt, die Ausfahrt ist frei.');
-    await S.sag(FUNK, 'Verstanden, Möwe 14. Nächster Auftrag: Diebstahl auf dem Wochenmarkt. Einer Frau wurde das Portemonnaie aus der Tasche gezogen. Der Täter soll noch auf dem Platz sein.');
-    S.flag('markt'); S.punkte(1, 'Einsatz-Ende gemeldet'); S.uhr('09:30');
-    S.ziel('Fahre zum Marktplatz', ['stadt', -40, -1.5]);
+    await S.sag(FUNK, 'Verstanden, Möwe 14. Bleibt gleich dran: Verkehrsunfall in der Marktstraße, südlich der Bäckergasse. Zwei Fahrzeuge, eine Person verletzt. Der Rettungswagen ist alarmiert, ihr seid am nächsten.');
+    S.flag('unfall'); S.punkte(1, 'Einsatz-Ende gemeldet'); S.uhr('08:40');
+    await S.sag(OTTO, 'Das eilt. Drück zweimal auf 🚨: einmal ist nur Blaulicht, zweimal ist Blaulicht mit Sirene. Nur wenn die anderen uns hören, müssen sie Platz machen.');
+    S.ziel('Fahre mit Blaulicht und Sirene zur Unfallstelle in der Marktstraße', ['stadt', -85, 96]);
+    S.speichern();
+  },
+  // Der Halter des dunklen Kombi: Der Wagen ist gestohlen. Der Fahrer hört mit – und flieht.
+  async f_unfall(S) {
+    await S.sag(KIM, 'Möwe 14 an Leitstelle: Halterabfrage. MÖ-TR 388, dunkelblauer Kombi, beteiligt am Unfall Marktstraße.');
+    await S.sag(FUNK, 'Möwe 14, Vorsicht: Das Fahrzeug ist seit heute Nacht als gestohlen gemeldet. Es stand am Güterbahnhof.');
+    S.punkte(2, 'Kennzeichen über Funk abgefragt');
+    S.klang('rumms');
+    await S.sag('', 'Der junge Mann hat mitgehört. Er rammt Otto die Schulter in die Seite, Otto prallt gegen den Kotflügel. Der Mann reißt die Fahrertür auf und greift unter das Lenkrad. Zwei Kabel, ein Funke – der Motor heult auf.');
+    for (;;) {
+      const a = await S.wahl(KIM, 'Der Kombi setzt mit durchdrehenden Reifen zurück. Was tust du?', [
+        'Dich vor den Wagen stellen: „Halt! Polizei!“',
+        'Waffe ziehen und auf die Reifen schießen',
+        'Zur Seite springen, Kennzeichen und Richtung durchgeben, zum Streifenwagen laufen',
+      ]);
+      if (a === 2) break;
+      if (a === 0) await S.sag(OTTO, 'Weg da! Niemand stellt sich vor ein Auto, das flieht. Blech hält man nicht mit dem Körper auf. Was macht man stattdessen?');
+      else { S.flag('waffeFalsch3'); await S.sag(OTTO, 'Nein! Mitten in der Stadt, mit Leuten auf dem Gehweg? Hier wird nicht geschossen. Was macht man stattdessen?'); }
+    }
+    await S.sag('', 'Der Kombi schrammt am roten Wagen entlang und jagt die Marktstraße hinunter nach Süden. Glassplitter rieseln auf den Asphalt.');
+    await S.sag(KIM, 'Möwe 14 an alle: Fahrerflucht nach Unfall! Gestohlener dunkelblauer Kombi, MÖ-TR 388, Marktstraße Richtung Süden. Wir nehmen die Verfolgung auf.');
+    await S.sag(OTTO, 'Mir fehlt nichts, nur die Rippen. Da kommt der Rettungswagen, und Möwe 12 übernimmt die Unfallstelle. In den Wagen, Kim! Blaulicht UND Sirene – jetzt brauchen wir beides.');
+    S.flag('flucht'); S.uhr('09:05');
+    S.notiz('Unfall Marktstraße: Der dunkle Kombi MÖ-TR 388 ist gestohlen (Güterbahnhof). Fahrer hat Otto gestoßen und ist geflohen.');
+    S.ziel('Steig ein und verfolge den dunkelblauen Kombi – mit Blaulicht und Sirene!', null);
     S.speichern();
   },
   async f_beschreibung(S) {
@@ -249,7 +285,124 @@ export const AKT = {
     S.ziel('Melde über Funk: Einsatz erledigt (📻)', null);
   },
 
-  // ------------------------------------------------------------------ Einsatz 2: Taschendieb auf dem Markt
+  // ------------------------------------------------------------------ Einsatz 2: Verkehrsunfall mit Fahrerflucht
+  async z_unfall(S) {
+    await S.sag(OTTO, 'Da vorn. Zwei Wagen, einer halb auf dem Gehweg. Halt mit Abstand dahinter an.');
+    await S.sag(OTTO, 'Die Sirene brauchen wir jetzt nicht mehr. Aber das Blaulicht bleibt an, wenn wir aussteigen: Das ist unsere Absperrung, damit uns keiner hinten reinfährt.');
+    S.ziel('Sichere die Unfallstelle und sieh nach der verletzten Fahrerin', ['stadt', -90.2, 107.3]);
+  },
+  async verletzte(S) {
+    const F = 'Frau Jansen';
+    if (S.hat('ersteHilfe')) return S.sag(F, 'Es geht schon. Mir ist nur schwindelig. Wann kommt denn der Rettungswagen?');
+    if (!S.hat('gesichert')) {
+      S.flag('gesichert');
+      if (S.blaulicht() >= 1) S.punkte(1, 'Unfallstelle mit Blaulicht gesichert');
+      else { await S.sag(OTTO, 'Moment, Kim. Unser Blaulicht ist aus, und wir stehen mitten auf der Fahrbahn. Ich schalte es ein. Beim nächsten Mal denkst du selbst daran.'); S.blaulichtAn(1); }
+    }
+    await S.sag('', 'Die Frau sitzt hinter dem Steuer des roten Wagens, die Tür steht offen. Sie hält sich den Nacken. Der Motor läuft noch, es riecht nach Benzin.');
+    for (;;) {
+      const a = await S.wahl(KIM, 'Was tust du zuerst?', [
+        'Sie am Arm aus dem Wagen ziehen, weg von der Straße',
+        'Erst den anderen Fahrer zur Rede stellen',
+        'Ansprechen, Motor aus, Zündschlüssel ziehen. Sie bleibt sitzen und hält den Kopf still, bis der Rettungswagen da ist',
+      ]);
+      if (a === 2) break;
+      if (a === 0) await S.sag(OTTO, 'Halt! Sie hat Schmerzen im Nacken. So jemanden bewegt man nur, wenn der Wagen brennt. Nochmal.');
+      else await S.sag(OTTO, 'Der läuft uns nicht weg. Menschen zuerst, Kim. Nochmal.');
+    }
+    S.punkte(2, 'Erste Hilfe an der Unfallstelle');
+    await S.sag(F, 'Ich habe für die Radfahrerin gebremst, ganz normal. Und dann hat es von hinten gekracht. Der muss gerast sein.');
+    await S.sag(KIM, 'Möwe 14 an Leitstelle: Unfallstelle Marktstraße gesichert. Eine Verletzte, ansprechbar, Schmerzen im Nacken. Kraftstoff läuft aus.');
+    await S.sag(FUNK, 'Verstanden. Rettungswagen in vier Minuten, die Feuerwehr kommt wegen des Benzins.');
+    S.flag('ersteHilfe');
+    S.notiz('Unfall Marktstraße: Frau Jansen (roter Wagen) hat für eine Radfahrerin gebremst, der dunkle Kombi ist hinten aufgefahren. Sie hat Schmerzen im Nacken.');
+    S.ziel('Befrage die Zeugin und den Fahrer des dunklen Kombi', null);
+  },
+  async zeugin(S) {
+    await S.sag('Radfahrerin', 'Ich wollte hier über die Straße. Die Frau im roten Wagen hat für mich gehalten. Der Dunkle dahinter kam viel zu schnell – der hat nicht einmal versucht zu bremsen.');
+    await S.sag('Radfahrerin', 'Und danach wollte er sofort weiter! Aber sein Motor ist nicht mehr angesprungen. Seitdem steht er da und schaut dauernd die Straße hinunter.');
+    if (!S.hat('zeugin')) { S.flag('zeugin'); S.punkte(1, 'Zeugin befragt'); S.notiz('Zeugin (Radfahrerin): Der dunkle Kombi war viel zu schnell und hat nicht gebremst. Der Fahrer wollte gleich weiterfahren.'); }
+  },
+  async unfallfahrer(S) {
+    if (!S.hat('ersteHilfe')) return S.sag(OTTO, 'Erst die Verletzte, Kim. Der hier kann stehen.');
+    if (S.hat('uPapiere')) return S.sag('Junger Mann', 'Kann ich jetzt endlich los? Ich hab doch gesagt, die Papiere liegen zu Hause.');
+    for (;;) {
+      const a = await S.wahl(KIM, 'Wie sprichst du den Fahrer an?', [
+        '„Guten Morgen. Sind Sie verletzt? … Dann bitte Führerschein und Fahrzeugschein.“',
+        '„Sind Sie eigentlich wahnsinnig? Sie hätten die Frau umbringen können!“',
+        '„Sie können gehen. Wir haben ja Ihr Kennzeichen.“',
+      ]);
+      if (a === 0) break;
+      if (a === 1) await S.sag(OTTO, 'Sachlich, Kim. Was er falsch gemacht hat, klärt der Bericht, nicht dein Ärger. Nochmal.');
+      else await S.sag(OTTO, 'Bei einem Unfall mit einer Verletzten geht keiner, bevor wir wissen, wer er ist. Nochmal.');
+    }
+    await S.sag('Junger Mann', 'Mir fehlt nichts. Papiere … hab ich nicht dabei. Liegen zu Hause. Ist doch nur Blech, oder? Kann ich los?');
+    await S.sag('', 'Er ist höchstens zwanzig. Er sieht dich nicht an. Sein Blick geht immer wieder zu seinem Wagen und die Straße hinunter.');
+    S.flag('uPapiere'); S.punkte(1, 'Fahrer richtig angesprochen');
+    await S.sag(OTTO, 'Keine Papiere, und er hat es eilig. Sieh dir seinen Wagen an, Kim. Genau.');
+    S.ziel('Sieh dir den dunklen Kombi genau an (👁)', null);
+  },
+  async unfallwagen(S) {
+    await S.sag('', 'Ein dunkelblauer Kombi. Die Front ist eingedrückt, darunter tropft Kühlwasser. Kennzeichen: MÖ-TR 388.');
+    await S.sag('', 'Du schaust durch die Seitenscheibe: Die Verkleidung unter dem Lenkrad ist abgerissen, zwei Kabel hängen heraus. Im Zündschloss steckt kein Schlüssel.');
+    if (S.hat('uKennz')) return;
+    S.flag('uKennz'); S.punkte(1, 'Genau hingesehen');
+    S.notiz('Dunkelblauer Kombi MÖ-TR 388: kein Schlüssel im Zündschloss, Kabel hängen unter dem Lenkrad heraus.');
+    await S.sag(OTTO, '(leise) Kurzgeschlossen. Sag ihm nichts. Erst die Abfrage über Funk (📻). Und ich stelle mich neben ihn.');
+    S.ziel('Frage über Funk das Kennzeichen MÖ-TR 388 ab (📻)', null);
+  },
+  async roterwagen(S) {
+    await S.sag('', S.hat('flucht') ? 'Der rote Wagen wartet auf den Abschleppdienst. Heck eingedrückt, an der Seite eine lange frische Schramme in Dunkelblau.'
+      : 'Ein roter Wagen, halb auf dem Gehweg. Das Heck ist eingedrückt, der Kofferraum steht einen Spalt offen. Darunter breitet sich eine schillernde Pfütze aus.');
+  },
+  // Die Verfolgung ist zu Ende: Der Fluchtwagen sitzt in der Sackgasse fest. (Das Spiel ruft diese Stelle von selbst auf.)
+  async jagd_ende(S) {
+    if (S.hat('jagdFertig')) return;
+    await S.sag('', 'Finkenstieg – eine Sackgasse. Der Kombi rutscht über den Wendeplatz, schlägt mit dem Vorderrad gegen den Bordstein und bleibt quer stehen. Aus der Motorhaube steigt Dampf.');
+    for (;;) {
+      const a = await S.wahl(KIM, 'Er sitzt noch im Wagen. Wie gehst du vor?', [
+        'Bis an seine Fahrertür heranfahren und sie aufreißen',
+        'Aussteigen und mit gezogener Waffe auf den Wagen zugehen',
+        'Den Streifenwagen quer stellen, hinter der offenen Tür bleiben: „Polizei! Motor aus! Hände aus dem Fenster!“',
+      ]);
+      if (a === 2) break;
+      if (a === 0) await S.sag(OTTO, 'Zu nah. Du weißt nicht, was er vorhat. Abstand halten, Deckung nehmen, ansprechen. Nochmal.');
+      else { S.flag('waffeFalsch3'); await S.sag(OTTO, 'Siehst du bei ihm eine Waffe? Ich auch nicht. Ein Autodieb, der festsitzt. Die Pistole bleibt im Holster. Nochmal.'); }
+    }
+    await S.sag('', 'Sekundenlang passiert nichts. Dann fliegt die Fahrertür auf. Der Junge rennt los, auf den Gartenzaun am Ende der Straße zu – und knickt nach drei Schritten weg. Er hat sich beim Aufprall das Knie angeschlagen.');
+    for (;;) {
+      const a = await S.wahl(KIM, 'Er liegt halb auf dem Rasen und versucht hochzukommen. Was tust du?', [
+        'Dich auf ihn werfen und ihm das Knie in den Rücken drücken',
+        'Arme auf den Rücken, Handschellen, nach Waffen abtasten: „Sie sind vorläufig festgenommen.“ Dann nach dem Knie sehen',
+        'Pfefferspray, sicher ist sicher',
+      ]);
+      if (a === 1) break;
+      if (a === 0) await S.sag(OTTO, 'Er liegt doch schon. So viel Zwang wie nötig und kein bisschen mehr. Nochmal.');
+      else await S.sag(OTTO, 'Er greift dich nicht an, er will nur weg und kann nicht. Das Spray ist für Angriffe. Nochmal.');
+    }
+    S.klang('schloss');
+    S.punkte(3, 'Flüchtigen nach Vorschrift gestellt');
+    if (!S.hat('waffeFalsch3')) S.punkte(1, 'Die Waffe im Holster gelassen');
+    const wie = S.jagd();
+    if (wie.rumms === 0) S.punkte(2, 'Verfolgt, ohne etwas zu rammen');
+    if (wie.sirene) S.punkte(1, 'Mit Blaulicht und Sirene verfolgt');
+    else await S.sag(OTTO, 'Eins noch: Bei einer Verfolgung läuft die Sirene. Die Leute müssen hören, dass da etwas angerast kommt. Blaulicht allein sieht keiner, der um die Ecke biegt.');
+    await S.sag('', 'Die Handschellen rasten ein. Der Junge heißt Timo Reents, neunzehn Jahre, kein Führerschein. Er zittert am ganzen Körper.');
+    await S.sag('Timo', 'Ich hab den nicht geklaut! Also … nicht für mich. Einer hat mir fünfzig Euro gegeben. Ich sollte den Wagen heute Abend am Ostring abstellen, Schlüssel auf den Hinterreifen, fertig.');
+    await S.sag(KIM, 'Wer?');
+    await S.sag('Timo', 'Kenn ich nicht. So ein Großer mit Lederjacke. Der hat beim Gehen ein Bein nachgezogen. Mit dem legt man sich nicht an.');
+    S.notiz('Timo Reents (19) sollte den gestohlenen Kombi heute Abend am Ostring abstellen, für 50 Euro. Auftraggeber: großer Mann, Lederjacke, zieht ein Bein nach.');
+    await S.sag(OTTO, 'Ein gestohlener Wagen, der abends am Ostring bereitstehen soll. Das ist kein Jugendstreich, Kim. Schreib es genau so in den Bericht.');
+    await S.sag('', 'Möwe 12 nimmt Timo mit, ein Abschleppwagen holt den Kombi. Du merkst erst jetzt, wie fest du das Lenkrad gehalten hast.');
+    S.blaulichtAn(0);
+    await S.sag(FUNK, 'Leitstelle an Möwe 14: Gute Arbeit. Wenn ihr frei seid – Diebstahl auf dem Wochenmarkt. Einer Frau wurde das Portemonnaie aus der Tasche gezogen, der Täter soll noch auf dem Platz sein.');
+    await S.sag(OTTO, 'Blaulicht ist aus. Zum Markt fahren wir ganz normal.');
+    S.flag('jagdFertig'); S.flag('markt'); S.uhr('10:15');
+    S.ziel('Fahre zum Marktplatz', ['stadt', -40, -1.5]);
+    S.speichern();
+  },
+
+  // ------------------------------------------------------------------ Einsatz 3: Taschendieb auf dem Markt
   async z_markt(S) {
     await S.sag(OTTO, 'Der Markt ist gleich hier rechts. Steig aus, den Rest gehen wir zu Fuß. Die Bestohlene wartet in der Mitte.');
     await S.sag(OTTO, 'Und merk dir für gleich: Ein voller Markt ist der schlechteste Ort der Welt für eine gezogene Waffe.');
@@ -336,15 +489,25 @@ export const AKT = {
 
   // ------------------------------------------------------------------ Abend: Alarm im Museum
   async eingestiegen(S) {
+    // Vormittags: Der Fluchtwagen ist unterwegs – die Verfolgung beginnt.
+    if (S.hat('flucht') && !S.hat('jagdFertig')) {
+      if (S.hat('jagdLos')) return;
+      S.flag('jagdLos');
+      S.ziel('Verfolge den dunkelblauen Kombi – mit Blaulicht und Sirene!', null);
+      return S.sag(OTTO, 'Dranbleiben, aber nicht rammen! Wir wollen ihn stellen, nicht von der Straße schieben. Der gelbe Pfeil zeigt auf ihn. Ich gebe über Funk durch, wo er langfährt.');
+    }
     if (!S.hat('abend') || S.hat('alarm')) return;
     S.flag('alarm'); S.uhr('21:40');
     await S.sag(FUNK, 'Leitstelle an alle Wagen: Alarm im Stadtmuseum am Ostring! Möwe 14, können Sie übernehmen?');
-    await S.sag(OTTO, 'Wahrscheinlich wieder die Anlage. Aber wir fahren jeden Alarm an, als wäre er echt. Blaulicht an, Kim! (🚨)');
-    S.ziel('Fahre mit Blaulicht zum Stadtmuseum', ['stadt', 80, 30]);
+    await S.sag(OTTO, 'Wahrscheinlich wieder die Anlage. Aber wir fahren jeden Alarm an, als wäre er echt. Blaulicht an, Kim – aber ohne Sirene (🚨 einmal drücken). Wer da einbricht, soll uns nicht kommen hören.');
+    S.ziel('Fahre mit Blaulicht, aber ohne Sirene zum Stadtmuseum', ['stadt', 80, 30]);
   },
   async z_museum(S) {
     S.licht('nacht');
-    if (S.blaulicht()) S.punkte(1, 'Mit Blaulicht zum Alarm');
+    const blau = S.blaulicht();
+    if (blau) S.punkte(1, 'Mit Blaulicht zum Alarm');
+    if (blau === 1) S.punkte(1, 'Leise angefahren, ohne Sirene');
+    else if (blau === 2) { await S.sag(OTTO, 'Sirene aus, Kim! Jetzt weiß das ganze Viertel, dass wir kommen – und der da drin auch.'); S.blaulichtAn(1); }
     await S.sag(OTTO, 'Wir sind da. Siehst du das? Die Tür steht offen, drinnen ist alles dunkel. Das ist kein Fehlalarm. Taschenlampe raus, und bleib hinter mir.');
     S.ziel('Geh ins Museum (Tür an der Straßenseite)', ['stadt', 74, 30]);
   },
@@ -396,6 +559,7 @@ export const AKT = {
     }
     S.punkte(2, 'Im Dunkeln richtig reagiert');
     await S.sag('', 'Für eine Sekunde steht er im Lichtkegel: groß, dunkle Lederjacke, das Gesicht weggedreht. Dann ist er draußen. Er läuft seltsam – er zieht das rechte Bein nach.');
+    await S.sag('', 'Lederjacke. Zieht ein Bein nach. Genau so hat Timo heute Morgen den Mann beschrieben, der den Wagen am Ostring bestellt hat.');
     await S.sag(KIM, 'Möwe 14 an alle: Täter flüchtig vom Stadtmuseum Richtung Wallanlagen! Männlich, groß, dunkle Lederjacke, hinkt rechts.');
     await S.sag(FUNK, 'Verstanden, Möwe 14. Alle Wagen: Fahndung im Bereich Ostring und Wall. Bist du verletzt, Kim?');
     await S.sag(KIM, 'Nur die Schulter.');
@@ -478,7 +642,8 @@ export function funk(S) {
   if (S.hat('imWagen') || S.wo() === 'stadt') {
     if (!S.hat('angemeldet')) o.push({ text: 'Möwe 14 einsatzbereit melden', akt: 'f_anmelden' });
     if (S.hat('kennz') && !S.hat('halter')) o.push({ text: 'Kennzeichen MÖ-KB 512 abfragen', akt: 'f_kennz' });
-    if (S.hat('kitaFertig') && !S.hat('markt')) o.push({ text: 'Einsatz Kita erledigt melden', akt: 'f_kita_fertig' });
+    if (S.hat('kitaFertig') && !S.hat('unfall')) o.push({ text: 'Einsatz Kita erledigt melden', akt: 'f_kita_fertig' });
+    if (S.hat('uKennz') && !S.hat('flucht')) o.push({ text: 'Kennzeichen MÖ-TR 388 abfragen', akt: 'f_unfall' });
     if (S.hat('opfer') && !S.hat('beschr') && !S.hat('marktFertig')) o.push({ text: 'Beschreibung des Taschendiebs durchgeben', akt: 'f_beschreibung' });
   }
   return o;
@@ -487,6 +652,7 @@ export function funk(S) {
 // Stellen in der Stadt, an denen von selbst etwas passiert, wenn man hinkommt (jede nur einmal).
 export const ZONEN = [
   { id: 'zk', ort: 'stadt', x: -44, z: 60, r: 14, akt: 'z_kita', wenn: 'angemeldet', bis: 'kitaFertig' },
+  { id: 'zu', ort: 'stadt', x: -85, z: 96, r: 20, akt: 'z_unfall', wenn: 'unfall', bis: 'flucht' },
   { id: 'zm', ort: 'stadt', x: -40, z: -1.5, r: 12, akt: 'z_markt', wenn: 'markt', bis: 'marktFertig' },
   { id: 'zmu', ort: 'stadt', x: 80, z: 30, r: 12, akt: 'z_museum', wenn: 'alarm' },
 ];
@@ -498,6 +664,8 @@ export const DURCHLAUF = [
   ['check', 'c_vorn', []], ['check', 'c_reifen1', []], ['check', 'c_reifen2', []], ['check', 'c_heck', []],
   ['einsteigen_hof', null, []], ['f_anmelden', null, []], ['z_kita', null, []],
   ['erzieherin', null, []], ['falschparker', null, []], ['f_kennz', null, []], ['baecker', null, [1, 0, 0]], ['f_kita_fertig', null, []],
+  ['z_unfall', null, []], ['verletzte', null, [0, 2]], ['zeugin', null, []], ['unfallfahrer', null, [1, 0]], ['unfallwagen', null, []], ['roterwagen', null, []],
+  ['f_unfall', null, [1, 2]], ['eingestiegen', null, []], ['jagd_ende', null, [1, 2, 0, 1]],
   ['z_markt', null, []], ['opfer', null, [1, 0]], ['f_beschreibung', null, []],
   ['verdacht', 'w1', [], true], ['verdacht', 'w2', [1, 2, 0, 1, 0, 1]],
   ['eingestiegen', null, []], ['z_museum', null, []], ['museumstuer', null, []], ['brinkmann', null, [0, 2]], ['thomsen', null, []],
@@ -507,6 +675,6 @@ export const DURCHLAUF = [
 // Die Antworten, mit denen es beim ersten Versuch klappt (für die Rechnung der besten Punktzahl).
 // Steht eine Aktion zweimal im Durchlauf, sind es zwei Listen hintereinander.
 export const BESTE = {
-  harms: [[1, 1]], baecker: [[0, 0]], opfer: [[0]], 'verdacht:w2': [[2, 1, 1]],
+  harms: [[1, 1]], baecker: [[0, 0]], verletzte: [[2]], unfallfahrer: [[0]], f_unfall: [[2]], jagd_ende: [[2, 1]], opfer: [[0]], 'verdacht:w2': [[2, 1, 1]],
   brinkmann: [[2], [0]], 'spur:spur_kratzer': [[2]], otto: [[1]],
 };

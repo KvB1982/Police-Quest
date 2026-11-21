@@ -18,6 +18,7 @@ import { baueUmland } from './umland.js';
 import { neuerVerkehr } from './verkehr.js';
 import { baueVerkehr } from './verkehrbau.js';
 import { woBinIch, UFER, imHindernis } from './stadtplan.js';
+import * as JAGD from './jagd.js';
 
 // ------------------------------------------------------------------ Zahlen zum Einstellen
 const LAUF_TEMPO = 4.6;          // Meter pro Sekunde zu Fuß
@@ -25,6 +26,11 @@ const NAH = 2.1;                 // so nah muss man an etwas heran, um es zu ben
 const LAMPE_WINKEL = 0.8;        // halbe Breite des Lichtkegels (Bogenmaß)
 const GAS = 7, BREMSE = 14, ROLLEN = 1.6;      // Auto: schneller werden, bremsen, ausrollen (m/s²)
 const V_MAX = 19, V_MAX_BLAU = 26;             // Höchsttempo ohne und mit Blaulicht (m/s)
+// Das Blaulicht hat drei Stufen: 0 = aus, 1 = nur Blaulicht (leise, z. B. zum Absichern), 2 = Blaulicht mit Sirene.
+// Schnell fahren darf man mit Stufe 1 und 2. Platz machen die anderen Autos aber nur, wenn sie die Sirene hören (Stufe 2).
+const AUS = 0, BLAU = 1, SIRENE = 2;
+const TREFF_MAUS = 46, TREFF_FINGER = 64;      // so nah (in Bildpunkten) muss ein Klick oder Fingertipp an einem Ding sein, damit es gemeint ist
+const MARKEN_ZEIT = 4;                         // so lange zeigt die Lupe 🔍 die Namen aller Dinge (Sekunden)
 const ZU_SCHNELL = 58;           // ab so vielen km/h ohne Blaulicht schimpft Otto
 const SPEICHER = 'blaulicht.stand.v1';
 
@@ -42,7 +48,7 @@ const SCHNITT_VOR = 0.5;         // zu Fuß wird von der Stadt alles weggeschnit
 let Z = neuerStand();
 function neuerStand() {
   return { flags: {}, punkte: 0, sachen: [], notizen: [], ziel: null, ort: STORY.START.ort, licht: STORY.START.licht, uhr: STORY.START.uhr,
-    imAuto: false, blaulicht: false, auto: { x: 0, z: 0, h: 0, v: 0 }, sp: { x: STORY.START.x, z: STORY.START.z } };
+    imAuto: false, blaulicht: AUS, auto: { x: 0, z: 0, h: 0, v: 0 }, sp: { x: STORY.START.x, z: STORY.START.z } };
 }
 const spieler = { x: 0, z: 0, h: Math.PI, tap: null, tempo: 0 };
 let welt = null;
@@ -90,7 +96,11 @@ const wagen = autoModell('#f4f4f4', true);
 const zielSaeule = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 120, 20, 1, true),
   new THREE.MeshBasicMaterial({ color: '#ffd23a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
 kim.traverse(o => { if (o.isMesh) o.castShadow = true; }); ladePolizist(kim); wagen.traverse(o => { if (o.isMesh) o.castShadow = true; });
-szene.add(kim, wagen, zielSaeule);
+// Für die Verfolgungsfahrt: der Fluchtwagen (man sieht ihn nur, wenn die Geschichte ihn braucht)
+const fluchtwagen = autoModell('#1c2333');
+fluchtwagen.visible = false; fluchtwagen.traverse(o => { if (o.isMesh) o.castShadow = true; });
+let jagd = null;
+szene.add(kim, wagen, zielSaeule, fluchtwagen);
 
 function groesse() {
   renderer.setSize(innerWidth, innerHeight, false);
@@ -163,9 +173,12 @@ const S = {
   ort(name, x, z) { ortLaden(name, x, z); KLANG.spiel('tuer'); anzeigen(); },
   klang: name => KLANG.spiel(name),
   auto(an) { Z.imAuto = an; if (an) Z.auto = { x: spieler.x, z: spieler.z, h: -Math.PI / 2, v: 0 }; sichtbarkeit(); kameraSetzen(1); },
+  imWagen: () => Z.imAuto,
   licht: lichtSetzen,
   uhr(t) { Z.uhr = t; anzeigen(); },
-  blaulicht: () => Z.blaulicht,
+  blaulicht: () => Z.blaulicht,                    // 0 = aus, 1 = nur Blaulicht, 2 = Blaulicht mit Sirene
+  blaulichtAn: stufe => blaulichtSetzen(stufe),
+  jagd: () => JAGD.bilanz(jagd),                   // wie lief die Verfolgung? { rumms, sirene }
   speichern() { Z.sp = { x: spieler.x, z: spieler.z }; try { localStorage.setItem(SPEICHER, JSON.stringify(Z)); } catch (e) { /* kein Speicher: dann eben nicht */ } },
   ende: (titel, text) => UI.ende(titel, text, Z.punkte, STORY.MAX_PUNKTE, Z.notizen),
 };
@@ -187,7 +200,7 @@ function anzeigen() {
 let schrittZeit = 0;
 function geraeusche(dt) {
   const stadt = Z.ort === 'stadt', nah = (x, z, weit) => Math.max(0, 1 - abstand(spieler.x, spieler.z, x, z) / weit);
-  KLANG.schleife('sirene', Z.blaulicht ? 1 : 0);
+  KLANG.schleife('sirene', Z.blaulicht === SIRENE ? 1 : 0);
   KLANG.schleife('motor', Z.imAuto ? 0.6 + Math.abs(Z.auto.v) / 40 : 0, 0.8 + Math.abs(Z.auto.v) / 14);
   KLANG.schleife('markt', stadt && Z.licht === 'tag' ? nah(-40, -30, 60) : 0);
   KLANG.schleife('moewen', stadt && Z.licht !== 'nacht' ? 0.25 + Math.max(0, 1 - (spieler.z - UFER) / 160) * 0.75 : 0);      // am Wasser lauter
@@ -221,7 +234,8 @@ function moeglich() {
 
 function aussteigen() {
   const a = Z.auto;
-  Z.imAuto = false; kameraSetzen(0.6); a.v = 0; blaulichtSetzen(false);
+  // Beim Aussteigen geht die Sirene aus. Das Blaulicht bleibt an, wenn es an war: So sichert der Wagen eine Unfallstelle.
+  Z.imAuto = false; kameraSetzen(0.6); a.v = 0; if (Z.blaulicht === SIRENE) blaulichtSetzen(BLAU);
   spieler.x = a.x + Math.cos(a.h) * 2; spieler.z = a.z - Math.sin(a.h) * 2; spieler.h = a.h;
   [spieler.x, spieler.z] = schieben(spieler.x, spieler.z, 0.4);
   for (const o of welt.objekte) if (o.def.folgt) { o.x = a.x - Math.cos(a.h) * 2; o.z = a.z + Math.sin(a.h) * 2; }
@@ -229,9 +243,14 @@ function aussteigen() {
 }
 function einsteigen() { Z.imAuto = true; spieler.tap = null; sichtbarkeit(); tu('eingestiegen'); }
 
-function blaulichtSetzen(an) {
-  Z.blaulicht = an;
-  document.getElementById('blaulicht').classList.toggle('an', an);
+function blaulichtSetzen(stufe) {
+  Z.blaulicht = stufe === true ? SIRENE : stufe || AUS;
+  UI.blaulicht(Z.blaulicht);
+}
+// Der Knopf 🚨 und die Taste B schalten reihum: aus → nur Blaulicht → Blaulicht mit Sirene → aus
+function blaulichtWeiter() {
+  blaulichtSetzen((Z.blaulicht + 1) % 3);
+  UI.toast(['Blaulicht aus', 'Nur Blaulicht – ohne Sirene', 'Blaulicht mit Sirene'][Z.blaulicht]);
 }
 
 async function funkAuf() {
@@ -278,6 +297,10 @@ function schieben(x, z, r) {
     if (!c.da) continue;
     const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), min = r + 1.1;
     if (d < min && d > 0.001) { x = c.x + dx / d * min; z = c.z + dz / d * min; }
+  }
+  if (fluchtwagen.visible && welt.stadt) {       // der Fluchtwagen auch
+    const dx = x - fluchtwagen.position.x, dz = z - fluchtwagen.position.z, d = Math.hypot(dx, dz), min = r + 1.3;
+    if (d < min && d > 0.001) { x = fluchtwagen.position.x + dx / d * min; z = fluchtwagen.position.z + dz / d * min; }
   }
   for (let runde = 0; runde < 2; runde++) for (const q of imWeg) {
     // Steht das Hindernis schräg (q.o), rechnen wir kurz so, als stünde es gerade: Die Stelle wird in "seine" Richtung gedreht und danach zurück.
@@ -367,7 +390,7 @@ function zuFuss(dt) {
   if (vx || vz) spieler.tap = null;
   else if (spieler.tap) {
     const t = spieler.tap;
-    if (t.obj && erreichbar(t.obj)) { spieler.tap = null; tu(t.obj.def.akt, t.obj.def); return; }
+    if (t.obj && nahGenug(t.obj)) { spieler.tap = null; benutze(t.obj); return; }
     while (t.weg.length && abstand(spieler.x, spieler.z, t.weg[0][0], t.weg[0][1]) < 0.3) t.weg.shift();
     if (!t.weg.length || (t.zeit += dt) > 60) spieler.tap = null;
     else { const dx = t.weg[0][0] - spieler.x, dz = t.weg[0][1] - spieler.z, d = Math.hypot(dx, dz); vx = dx / d; vz = dz / d; }
@@ -394,7 +417,10 @@ function fahren(dt) {
   [a.x, a.z] = schieben(zx, zz, 1.5);
   if (abstand(zx, zz, a.x, a.z) > 0.02) {       // angestoßen
     a.v *= -0.25;
-    if (Math.abs(vorher) > 5 && zeit > rummsZeit) { rummsZeit = zeit + 4; KLANG.spiel('rumms'); S.punkte(-1, 'Rumms! Vorsichtig fahren'); }
+    if (Math.abs(vorher) > 5 && zeit > rummsZeit) { rummsZeit = zeit + 4; KLANG.spiel('rumms'); 
+      // Bei einer Verfolgung kostet ein Rumms keinen Punkt – aber den Bonus für sauberes Fahren gibt es dann nicht mehr.
+      if (jagd && !jagd.fertig && Z.flags.jagdLos) { jagd.rumms++; UI.toast('Rumms! Otto: „Ruhig bleiben, Kim!“'); } else S.punkte(-1, 'Rumms! Vorsichtig fahren');
+    }
   }
   const kmh = Math.abs(a.v) * 3.6;
   zuSchnellZeit = (!Z.blaulicht && kmh > ZU_SCHNELL) ? zuSchnellZeit + dt : 0;
@@ -453,7 +479,11 @@ function stadtSchritt(dt) {
   sonne.position.set(spieler.x + himmel.sonneRichtung.x * 300, Math.max(60, himmel.sonneRichtung.y * 300), spieler.z + himmel.sonneRichtung.z * 300);
   sonne.target.position.set(spieler.x, 0, spieler.z);
   himmel.schritt(dt, kamera); umland.schritt(dt);
-  verkehr.schritt(dt, { x: spieler.x, z: spieler.z, r: Z.imAuto ? 1.2 : 0.4 }, Z.imAuto && Z.blaulicht);
+  // Platz machen die anderen nur bei Blaulicht MIT Sirene. Vor einer Unfallstelle und hinter dem Fluchtwagen bremsen sie.
+  const imWeg = welt.objekte.filter(o => o.da && o.def.verkehr).map(o => ({ x: o.def.x, z: o.def.z, r: 1.3 }));
+  if (fluchtwagen.visible) imWeg.push({ x: fluchtwagen.position.x, z: fluchtwagen.position.z, r: 1.3 });
+  if (!Z.imAuto) imWeg.push({ x: Z.auto.x, z: Z.auto.z, r: 1.3 });       // dein abgestellter Streifenwagen
+  verkehr.schritt(dt, { x: spieler.x, z: spieler.z, r: Z.imAuto ? 1.2 : 0.4 }, Z.imAuto && Z.blaulicht === SIRENE, imWeg);
   verkehrBild.schritt();
   for (const s of welt.hausSchilder) s.visible = abstand(s.position.x, s.position.z, spieler.x, spieler.z) < 150;
   if (++bildNr % 2 === 0) KARTE.radar(kartenStand());
@@ -505,9 +535,11 @@ function schritt(dt) {
   }
   kameraSetzen(1 - Math.exp(-dt * (Z.imAuto ? 4 : 7)));
   if (welt.stadt) stadtSchritt(dt);
+  jagdLauf(dt, frei);
   wegweiser();
   UI.knoepfe(moeglich(), k => k.tun());
   UI.fahrKnoepfe(Z.imAuto);
+  markenZeigen();
 }
 
 // ------------------------------------------------------------------ Steuerung
@@ -521,27 +553,132 @@ addEventListener('keydown', e => {
   if (beschaeftigt) return;
   if (k === 'e' || k === 'Enter') { const m = moeglich(); if (m.length) m[0].tun(); }
   else if (k === 'f') funkAuf(); else if (k === 'n') notizbuchAuf(); else if (k === 't') tascheAuf();
-  else if (k === 'b' && Z.imAuto) blaulichtSetzen(!Z.blaulicht);
+  else if (k === 'b' && Z.imAuto) blaulichtWeiter();
   else if (k === 'm') karteAuf();
+  else if (k === 'h') markenBis = zeit + MARKEN_ZEIT;
+  else if (!Z.imAuto && VERB_TASTE[k]) verbSetzen(VERB_TASTE[k]);
 });
 addEventListener('keyup', e => { const k = e.key.length === 1 ? e.key.toLowerCase() : e.key; if (TASTE[k]) tasten[TASTE[k]] = false; });
 
-// Tippen oder Klicken auf den Boden: Die Figur läuft dorthin. Tippt man auf ein Ding oder eine Person, benutzt sie es dort gleich.
+// ------------------------------------------------------------------ Point and Click (wie in einem klassischen Adventure)
+// Unten links stehen vier Tätigkeiten: Gehen, Ansehen, Reden, Benutzen. Man wählt eine aus und tippt dann auf ein Ding,
+// eine Person oder auf den Boden. Die Figur läuft von selbst hin und tut es. Das geht mit der Maus genauso wie mit dem Finger
+// auf dem iPad – deshalb hängt nichts davon ab, dass man mit dem Zeiger über etwas "schwebt".
+const VERBEN = { geh: ['🚶', 'Gehen'], sieh: ['👁', 'Ansehen'], rede: ['💬', 'Reden'], nimm: ['✋', 'Benutzen'] };
+const VERB_TASTE = { 1: 'geh', 2: 'sieh', 3: 'rede', 4: 'nimm' };
+let verb = 'geh', markenBis = 0, markenAn = false;
+const wagenDing = { wagen: true };       // der Streifenwagen in der Stadt ist auch etwas zum Anklicken
+
+function verbSetzen(v) { verb = v; UI.verb(v); UI.satz(`${VERBEN[v][0]} ${VERBEN[v][1]}`); }
+// Welche Tätigkeit passt zu einem Ding? Leute spricht man an, Dinge benutzt man – außer in daten.js steht verb: 'sieh'.
+const verbVon = o => o.wagen ? 'nimm' : o.def.verb || (o.typ === 'leut' ? 'rede' : 'nimm');
+const nameVon = o => o.wagen ? 'Streifenwagen Möwe 14' : o.def.name;
+const ortVon = o => o.wagen ? [Z.auto.x, Z.auto.z] : [o.x ?? o.def.x, o.z ?? o.def.z];
+const nahGenug = o => o.wagen ? abstand(spieler.x, spieler.z, Z.auto.x, Z.auto.z) < 3.6 : erreichbar(o);
+function benutze(o) { if (o.wagen) einsteigen(); else tu(o.def.akt, o.def); }
+
+// Alles, was man gerade antippen kann. Spuren im Dunkeln zählen erst, wenn die Taschenlampe darauf zeigt – sonst wäre das Suchen zu leicht.
+function antippbar() {
+  if (!welt || Z.imAuto) return [];
+  const l = welt.objekte.filter(o => o.da && o.def.name && (o.def.akt || o.def.sieh) && (!o.def.licht || erreichbar(o)));
+  if (Z.ort === 'stadt') l.push(wagenDing);
+  return l;
+}
+// Wo ist ein Ding auf dem Bildschirm? Zurück kommt [x, y] in Bildpunkten oder null, wenn es hinter der Kamera liegt.
+const bildOrt = new THREE.Vector3();
+function aufSchirm(o) {
+  const [x, z] = ortVon(o);
+  bildOrt.set(x, o.typ === 'leut' ? 1.2 : 0.9, z).project(kamera);
+  return bildOrt.z > 1 ? null : [(bildOrt.x + 1) / 2 * innerWidth, (1 - bildOrt.y) / 2 * innerHeight];
+}
+// Welches Ding liegt unter dem Zeiger oder Finger? Gemessen wird auf dem Bildschirm – so trifft man auch mit einem dicken Finger.
+function unterZeiger(px, py, weit) {
+  let best = null, bd = weit;
+  for (const o of antippbar()) {
+    const p = aufSchirm(o); if (!p) continue;
+    const d = Math.hypot(p[0] - px, p[1] - py) / (o.wagen || o.def.art === 'auto' ? 1.7 : 1);       // Autos sind groß
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
+}
+// Zu einem Ding hinlaufen. tun = true: dort gleich benutzen.
+function hinlaufen(o, tun) {
+  if (tun && nahGenug(o)) return benutze(o);
+  const [x, z] = ortVon(o), weg = wegSuchen(spieler.x, spieler.z, x, z);
+  spieler.tap = weg ? { weg, obj: tun ? o : null, zeit: 0 } : null;
+}
+// Etwas nur ansehen: ein kurzer Satz, ohne hinzulaufen.
+async function ansehen(o) {
+  if (beschaeftigt) return;
+  const text = o.wagen ? 'Dein Streifenwagen, Funkname Möwe 14. Blau-silber, mit Blaulicht auf dem Dach. Otto hat ihn heute Morgen noch gewaschen.'
+    : o.def.sieh || (o.typ === 'leut' ? `Das ist ${o.def.name}.` : `${o.def.name}. Nichts Auffälliges.`);
+  beschaeftigt = true; spieler.tap = null;
+  try { await UI.dialog('', text); } finally { beschaeftigt = false; }
+}
+function klickAuf(o) {
+  const passt = verbVon(o);
+  UI.satz(`${VERBEN[verb][0]} ${VERBEN[verb][1]}: ${nameVon(o)}`);
+  if (verb === 'geh') return hinlaufen(o, false);
+  if (verb === passt) return hinlaufen(o, true);
+  if (verb === 'sieh') return ansehen(o);
+  if (verb === 'nimm' && o.typ === 'leut') return UI.toast('Menschen benutzt man nicht. Sprich mit ihnen (💬 Reden).');
+  if (verb === 'nimm') return UI.toast('Sieh es dir erst genau an (👁 Ansehen).');
+  UI.toast(passt === 'sieh' ? 'Das antwortet nicht. Sieh es dir an (👁 Ansehen).' : 'Das antwortet nicht. Versuch ✋ Benutzen.');
+}
+
 const strahl = new THREE.Raycaster(), ebene = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), treffer = new THREE.Vector3();
 canvas.addEventListener('pointerdown', e => {
   KLANG.an();
   if (Z.imAuto || beschaeftigt || UI.offen() || KARTE.kartOffen()) return;
+  if (e.button === 2) {       // rechte Maustaste: nächste Tätigkeit (wie in den alten Adventures)
+    const v = Object.keys(VERBEN); return verbSetzen(v[(v.indexOf(verb) + 1) % v.length]);
+  }
+  const o = unterZeiger(e.clientX, e.clientY, e.pointerType === 'mouse' ? TREFF_MAUS : TREFF_FINGER);
+  if (o) return klickAuf(o);
+  // Auf den Boden getippt: Die Figur läuft dorthin – egal, welche Tätigkeit gerade gewählt ist.
   strahl.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), kamera);
   if (!strahl.ray.intersectPlane(ebene, treffer)) return;
-  let obj = null, best = 1.8;
-  for (const o of welt.objekte) {
-    if (!o.da || !o.def.akt) continue;
-    const d = abstand(treffer.x, treffer.z, o.x ?? o.def.x, o.z ?? o.def.z);
-    if (d < best) { best = d; obj = o; }
-  }
-  const weg = wegSuchen(spieler.x, spieler.z, obj ? (obj.x ?? obj.def.x) : treffer.x, obj ? (obj.z ?? obj.def.z) : treffer.z);
-  spieler.tap = weg ? { weg, obj, zeit: 0 } : null;
+  const weg = wegSuchen(spieler.x, spieler.z, treffer.x, treffer.z);
+  spieler.tap = weg ? { weg, obj: null, zeit: 0 } : null;
 });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+// Mit der Maus: Schwebt der Zeiger über etwas, steht unten der Satz dazu ("Ansehen: Dein Spind").
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse' || Z.imAuto || beschaeftigt || UI.offen()) return;
+  const o = unterZeiger(e.clientX, e.clientY, TREFF_MAUS);
+  canvas.style.cursor = o ? 'pointer' : '';
+  UI.satz(`${VERBEN[verb][0]} ${VERBEN[verb][1]}${o ? ': ' + nameVon(o) : ''}`);
+});
+// Die Lupe 🔍 (Taste H): zeigt ein paar Sekunden lang die Namen von allem, was man antippen kann.
+function markenZeigen() {
+  const an = zeit < markenBis && !Z.imAuto && !beschaeftigt && !UI.offen();
+  if (!an) { if (markenAn) UI.marken(null); markenAn = false; return; }
+  markenAn = true;
+  UI.marken(antippbar().map(o => { const p = aufSchirm(o); return p && p[0] > 40 && p[0] < innerWidth - 40 && p[1] > 90 && p[1] < innerHeight - 110 && { x: p[0], y: p[1], text: nameVon(o), bild: VERBEN[verbVon(o)][0] }; }).filter(Boolean));
+}
+
+// ------------------------------------------------------------------ Verfolgungsfahrt
+// Die Geschichte setzt den Merker "flucht": Dann fährt der Fluchtwagen los (Strecke und Tempo stehen in jagd.js).
+// Hat man ihn am Ende der Strecke gestellt, kommt die Stelle "jagd_ende" der Geschichte dran.
+function jagdLauf(dt, frei) {
+  const an = Z.ort === 'stadt' && Z.flags.flucht && !Z.flags.marktFertig;
+  fluchtwagen.visible = !!an;
+  if (!an) { jagd = null; return; }
+  if (!jagd) jagd = JAGD.neueJagd(STORY.JAGD, !!Z.flags.jagdFertig);
+  const stand = jagd.fertig;
+  if (frei) JAGD.jagdSchritt(jagd, dt, spieler, Z.imAuto, Z.blaulicht === SIRENE);
+  if (frei && !stand) {
+    const str = woBinIch(jagd.x, jagd.z);
+    if (Z.imAuto && str !== jagd.strasse) { if (jagd.strasse) UI.toast(`📻 Otto funkt: „Flüchtiger jetzt: ${str}!“`); jagd.strasse = str; }
+    if (Z.imAuto && jagd.abstand > 150 && zeit > schimpfZeit) { schimpfZeit = zeit + 10; UI.toast('Otto: „Wir verlieren ihn! Gib Gas!“'); }
+    if (jagd.fertig) KLANG.spiel('rumms');
+  }
+  if (Z.ziel && !Z.flags.jagdFertig) Z.ziel.wo = ['stadt', jagd.x, jagd.z];       // der Wegweiser zeigt immer auf den Fluchtwagen
+  // Am Ende steht der Wagen quer am Bordstein. Kommt man nah heran, geht die Geschichte weiter.
+  fluchtwagen.position.set(jagd.x, 0, jagd.z); fluchtwagen.rotation.y = jagd.h + (jagd.fertig ? 0.7 : 0);
+  if (frei && jagd.fertig && !Z.flags.jagdFertig && jagd.abstand < 26) { Z.auto.v = 0; tu('jagd_ende'); }
+}
+
 // Knöpfe zum Fahren auf dem Bildschirm (für das iPad)
 for (const b of document.querySelectorAll('#fahren button')) {
   const t = b.dataset.t;
@@ -549,7 +686,7 @@ for (const b of document.querySelectorAll('#fahren button')) {
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => { tasten[t] = false; });
 }
 document.getElementById('radar').addEventListener('click', karteAuf);
-UI.verbinde({ notizbuch: notizbuchAuf, tasche: tascheAuf, funk: funkAuf, blaulicht: () => blaulichtSetzen(!Z.blaulicht) });
+UI.verbinde({ notizbuch: notizbuchAuf, tasche: tascheAuf, funk: funkAuf, blaulicht: blaulichtWeiter, verb: verbSetzen, lupe: () => { markenBis = zeit + MARKEN_ZEIT; } });
 
 // ------------------------------------------------------------------ Start und Schleife
 function bild() { renderer.render(szene, kamera); }
@@ -562,7 +699,7 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, S, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, frei: null,
+window.__polizei = { get Z() { return Z; }, S, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, frei: null,
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {
@@ -575,10 +712,10 @@ async function start() {
   const was = await UI.menue(!!alt);
   KLANG.an();
   if (was === 'weiter') {
-    Z = alt; Z.blaulicht = false; Z.auto.v = 0;
+    Z = alt; blaulichtSetzen(AUS); Z.auto.v = 0;
     lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
   } else {
-    Z = neuerStand(); lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
+    Z = neuerStand(); blaulichtSetzen(AUS); lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
     beschaeftigt = true;
     await STORY.beginn(S);
     beschaeftigt = false; anzeigen();

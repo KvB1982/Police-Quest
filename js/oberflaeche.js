@@ -116,7 +116,37 @@ export function toast(text) {
   clearTimeout(toastZeit); toastZeit = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
-export function fahrKnoepfe(an) { $('fahren').hidden = !an; $('blaulicht').hidden = !an; }
+// Im Auto: Knöpfe zum Fahren und das Blaulicht. Zu Fuß: die Leiste mit den vier Tätigkeiten.
+export function fahrKnoepfe(an) { $('fahren').hidden = !an; $('blaulicht').hidden = !an; $('verben').hidden = an; if (an) $('satz').hidden = true; document.body.classList.toggle('imAuto', an); }
+
+// Der Blaulicht-Knopf zeigt, welche Stufe gerade läuft: 0 = aus, 1 = nur Blaulicht, 2 = Blaulicht mit Sirene.
+export function blaulicht(stufe) {
+  const b = $('blaulicht');
+  b.textContent = ['🚨 Blaulicht: aus', '🔵 Nur Blaulicht', '🔵🔊 Blaulicht + Sirene'][stufe];
+  b.classList.toggle('an', stufe > 0); b.classList.toggle('laut', stufe === 2);
+}
+
+// ----------------------------------------------------------------------------- Point and Click
+// Welche der vier Tätigkeiten ist gerade gewählt? (geh, sieh, rede, nimm)
+export function verb(v) { for (const b of document.querySelectorAll('#verben button[data-v]')) b.classList.toggle('an', b.dataset.v === v); }
+// Die Satz-Zeile über der Leiste, wie in alten Adventures: "👁 Ansehen: Dein Spind". Verschwindet nach ein paar Sekunden.
+let satzZeit = null, alterSatz = '';
+export function satz(text) {
+  if (text === alterSatz && !$('satz').hidden) return;
+  alterSatz = text; $('satz').textContent = text; $('satz').hidden = false;
+  clearTimeout(satzZeit); satzZeit = setTimeout(() => { $('satz').hidden = true; }, 3500);
+}
+// Namens-Schildchen über allem, was man antippen kann (die Lupe 🔍). liste = [{ x, y, text, bild }] oder null = weg damit.
+export function marken(liste) {
+  const m = $('marken');
+  if (!liste) { m.hidden = true; return; }
+  m.hidden = false;
+  while (m.children.length < liste.length) m.appendChild(document.createElement('div'));
+  [...m.children].forEach((d, i) => {
+    const l = liste[i]; d.hidden = !l; if (!l) return;
+    d.textContent = `${l.bild} ${l.text}`; d.style.left = `${l.x}px`; d.style.top = `${l.y}px`;
+  });
+}
 
 // Startbild: Neues Spiel oder Weiterspielen.
 export function menue(gibtStand) {
@@ -139,9 +169,11 @@ export function ende(titel, text, punkte, max, notizen) {
   });
 }
 
-export function verbinde({ notizbuch, tasche, funk, blaulicht, aufDialogKlick }) {
+export function verbinde({ notizbuch, tasche, funk, blaulicht, verb: verbWahl, lupe }) {
   $('weiter').onclick = () => weiter && weiter();
   $('dialog').onclick = e => { if (e.target.tagName !== 'BUTTON' && weiter) weiter(); };
   $('fensterZu').onclick = fensterZu;
+  for (const b of document.querySelectorAll('#verben button[data-v]')) b.onclick = () => verbWahl(b.dataset.v);
+  $('kLupe').onclick = lupe; verb('geh');
   $('kNotiz').onclick = notizbuch; $('kTasche').onclick = tasche; $('kFunk').onclick = funk; $('blaulicht').onclick = blaulicht;
 }
