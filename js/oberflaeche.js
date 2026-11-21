@@ -129,7 +129,7 @@ export function menue(gibtStand) {
 
 export function ende(titel, text, punkte, max, notizen) {
   return new Promise(fertig => {
-    const rang = punkte >= max * 0.9 ? 'Ausgezeichnet! Otto ist richtig stolz.' : punkte >= max * 0.7 ? 'Sehr ordentlich für den ersten Tag.' : 'Geschafft! Morgen achtest du noch mehr auf die Vorschriften.';
+    const rang = punkte >= max * 0.9 ? 'Saubere Arbeit. Otto nickt – mehr Lob gibt es von ihm nicht.' : punkte >= max * 0.7 ? 'Ordentlich für den ersten Tag.' : 'Geschafft. Morgen sitzen die Vorschriften besser.';
     $('endeTitel').textContent = titel; $('endeText').textContent = text;
     $('endePunkte').textContent = `Sorgfalts-Punkte: ${punkte} von ${max}. ${rang}`;
     const l = $('endeNotizen'); l.innerHTML = '';

@@ -51,11 +51,13 @@ const wache = {
     { x: 9, z: -8.6, b: 4, t: 1.2, h: 1, farbe: '#4a4f57' },           // Funkpult
     { x: 12.6, z: -2.5, b: 1.6, t: 3, h: 1, farbe: '#b8894f' },        // Theke der Kantine
     { x: -4, z: 5.2, b: 2.4, t: 0.7, h: 0.5, farbe: '#8a6a4a' },       // Bank im Flur
+    { x: -13.3, z: 3, b: 1, t: 2.6, h: 2, farbe: '#3b4148' },           // Stahlschrank der Waffenkammer
+    { x: -12.3, z: 3, b: 0.6, t: 2.2, h: 1.05, farbe: '#6b5a44' },      // Tresen davor
     { x: -10, z: 19, b: 3, t: 2, h: 1.6, farbe: '#3d5a3a' },           // Müllcontainer im Hof
   ],
   schilder: [
     { x: -9.5, z: -9.8, text: 'Umkleide' }, { x: 0, z: -9.8, text: 'Besprechung' },
-    { x: 9.5, z: -9.8, text: 'Leitstelle · Kantine' }, { x: 0, z: 21.5, text: 'Hof' },
+    { x: 9.5, z: -9.8, text: 'Leitstelle · Kantine' }, { x: -13.6, z: 3, text: 'Waffenkammer' }, { x: 0, z: 21.5, text: 'Hof' },
   ],
   dinge: [
     { id: 'spind', x: -13.2, z: -6, name: 'Dein Spind', art: 'spind', akt: 'spind', fest: [1, 1.2] },
@@ -72,6 +74,7 @@ const wache = {
     { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', look: { ...POLIZEI, haar: '#1e1a17', muetze: null } },
     { id: 'petersen', x: 9, z: -7, name: 'Frau Petersen (Leitstelle)', akt: 'petersen', look: { hemd: '#7a4fa0', hose: '#333', haut: '#f0c8a0', haar: '#d8d2c4' } },
     { id: 'hanne', x: 11.2, z: -2.5, name: 'Hanne (Kantine)', akt: 'hanne', look: { hemd: '#ffffff', hose: '#444', haut: '#e8b890', haar: '#a03a2a' } },
+    { id: 'harms', x: -11.2, z: 3, name: 'Harms (Waffenkammer)', akt: 'harms', look: { ...POLIZEI, haar: '#3a3a3a', muetze: null, bauch: 1.1 } },
     { id: 'lotte', x: -3, z: 3.6, name: 'Lotte (Diensthund)', akt: 'lotte', hund: true },
   ],
 };
@@ -103,10 +106,10 @@ const stadt = {
     { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
     { id: 'erzieherin', x: -44, z: 53.4, name: 'Erzieherin der Kita', akt: 'erzieherin', wenn: 'angemeldet', look: { hemd: '#e86a8a', hose: '#3b5a7a', haut: '#e8b890', haar: '#2a1a12' } },
     { id: 'baecker', x: -21, z: 53.6, name: 'Bäcker vor der Bäckerei', akt: 'baecker', look: { hemd: '#ffffff', hose: '#f0f0f0', haut: '#f0c8a0', haar: '#7a5a3a', muetze: '#ffffff', bauch: 1.2 } },
-    { id: 'ben', x: -40, z: -22, name: 'Kleiner Junge', akt: 'ben', wenn: 'markt', bis: 'marktFertig', look: { hemd: '#e04a3a', hose: '#2a4a8a', haut: '#f0c8a0', haar: '#c9a24a', klein: 0.62 } },
-    { id: 'w1', x: -57, z: -37, name: 'Frau am Gemüsestand', akt: 'frau', look: { hemd: '#f2d22e', hose: '#444', haut: '#f0c8a0', haar: '#3a2a1a', rucksack: '#d23a2a' } },
-    { id: 'w2', x: -25, z: -13.5, name: 'Frau am Käsestand', akt: 'frau', look: { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', rucksack: '#2a5ad2' } },
-    { id: 'w3', x: -17, z: -40, name: 'Frau am Obststand', akt: 'frau', look: { hemd: '#f2d22e', hose: '#2a3a5a', haut: '#f0c8a0', haar: '#c9a24a', rucksack: '#2a5ad2' } },
+    { id: 'opfer', x: -40, z: -22, name: 'Bestohlene Frau', akt: 'opfer', wenn: 'markt', look: { hemd: '#8a6fa8', hose: '#444', haut: '#f0c8a0', haar: '#d8d2c4' } },
+    { id: 'w1', x: -57, z: -37, name: 'Mann am Gemüsestand', akt: 'verdacht', look: { hemd: '#3f9a4a', hose: '#444', haut: '#f0c8a0', haar: '#3a2a1a', rucksack: '#d23a2a' } },
+    { id: 'w2', x: -25, z: -13.5, name: 'Mann am Käsestand', akt: 'verdacht', bis: 'marktFertig', look: { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', rucksack: '#2a5ad2' } },
+    { id: 'w3', x: -17, z: -40, name: 'Mann am Obststand', akt: 'verdacht', look: { hemd: '#c9772e', hose: '#2a3a5a', haut: '#f0c8a0', haar: '#c9a24a', rucksack: '#2a5ad2' } },
     { id: 'm1', x: -46, z: -30, name: 'Mann mit Einkaufskorb', akt: 'marktmann', look: { hemd: '#7a8a5a', hose: '#5a4a3a', haut: '#d8a878', haar: '#222' } },
   ],
 };
@@ -139,7 +142,7 @@ const museum = {
   leute: [
     { id: 'otto', x: -2.5, z: 5, name: 'Otto Brandl', akt: 'otto', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
     { id: 'thomsen', x: 3.5, z: 5.5, name: 'Dr. Thomsen (Museumsleiterin)', akt: 'thomsen', look: { hemd: '#6a2f5a', hose: '#222', haut: '#f0c8a0', haar: '#8a3a1a' } },
-    { id: 'brinkmann', x: 8.5, z: 5.5, name: 'Herr Brinkmann (Wärter)', akt: 'brinkmann', look: { hemd: '#5a5a3a', hose: '#3a3a2a', haut: '#e8b890', haar: '#777', muetze: '#3a3a2a' } },
+    { id: 'brinkmann', x: 10.6, z: 5.2, name: 'Herr Brinkmann (Wärter)', akt: 'brinkmann', look: { hemd: '#5a5a3a', hose: '#3a3a2a', haut: '#e8b890', haar: '#777', muetze: '#3a3a2a' } },
   ],
 };
 

@@ -48,7 +48,13 @@ function spiele(durchlauf) {
 const Z = await spiele(STORY.DURCHLAUF);
 if (!Z.ende || !Z.flags.tagEnde) melde('Der Durchlauf kommt nicht bis zum Tagesende');
 // Bester Durchlauf: überall gleich die richtige Antwort
-const beste = STORY.DURCHLAUF.map(([a, i, w]) => [a, i, a === 'baecker' ? [0, 0] : a === 'ben' ? [0] : a === 'otto' ? [1] : a === 'brinkmann' ? [0] : w]);
+const dran = {};
+const beste = STORY.DURCHLAUF.filter(e => !e[3]).map(([a, i, w]) => {
+  const liste = STORY.BESTE[`${a}:${i}`] || STORY.BESTE[a];
+  if (!liste) return [a, i, w];
+  const k = `${a}:${i}`; dran[k] = (dran[k] || 0) + 1;
+  return [a, i, liste[Math.min(dran[k], liste.length) - 1]];
+});
 const B = await spiele(beste);
 if (B.punkte !== STORY.MAX_PUNKTE) melde(`Beste Punktzahl ist ${B.punkte}, in story.js steht MAX_PUNKTE = ${STORY.MAX_PUNKTE}`);
 console.log(`Durchlauf mit Fehlversuchen: ${Z.punkte} Punkte, bester Durchlauf: ${B.punkte} Punkte, ${B.notizen.length} Notizen.`);
