@@ -17,6 +17,7 @@ button:hover { background: #3a74e0; }
 #ziel { font-size: 18px; font-weight: 600; }
 #rechts { display: flex; align-items: center; gap: 8px; pointer-events: auto; }
 #rechts span { background: rgba(10, 20, 45, 0.78); border-radius: 12px; padding: 10px 12px; font-weight: 600; white-space: nowrap; }
+#kMusik.leise { opacity: 0.6; }
 #rechts button { font-size: 22px; padding: 8px 12px; min-width: 48px; min-height: 48px; background: rgba(10, 20, 45, 0.78); }
 
 #pfeil { position: fixed; top: 78px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
