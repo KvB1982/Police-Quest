@@ -10,6 +10,7 @@
 //   S.gib(sache)                      – etwas in die Tasche stecken
 //   S.ziel(text, [ort, x, z])         – was als Nächstes zu tun ist (mit Wegweiser)
 //   S.ort(name, x, z)                 – an einen anderen Ort wechseln
+//   S.klang(name)                     – ein Geräusch abspielen (Namen stehen in klang.js)
 //   S.auto(true/false), S.licht(..), S.uhr(..), S.blaulicht(), S.speichern(), await S.ende(..)
 // So kann dasselbe auch ohne Bildschirm durchgespielt werden (tools/story.mjs).
 
@@ -72,7 +73,7 @@ export const AKT = {
     return S.sag(OTTO, 'Zum Museum, Kim. Die Tür ist an der Straßenseite.');
   },
 
-  async lotte(S) { await S.sag('Lotte', 'Wuff! (Lotte wedelt mit dem Schwanz und schnuppert an deinen Schuhen.)'); },
+  async lotte(S) { S.klang('hund'); await S.sag('Lotte', 'Wuff! (Lotte wedelt mit dem Schwanz und schnuppert an deinen Schuhen.)'); },
   async hanne(S) {
     await S.sag('Hanne', 'Na, du bist also das neue Küken? Ich bin Hanne. Bei mir gibt es mittags Frikadellen – und immer den neuesten Klatsch.');
     await S.sag('Hanne', 'Pass gut auf den Otto auf. Der geht bald in Rente und tut so, als wäre ihm das egal.');
@@ -87,6 +88,7 @@ export const AKT = {
     const zahl = await S.schloss('Zahlenschloss an deinem Spind');
     if (zahl === null) return;
     if (zahl !== '4172') return S.sag('', 'Das Schloss bleibt zu. (Tipp: Die Dienstnummer steht auf deinem Ausweis in der Tasche 🎒.)');
+    S.klang('schloss');
     await S.sag('', 'Klick! Der Spind geht auf. Du ziehst die Uniform an und nimmst Funkgerät, Notizbuch, Taschenlampe, Warnweste und den Autoschlüssel.');
     for (const s of ['funk', 'notizbuch', 'lampe', 'weste', 'schluessel']) S.gib(s);
     S.flag('spind'); S.punkte(2, 'Ausrüstung vollständig');

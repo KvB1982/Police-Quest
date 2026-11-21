@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { ORTE } from './daten.js';
 import * as STORY from './story.js';
 import * as UI from './oberflaeche.js';
+import * as KLANG from './klang.js';
 import { baueOrt, figur, figurBewegen, autoModell } from './welt.js';
 
 // ------------------------------------------------------------------ Zahlen zum Einstellen
@@ -102,11 +103,12 @@ const S = {
   flag: n => { Z.flags[n] = true; },
   hat: n => !!Z.flags[n],
   wo: () => Z.ort,
-  punkte(n, wofuer) { Z.punkte = Math.max(0, Z.punkte + n); UI.toast(`${n > 0 ? '+' : ''}${n} ⭐ ${wofuer}`); if (n > 0) piep(880, 0.12); anzeigen(); },
+  punkte(n, wofuer) { Z.punkte = Math.max(0, Z.punkte + n); UI.toast(`${n > 0 ? '+' : ''}${n} ⭐ ${wofuer}`); if (n > 0) KLANG.spiel('pling'); anzeigen(); },
   notiz(t) { if (!Z.notizen.includes(t)) Z.notizen.push(t); },
   gib(s) { if (!Z.sachen.includes(s)) Z.sachen.push(s); },
   ziel(text, wo) { Z.ziel = { text, wo }; anzeigen(); },
-  ort(name, x, z) { ortLaden(name, x, z); anzeigen(); },
+  ort(name, x, z) { ortLaden(name, x, z); KLANG.spiel('tuer'); anzeigen(); },
+  klang: name => KLANG.spiel(name),
   auto(an) { Z.imAuto = an; if (an) Z.auto = { x: spieler.x, z: spieler.z, h: -Math.PI / 2, v: 0 }; sichtbarkeit(); kameraSetzen(1); },
   licht: lichtSetzen,
   uhr(t) { Z.uhr = t; anzeigen(); },
@@ -126,21 +128,16 @@ function anzeigen() {
   UI.anzeige({ ziel: Z.ziel && Z.ziel.text, punkte: Z.punkte, uhr: Z.uhr, ort: ORTE[Z.ort].name });
 }
 
-// ------------------------------------------------------------------ Töne (selbst erzeugt, keine Dateien)
-let ton = null, sirene = null;
-function tonAn() { if (!ton) { try { ton = new AudioContext(); } catch (e) { ton = null; } } }
-function piep(hz, dauer) {
-  if (!ton) return;
-  const o = ton.createOscillator(), g = ton.createGain();
-  o.frequency.value = hz; g.gain.value = 0.06; g.gain.exponentialRampToValueAtTime(0.001, ton.currentTime + dauer);
-  o.connect(g).connect(ton.destination); o.start(); o.stop(ton.currentTime + dauer);
-}
-function sireneSetzen(an) {
-  if (!ton) return;
-  if (an && !sirene) {
-    const o = ton.createOscillator(), g = ton.createGain(); o.type = 'square'; g.gain.value = 0.02;
-    o.connect(g).connect(ton.destination); o.start(); sirene = { o, g };
-  } else if (!an && sirene) { sirene.o.stop(); sirene = null; }
+// ------------------------------------------------------------------ Dauer-Geräusche (alles andere steht in klang.js)
+let schrittZeit = 0;
+function geraeusche(dt) {
+  const stadt = Z.ort === 'stadt', nah = (x, z, weit) => Math.max(0, 1 - abstand(spieler.x, spieler.z, x, z) / weit);
+  KLANG.schleife('sirene', Z.blaulicht ? 1 : 0);
+  KLANG.schleife('motor', Z.imAuto ? 0.6 + Math.abs(Z.auto.v) / 40 : 0, 0.8 + Math.abs(Z.auto.v) / 14);
+  KLANG.schleife('markt', stadt && Z.licht === 'tag' ? nah(-40, -30, 60) : 0);
+  KLANG.schleife('moewen', stadt && Z.licht !== 'nacht' ? 0.4 + nah(0, -100, 120) * 0.6 : 0);
+  KLANG.schleife('alarm', stadt && Z.flags.alarm && !Z.flags.tagEnde ? nah(74, 30, 70) : 0);
+  if (!Z.imAuto && spieler.tempo > 0 && (schrittZeit -= dt) <= 0) { schrittZeit = 0.34; KLANG.spiel('schritt'); }
 }
 
 // ------------------------------------------------------------------ Was kann man gerade tun?
@@ -178,7 +175,7 @@ function aussteigen() {
 function einsteigen() { Z.imAuto = true; spieler.tap = null; sichtbarkeit(); tu('eingestiegen'); }
 
 function blaulichtSetzen(an) {
-  Z.blaulicht = an; sireneSetzen(an);
+  Z.blaulicht = an;
   document.getElementById('blaulicht').classList.toggle('an', an);
 }
 
@@ -186,6 +183,7 @@ async function funkAuf() {
   if (beschaeftigt || UI.offen()) return;
   if (!Z.sachen.includes('funk')) return UI.toast('Du hast noch kein Funkgerät. Es liegt in deinem Spind.');
   const o = STORY.funk(S);
+  KLANG.spiel('funk');
   const i = await UI.auswahlFenster('📻 Funkgerät – Möwe 14', o.map(e => e.text), 'Im Moment gibt es nichts zu melden.');
   if (i >= 0) tu(o[i].akt);
 }
@@ -307,7 +305,7 @@ function fahren(dt) {
   [a.x, a.z] = schieben(zx, zz, 1.5);
   if (abstand(zx, zz, a.x, a.z) > 0.02) {       // angestoßen
     a.v *= -0.25;
-    if (Math.abs(vorher) > 5 && zeit > rummsZeit) { rummsZeit = zeit + 4; piep(110, 0.3); S.punkte(-1, 'Rumms! Vorsichtig fahren'); }
+    if (Math.abs(vorher) > 5 && zeit > rummsZeit) { rummsZeit = zeit + 4; KLANG.spiel('rumms'); S.punkte(-1, 'Rumms! Vorsichtig fahren'); }
   }
   const kmh = Math.abs(a.v) * 3.6;
   zuSchnellZeit = (!Z.blaulicht && kmh > ZU_SCHNELL) ? zuSchnellZeit + dt : 0;
@@ -387,7 +385,7 @@ function schritt(dt) {
   const u = wagen.userData, blink = Z.blaulicht && Math.floor(zeit * 5) % 2;
   u.blau[0].material.emissiveIntensity = Z.blaulicht && blink ? 3 : 0; u.blau[1].material.emissiveIntensity = Z.blaulicht && !blink ? 3 : 0;
   u.blitz.intensity = Z.blaulicht ? (blink ? 160 : 60) : 0;
-  if (sirene) sirene.o.frequency.value = Math.floor(zeit * 1.4) % 2 ? 440 : 585;
+  geraeusche(dt);
   // Taschenlampe: leuchtet dahin, wohin die Figur schaut
   lampe.position.set(spieler.x, 2.4, spieler.z);
   lampe.target.position.set(spieler.x + Math.sin(spieler.h) * 3.2, 0, spieler.z + Math.cos(spieler.h) * 3.2);
@@ -405,7 +403,7 @@ function schritt(dt) {
 // ------------------------------------------------------------------ Steuerung
 const TASTE = { ArrowUp: 'hoch', w: 'hoch', ArrowDown: 'runter', s: 'runter', ArrowLeft: 'links', a: 'links', ArrowRight: 'rechts', d: 'rechts' };
 addEventListener('keydown', e => {
-  tonAn();
+  KLANG.an();
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (UI.taste(k)) { e.preventDefault(); return; }
   if (TASTE[k]) { tasten[TASTE[k]] = true; e.preventDefault(); return; }
@@ -419,7 +417,7 @@ addEventListener('keyup', e => { const k = e.key.length === 1 ? e.key.toLowerCas
 // Tippen oder Klicken auf den Boden: Die Figur läuft dorthin. Tippt man auf ein Ding oder eine Person, benutzt sie es dort gleich.
 const strahl = new THREE.Raycaster(), ebene = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), treffer = new THREE.Vector3();
 canvas.addEventListener('pointerdown', e => {
-  tonAn();
+  KLANG.an();
   if (Z.imAuto || beschaeftigt || UI.offen()) return;
   strahl.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), kamera);
   if (!strahl.ray.intersectPlane(ebene, treffer)) return;
@@ -460,7 +458,7 @@ async function start() {
   lichtSetzen('tag'); ortLaden('wache', 0, 3.5); anzeigen();
   requestAnimationFrame(schleife);
   const was = await UI.menue(!!alt);
-  tonAn();
+  KLANG.an();
   if (was === 'weiter') {
     Z = alt; Z.blaulicht = false; Z.auto.v = 0;
     lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();

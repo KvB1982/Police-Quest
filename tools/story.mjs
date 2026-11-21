@@ -28,7 +28,7 @@ function spiele(durchlauf) {
     flag: n => { Z.flags[n] = true; }, hat: n => !!Z.flags[n], wo: () => Z.ort,
     punkte: n => { Z.punkte += n; }, notiz: t => Z.notizen.push(t), gib: s => Z.sachen.push(s),
     ziel: () => {}, ort: n => { if (!ORTE[n]) melde(`Ort „${n}“ gibt es nicht`); Z.ort = n; }, auto: () => {}, licht: () => {}, uhr: () => {},
-    blaulicht: () => true, speichern: () => {}, ende: async () => { Z.ende = true; },
+    klang: () => {}, blaulicht: () => true, speichern: () => {}, ende: async () => { Z.ende = true; },
   };
   return (async () => {
     await STORY.beginn(S);
