@@ -18,6 +18,9 @@ export const MODELLE = {
   muelltonne: { h: 0.95 }, pflanzkuebel: { h: 0.9 }, bank: { l: 1.9, dreh: -V }, tafel: { h: 1.1 }, stromkasten: { h: 1.25 },
   kiste_holz: { l: 1.3 }, fass: { h: 0.95 }, holzfass: { h: 0.95 }, fischkiste: { l: 0.8 }, rettungsring: { h: 0.75 },
   boje: { h: 3.2 }, seezeichen: { h: 6 }, stand: { h: 2.7, dreh: -V }, schirmtisch: { h: 2.7 }, absperrgitter: { l: 2 }, bistro: { l: 1.84 },
+  // Möbel und Kleinkram für drinnen (Poly Haven)
+  schreibtisch: { l: 2.0 }, holzbank: { l: 1.3 }, laptop: { l: 0.42 }, klemmbrett: { l: 0.34 }, erste_hilfe: { l: 0.53 }, sofa: { l: 1.9 }, regal_metall: { h: 2 },
+  croissant: { l: 0.2 }, apfel: { h: 0.09 }, kaese: { l: 0.24 }, bueste: { h: 0.62 }, vase: { h: 0.5 }, bilderrahmen: { l: 1.2 }, kamera_wand: { l: 0.45 },
   mal_brunnen: { l: 6.5 }, mal_yacht: { l: 14, dreh: V }, betonsperre: { l: 1.6 }, reifen: { h: 0.6 }, gully: { l: 0.7 },
 };
 

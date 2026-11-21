@@ -35,8 +35,33 @@ export function figur(look = {}) {
   }
   if (look.rucksack) { const r = kiste(0.36, 0.42, 0.16, look.rucksack); r.position.set(0, 1.2, -0.23 * bauch); g.add(r); }
   if (look.klein) g.scale.setScalar(look.klein);
-  g.userData = { bl, br, al, ar, schritt: 0 };
+  const kopfTeile = g.children.filter(k => k.position.y > 1.55); for (const k of kopfTeile) k.userData.y0 = k.position.y;
+  g.userData = { bl, br, al, ar, schritt: 0, kopfTeile };
+  // Sitzt jemand am Boden (der verletzte Wärter)? Dann die Beine nach vorn und alles ein Stück tiefer.
+  if (look.sitzt) {
+    bl.rotation.x = br.rotation.x = -Math.PI / 2 + 0.12; al.rotation.x = -0.5; ar.rotation.x = -2.6; ar.rotation.z = -0.5;       // eine Hand am Kopf
+    const tief = new THREE.Group(); tief.position.y = -0.68; tief.add(...g.children); g.add(tief); g.userData.sitzt = true;
+  }
   return g;
+}
+
+// Kleine Bewegungen für alle, die herumstehen: atmen, sich zu dir drehen, beim Sprechen mit den Händen reden.
+//   zeit = Sekunden seit Spielstart · spricht = sagt die Figur gerade etwas? · zu = Winkel, in den sie schauen soll (oder null)
+export function figurLeben(g, dt, zeit, spricht, zu) {
+  const u = g.userData;
+  if (!u.al || u.mixer) return;
+  if (u.grund === undefined) { u.grund = g.rotation.y; u.takt = Math.abs(Math.sin(g.position.x * 12.9 + g.position.z * 78.2)) * 6; u.rede = 0; }
+  // langsam drehen: zu dir, wenn du nah bist – sonst zurück in die Grundstellung
+  let d = (zu ?? u.grund) - g.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+  if (u.sitzt) return;
+  g.rotation.y += d * Math.min(1, dt * 4);
+  const t = zeit + u.takt;
+  u.rede += ((spricht ? 1 : 0) - u.rede) * Math.min(1, dt * 6);
+  // Atmen: Die Arme pendeln ganz leicht. Beim Sprechen hebt sich ein Arm und wippt im Takt der Worte.
+  u.al.rotation.z = -0.04 - Math.sin(t * 1.3) * 0.02; u.ar.rotation.z = 0.04 + Math.sin(t * 1.3) * 0.02;
+  u.al.rotation.x = Math.sin(t * 0.7) * 0.04 - u.rede * (0.25 + Math.sin(t * 5.1) * 0.12);
+  u.ar.rotation.x = -Math.sin(t * 0.7) * 0.04 - u.rede * (0.9 + Math.sin(t * 6.3) * 0.28);
+  if (u.kopfTeile) for (const k of u.kopfTeile) k.position.y = k.userData.y0 + Math.sin(t * 1.3) * 0.006 + u.rede * Math.abs(Math.sin(t * 6.3)) * 0.012;
 }
 
 // Beine und Arme schwingen lassen. tempo = wie schnell die Figur gerade läuft (0 = steht).
@@ -203,12 +228,69 @@ function flaeche(r, farbe, y = 0.01) {
   return m;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Sachen, die aufgehen: Türen, der Spind, der Stahlschrank. Jede "Klappe" ist ein Brett an einem Scharnier.
+// Das Spiel dreht es jedes Bild ein Stück weiter (main.js, klappenSchritt). auf = Winkel, wenn es ganz offen ist.
+// ---------------------------------------------------------------------------------------------
+function brett(breit, hoch, dick, farbe, griff = true) {
+  const angel = new THREE.Group();                         // das Scharnier: Um diese Stelle dreht sich das Brett
+  const b = kiste(breit, hoch, dick, farbe); b.position.set(breit / 2, hoch / 2, 0); angel.add(b);
+  if (griff) for (const z of [-1, 1]) { const g = kiste(0.05, 0.14, 0.05, '#d9c27a'); g.position.set(breit - 0.14, hoch * 0.5, z * (dick / 2 + 0.03)); angel.add(g); }
+  return angel;
+}
+// Dein Spind: ein Blechschrank mit Tür. Vorn ist bei +x. Drinnen hängt die Jacke.
+function spindModell() {
+  const g = new THREE.Group(), blau = '#3f6f96', dunkel = '#2c4f6c';
+  for (const [b, h, t, x, y, z] of [[0.04, 2, 1.1, -0.43, 1, 0], [0.9, 2, 0.04, 0, 1, -0.53], [0.9, 2, 0.04, 0, 1, 0.53], [0.9, 0.04, 1.1, 0, 1.98, 0], [0.9, 0.06, 1.1, 0, 0.03, 0], [0.86, 0.03, 1.02, 0, 1.55, 0]]) {
+    const k = kiste(b, h, t, x < -0.4 || y === 1.55 ? dunkel : blau); k.position.set(x, y, z); g.add(k);
+  }
+  const innen = kiste(0.02, 1.9, 1.0, '#1c2f40'); innen.position.set(-0.4, 1, 0); g.add(innen);
+  const jacke = kiste(0.5, 0.75, 0.16, '#1b2a4a'); jacke.position.set(-0.05, 1.12, 0.1);
+  const stange = kiste(0.03, 0.03, 1.0, '#c9ced4'); stange.position.set(0, 1.5, 0);
+  const schuhe = kiste(0.3, 0.12, 0.5, '#1a1a1a'); schuhe.position.set(0.05, 0.12, 0);
+  g.add(jacke, stange, schuhe);
+  const tuer = brett(1.06, 1.94, 0.04, blau, false); tuer.rotation.y = -Math.PI / 2; tuer.position.set(0.45, 0.03, -0.53);
+  const schloss = kiste(0.06, 0.14, 0.14, '#e8c84a'); schloss.position.set(0.9, 1.07, -0.04); tuer.add(schloss);
+  for (const y of [1.7, 1.78]) { const l = kiste(0.5, 0.025, 0.045, dunkel); l.position.set(0.53, y, -0.01); tuer.add(l); }       // Lüftungs-Schlitze
+  const halter = new THREE.Group(); halter.add(tuer); g.add(halter);
+  g.userData = { klappe: { teile: [{ teil: tuer, zu: -Math.PI / 2, auf: -Math.PI / 2 + 1.9 }] } };
+  return g;
+}
+// Der Stahlschrank der Waffenkammer: zwei Türen, drinnen Fächer. Vorn ist bei +x.
+function schrankModell(d) {
+  const g = new THREE.Group(), [tief, breit] = d.fest || [1, 2.6], stahl = '#3b4148';
+  for (const [b, h, t, x, y, z] of [[0.05, 2, breit, -tief / 2 + 0.03, 1, 0], [tief, 2, 0.05, 0, 1, -breit / 2 + 0.03], [tief, 2, 0.05, 0, 1, breit / 2 - 0.03], [tief, 0.05, breit, 0, 1.98, 0], [tief, 0.08, breit, 0, 0.04, 0]]) {
+    const k = kiste(b, h, t, stahl); k.position.set(x, y, z); g.add(k);
+  }
+  const innen = kiste(0.02, 1.9, breit - 0.1, '#15181c'); innen.position.set(-tief / 2 + 0.07, 1, 0); g.add(innen);
+  for (const y of [0.55, 1.0, 1.45]) {
+    const fach = kiste(tief - 0.12, 0.03, breit - 0.12, '#565d66'); fach.position.set(0, y, 0); g.add(fach);
+    for (let i = 0; i < 5; i++) { const kasten = kiste(0.34, 0.2, 0.3, i % 2 ? '#20242a' : '#2b3038'); kasten.position.set(0, y + 0.12, -breit / 2 + 0.36 + i * (breit - 0.72) / 4); g.add(kasten); }
+  }
+  const teile = [];
+  for (const s of [-1, 1]) {
+    const t = brett(breit / 2 - 0.02, 1.9, 0.05, '#4a515a'); t.position.set(tief / 2, 0.05, s * (breit / 2 - 0.02));
+    const zu = s < 0 ? -Math.PI / 2 : Math.PI / 2; t.rotation.y = zu;
+    teile.push({ teil: t, zu, auf: zu + s * -1.75 }); g.add(t);
+  }
+  g.userData = { klappe: { teile } };
+  return g;
+}
+
 // Wie ein Ding aussieht, hängt von seiner Art ab.
 function dingModell(d) {
   if (d.art === 'auto') { const a = autoModell(d.farbe, d.polizei); a.rotation.y = d.h || 0; return a; }
-  if (d.art === 'spind') { const g = new THREE.Group(); const s = kiste(0.9, 2, 1.1, '#3f6f96'); s.position.y = 1;
-    const sch = kiste(0.06, 0.14, 0.14, '#e8c84a'); sch.position.set(0.47, 1.1, 0); g.add(s, sch); return g; }
-  if (d.art === 'tuer') { const t = kiste(1.8, 2.4, 0.25, '#6a4a2a'); t.position.y = 1.2; if (Math.abs(d.x) > 20) t.rotation.y = Math.PI / 2; return t; }
+  if (d.art === 'spind') return spindModell();
+  if (d.art === 'schrank') return schrankModell(d);
+  if (d.art === 'tuer') {       // eine Tür im Rahmen, die aufschwingt
+    const g = new THREE.Group(), holz = '#6a4a2a';
+    for (const x of [-0.97, 0.97]) { const p = kiste(0.14, 2.5, 0.3, '#4a3320'); p.position.set(x, 1.25, 0); g.add(p); }
+    const sturz = kiste(2.08, 0.14, 0.3, '#4a3320'); sturz.position.y = 2.5; g.add(sturz);
+    const t = brett(1.8, 2.4, 0.12, holz); t.position.set(-0.9, 0, 0); g.add(t);
+    if (Math.abs(d.x) > 20) g.rotation.y = Math.PI / 2;
+    g.userData = { klappe: { teile: [{ teil: t, zu: 0, auf: -1.7 }] } };
+    return g;
+  }
   if (d.art === 'fenster') { const f = kiste(0.12, 1.3, 2, '#a8d0e8', { emissive: '#20405a', emissiveIntensity: 0.6 }); f.position.y = 1.5; return f; }
   if (d.art === 'spur') {   // Spuren sind klein und dunkel – man findet sie erst im Licht der Lampe
     const g = new THREE.Group();
@@ -253,12 +335,32 @@ export function baueOrt(def) {
     const m = kiste(q.b, q.h, q.t, q.farbe); m.position.set(q.x, q.h / 2, q.z); gruppe.add(m);
     if (q.glas) { const gl = kiste(q.b - 0.1, 0.7, q.t - 0.1, '#bfe6ff', { transparent: true, opacity: 0.35 }); gl.position.y = q.h / 2 + 0.35; m.add(gl); }
     if (q.gold) { const go = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 16), mat('#e8c030', { emissive: '#7a5a00' })); go.position.y = q.h / 2 + 0.06; m.add(go); }
+    if (q.modell) MOD.lade(q.modell).then(mo => {       // ein fertiges Modell ersetzt die Kiste
+      if (!mo) return;
+      const n = new THREE.Mesh(mo.geo, mo.mat); n.position.set(q.x, 0, q.z); n.rotation.y = q.dreh || 0; n.castShadow = true; m.visible = false; gruppe.add(n);
+    });
     if (q.dach) { const d = kiste(q.b + 0.8, 0.15, q.t + 1, q.dach); d.position.y = q.h / 2 + 1.6; m.add(d);
       for (const sx of [-1, 1]) { const st = kiste(0.1, 1.6, 0.1, '#666'); st.position.set(sx * q.b / 2, q.h / 2 + 0.8, q.t / 2); m.add(st); }
       // Marktstand: das geladene Modell ersetzt die Kisten
       MOD.lade('stand').then(mo => { if (!mo) return; const n = new THREE.Mesh(mo.geo, mo.mat); n.position.set(q.x, 0, q.z); n.castShadow = true; m.visible = false; gruppe.add(n); }); }
     fest.push([q.x - q.b / 2, q.z - q.t / 2, q.x + q.b / 2, q.z + q.t / 2]);
   }
+  // Fertige Modelle als Schmuck (ohne Hindernis): { modell, x, z, y (Höhe), dreh, mal (größer/kleiner) }
+  for (const q of def.deko || []) MOD.lade(q.modell).then(mo => {
+    if (!mo) return;
+    const n = new THREE.Mesh(mo.geo, mo.mat); n.position.set(q.x, q.y || 0, q.z); n.rotation.y = q.dreh || 0; if (q.mal) n.scale.setScalar(q.mal); gruppe.add(n);
+  });
+  // Türen in den Wänden: Sie gehen von selbst auf, wenn jemand davorsteht. { x, z, b = Breite der Öffnung }
+  const klappen = {};
+  (def.tueren || []).forEach((t, i) => {
+    const teile = [], fluegel = t.b > 2.2 ? 2 : 1, breit = t.b / fluegel;
+    for (let f = 0; f < fluegel; f++) {
+      const s = f === 0 ? -1 : 1, blatt = brett(breit - 0.04, 1.46, 0.07, t.farbe || '#8a6a4a');
+      blatt.position.set(t.x + s * t.b / 2, 0.02, t.z); const zu = s < 0 ? 0 : Math.PI; blatt.rotation.y = zu;
+      teile.push({ teil: blatt, zu, auf: zu + s * 1.75 }); gruppe.add(blatt);
+    }
+    klappen['tuer' + i] = { teile, ist: 0, soll: 0, auto: { x: t.x, z: t.z, r: 2.3 } };
+  });
   for (const s of def.schilder || []) { const sp = schild(s.text, s.hoch ? 5 : 1.6); sp.position.set(s.x, s.hoch || 2.3, s.z); gruppe.add(sp); }
 
   // Dinge und Leute. Ob man sie gerade sieht, entscheidet das Spiel (Merker "wenn" und "bis").
@@ -266,13 +368,14 @@ export function baueOrt(def) {
   for (const d of def.dinge) {
     const m = dingModell(d); m.position.set(d.x, 0, d.z); gruppe.add(m);
     const o = { def: d, mesh: m, typ: 'ding' };
+    if (m.userData.klappe) klappen[d.id] = { ...m.userData.klappe, ist: 0, soll: 0 };
     if (d.fest) o.fest = [d.x - d.fest[0] / 2, d.z - d.fest[1] / 2, d.x + d.fest[0] / 2, d.z + d.fest[1] / 2];
     objekte.push(o);
   }
   for (const l of def.leute) {
     const m = l.hund ? hund() : figur(l.look);
-    m.position.set(l.x || 0, 0, l.z || 0); gruppe.add(m);
+    m.position.set(l.x || 0, 0, l.z || 0); m.rotation.y = l.h || 0; gruppe.add(m);
     objekte.push({ def: l, mesh: m, typ: 'leut', x: l.x || 0, z: l.z || 0 });
   }
-  return { gruppe, fest, objekte, stadt, hausSchilder };
+  return { gruppe, fest, objekte, stadt, hausSchilder, klappen };
 }

@@ -57,6 +57,17 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
 | `js/klang.js`, `sounds/` | Alle Geräusche (`KLAENGE`: Datei, Lautstärke, Schleife, `mal` = zufällig etwas höher/tiefer). Lädt die Dateien aus `sounds/liste.json`, sonst Ersatz-Töne. 12 Aufnahmen von Freesound, alle CC0, Quellen in `LIZENZEN.md` (Pixabay sperrt Programme). Dauer-Geräusche sind Schleifen mit weich überblendetem Ende |
 | `js/main.js` | Bild, Licht (`LICHT`: tag, abend, nacht, dunkel), Schatten der Sonne rund um den Spieler (`SCHATTEN`), Laufen, Wegsuche A* für das Tippen (in der Stadt nur in einem Fenster von 180 m um die Figur), Hindernisse in einem Raster (`rasterBauen`, `nahe`), Fahren, Kamera (rückt im Auto näher, wenn sie in ein Haus geriete), Spar-Modus (`tempoMessen`), Speichern (`blaulicht.stand.v1`), Töne. Zahlen zum Einstellen oben |
 
+## Möbel, Türen und Leute drinnen (seit 21.11.2026)
+
+- Möbel: Ein Eintrag in `moebel` mit `modell: '…'` zeigt statt der Kiste ein fertiges Modell (die Kiste bleibt das Hindernis). `deko` = Modelle nur zum Ansehen
+  (`modell, x, z, y, dreh, mal`). Größen stehen in `MODELLE` in `modelle.js`.
+- Aufklappen: Dinge mit `art: 'spind'`, `'schrank'` oder `'tuer'` haben Scharniere (`brett`, `spindModell`, `schrankModell` in `welt.js`). Die Geschichte öffnet sie mit
+  `await S.oeffne(id)` und schließt sie mit `await S.oeffne(id, false)` (wartet, bis die Tür steht). `tueren` in einem Ort = Türen in den Wänden,
+  die von selbst aufgehen, wenn Kim oder Otto davorsteht (`klappenSchritt` in `main.js`).
+- Leute: `figurLeben` in `welt.js` lässt die Klötzchen-Figuren atmen, sich zu Kim drehen und beim Reden die Hand heben. `look.sitzt: true` = sitzt am Boden
+  (der verletzte Wärter), `h` = Blickrichtung. Fertige Modelle mit Knochen hat weiter nur Kim.
+- Nur als Standbilder im Test-Browser angesehen (Spind offen, Waffenschrank offen, Zimmertür offen, Wärter sitzt), die Bewegung selbst nicht.
+
 Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `akt` eine Funktion in `story.js`, den Weg in `DURCHLAUF` ergänzen, `node tools/story.mjs` laufen lassen.
 
 ## Steuerung: Point and Click (seit 21.11.2026)
