@@ -11,6 +11,66 @@ const mat = (farbe, extra = {}) => new THREE.MeshLambertMaterial({ color: farbe,
 const kiste = (b, h, t, farbe, extra) => new THREE.Mesh(new THREE.BoxGeometry(b, h, t), mat(farbe, extra));
 
 // ---------------------------------------------------------------------------------------------
+// Selbst gebaute Möbel aus einfachen Formen (für Wache und Museum). q.form sagt, was es ist,
+// q.b / q.t / q.h sind Breite, Tiefe und Höhe, q.farbe die Hauptfarbe. Vorn ist bei allen +z.
+// ---------------------------------------------------------------------------------------------
+const dunkel = (farbe, k = 0.72) => '#' + new THREE.Color(farbe).multiplyScalar(k).getHexString();
+function wandBild(art) {       // gemaltes Bild für Tafel, Stadtplan und Pinnwand
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256; const x = c.getContext('2d');
+  let n = art.length * 7.3; const w = () => { n = (n * 9301 + 49297) % 233280; return n / 233280; };
+  if (art === 'plan') {       // Stadtplan: Wasser, Viertel, Straßen, rote Nadeln
+    x.fillStyle = '#e9e2cf'; x.fillRect(0, 0, 512, 256); x.fillStyle = '#9fc4dc'; x.fillRect(0, 196, 512, 60);
+    x.strokeStyle = '#b9ad90'; x.lineWidth = 5; for (let i = 0; i < 9; i++) { x.beginPath(); x.moveTo(256, 200); x.lineTo(256 + Math.cos(Math.PI * (1.08 + i * 0.105)) * 300, 200 + Math.sin(Math.PI * (1.08 + i * 0.105)) * 300); x.stroke(); }
+    for (const r of [60, 110, 165]) { x.beginPath(); x.arc(256, 200, r, Math.PI, 2 * Math.PI); x.stroke(); }
+    x.fillStyle = '#a8c79a'; x.fillRect(90, 60, 46, 30); x.fillRect(360, 90, 40, 34);
+    x.fillStyle = '#d23a2a'; for (let i = 0; i < 7; i++) { x.beginPath(); x.arc(70 + w() * 380, 40 + w() * 140, 5, 0, 7); x.fill(); }
+  } else if (art === 'pinn') {       // Pinnwand: Kork mit Zetteln
+    x.fillStyle = '#b98a55'; x.fillRect(0, 0, 512, 256);
+    for (let i = 0; i < 16; i++) { const px = 16 + (i % 6) * 82 + w() * 14, py = 14 + Math.floor(i / 6) * 80 + w() * 16; x.fillStyle = ['#ffffff', '#fff2a8', '#f4f4f4', '#cfe6ff', '#ffd7c9'][i % 5]; x.fillRect(px, py, 62, 66);
+      x.fillStyle = '#555'; for (let k = 0; k < 4; k++) x.fillRect(px + 7, py + 14 + k * 11, 30 + w() * 18, 3); x.fillStyle = '#c0392b'; x.beginPath(); x.arc(px + 31, py + 6, 4, 0, 7); x.fill(); }
+  } else {       // Tafel: Streifenplan des Tages
+    x.fillStyle = '#fbfbf7'; x.fillRect(0, 0, 512, 256); x.fillStyle = '#1d3f8a'; x.font = 'bold 30px Arial, sans-serif'; x.fillText('STREIFENPLAN', 22, 40);
+    x.font = '22px Arial, sans-serif'; ['Möwe 9   Stadtring', 'Möwe 12  Wall · Bahnhof', 'Möwe 14  Altstadt · Hafen'].forEach((t, i) => { x.fillStyle = i === 2 ? '#c0392b' : '#333'; x.fillText(t, 22, 86 + i * 38); });
+    x.strokeStyle = '#2e7d32'; x.lineWidth = 4; x.beginPath(); x.moveTo(330, 200); x.lineTo(370, 120); x.lineTo(430, 150); x.lineTo(480, 70); x.stroke(); x.strokeRect(318, 60, 176, 160);
+  }
+  const b = new THREE.CanvasTexture(c); b.colorSpace = THREE.SRGBColorSpace; return b;
+}
+function moebelForm(q) {
+  // Steht ein Möbel quer (um eine Vierteldrehung gedreht), sind seine Breite und Tiefe vertauscht: q.b und q.t gelten immer für den Raum.
+  const quer = q.t !== undefined && q.h !== undefined && Math.abs(Math.sin(q.dreh || 0)) > 0.7;
+  const g = new THREE.Group(), f = q.farbe || '#7a5a3a', b = (quer ? q.t : q.b) || 1, t = (quer ? q.b : q.t) || 1, h = q.h || 1;
+  const teil = (tb, th, tt, x, y, z, farbe = f, extra) => { const k = kiste(tb, th, tt, farbe, extra); k.position.set(x, y, z); k.castShadow = true; g.add(k); return k; };
+  const beine = (bb, bt, hoch, dick, farbe) => { for (const sx of [-1, 1]) for (const sz of [-1, 1]) teil(dick, hoch, dick, sx * (bb / 2 - dick), hoch / 2, sz * (bt / 2 - dick), farbe); };
+  switch (q.form) {
+    case 'tisch': teil(b, 0.06, t, 0, h - 0.03, 0); teil(b - 0.3, 0.1, t - 0.3, 0, h - 0.11, 0, dunkel(f)); beine(b - 0.2, t - 0.2, h - 0.06, 0.09, dunkel(f)); break;
+    case 'stuhl': { const st = q.farbe || '#34495e'; teil(0.44, 0.06, 0.44, 0, 0.46, 0, st); teil(0.44, 0.42, 0.05, 0, 0.74, -0.2, st); beine(0.44, 0.44, 0.44, 0.04, '#22262b'); break; }
+    case 'spinde': { const n = Math.max(1, Math.round(b / 0.5)), breit = b / n; teil(b, h, t, 0, h / 2, 0, dunkel(f, 0.8));       // eine Reihe Spinde: jede Tür mit Lüftungsschlitzen und Griff
+      for (let i = 0; i < n; i++) { const x = -b / 2 + breit * (i + 0.5); teil(breit - 0.04, h - 0.1, 0.02, x, h / 2, t / 2 + 0.005);
+        for (const y of [h - 0.22, h - 0.29, h - 0.36]) teil(breit * 0.5, 0.02, 0.01, x, y, t / 2 + 0.02, '#263238'); teil(0.03, 0.12, 0.03, x + breit * 0.3, h * 0.55, t / 2 + 0.03, '#cfd8dc'); }
+      break; }
+    case 'theke': teil(b, h - 0.06, t, 0, (h - 0.06) / 2, 0); teil(b + 0.12, 0.06, t + 0.12, 0, h - 0.03, 0, dunkel(f, 0.6)); teil(b - 0.1, 0.1, t - 0.1, 0, 0.05, 0, '#2b2b2b'); break;
+    case 'tafel': case 'plan': case 'pinn': {       // hängt an der Wand: Rahmen, Bild, bei der Tafel eine Ablage für Stifte
+      teil(b, 1.3, 0.05, 0, 1.55, 0, q.form === 'tafel' ? '#b9bec4' : '#5a4632');
+      const bild = new THREE.Mesh(new THREE.PlaneGeometry(b - 0.12, 1.18), new THREE.MeshLambertMaterial({ map: wandBild(q.form) })); bild.position.set(0, 1.55, 0.03); g.add(bild);
+      if (q.form === 'tafel') { teil(b * 0.6, 0.03, 0.09, 0, 0.9, 0.06, '#9aa0a6'); for (const [x, c] of [[-0.2, '#c0392b'], [0, '#1d3f8a'], [0.2, '#2e7d32']]) teil(0.12, 0.025, 0.025, x, 0.93, 0.07, c); }
+      break; }
+    case 'automat': teil(b, h, t, 0, h / 2, 0, f); teil(b - 0.14, h * 0.55, 0.02, 0, h * 0.62, t / 2 + 0.005, '#dff3ff', { emissive: '#7fb8d8', emissiveIntensity: 0.5 }); teil(b - 0.3, 0.16, 0.03, 0, 0.3, t / 2 + 0.01, '#15181c');
+      for (let i = 0; i < 3; i++) for (let k = 0; k < 4; k++) teil(0.09, 0.16, 0.02, -b / 2 + 0.2 + k * (b - 0.4) / 3, h * 0.44 + i * 0.26, t / 2 + 0.02, ['#d23a2a', '#f0ad4e', '#2e7d32', '#1d6fd6'][(i + k) % 4]); break;
+    case 'akten': { teil(b, h, t, 0, h / 2, 0, f); const n = Math.max(2, Math.round(h / 0.36)); for (let i = 0; i < n; i++) { const y = (i + 0.5) * h / n; teil(b - 0.06, h / n - 0.04, 0.02, 0, y, t / 2 + 0.005, dunkel(f, 1.15)); teil(b * 0.3, 0.025, 0.03, 0, y + 0.04, t / 2 + 0.025, '#2b2f33'); } break; }
+    case 'monitor': teil(0.22, 0.02, 0.16, 0, 0.01, 0, '#22262b'); teil(0.04, 0.16, 0.03, 0, 0.09, -0.03, '#22262b'); teil(0.52, 0.32, 0.03, 0, 0.32, 0, '#15181c'); teil(0.47, 0.27, 0.01, 0, 0.32, 0.018, '#1c3a5e', { emissive: '#2f6fb5', emissiveIntensity: 0.7 }); break;
+    case 'kaffee': teil(0.3, 0.38, 0.3, 0, 0.19, 0, '#2b2f33'); teil(0.2, 0.05, 0.12, 0, 0.26, 0.17, '#9aa0a6'); teil(0.09, 0.1, 0.09, 0, 0.05, 0.2, '#ffffff'); break;
+    case 'linie': { const l = new THREE.Mesh(new THREE.PlaneGeometry(b, t).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: f, polygonOffset: true, polygonOffsetFactor: -4 })); l.position.y = 0.075; g.add(l); break; }
+    case 'schiff': {       // Schiffsmodell: Rumpf, zwei Masten, Segel
+      teil(0.34, 0.16, 1.5, 0, 0.14, 0, '#5a3b22'); teil(0.26, 0.1, 1.2, 0, 0.27, 0, '#7a5230'); teil(0.2, 0.14, 0.36, 0, 0.36, -0.55, '#5a3b22'); teil(0.06, 0.06, 0.5, 0, 0.3, 0.95, '#5a3b22');
+      for (const z of [-0.2, 0.35]) { teil(0.03, 1.05, 0.03, 0, 0.82, z, '#3a2a1a'); teil(0.5, 0.3, 0.02, 0, 0.75, z + 0.03, '#efe6d0'); teil(0.4, 0.24, 0.02, 0, 1.1, z + 0.03, '#efe6d0'); }
+      teil(0.3, 0.02, 0.5, 0, 0.05, 0, '#3a2a20'); break; }
+    case 'kordel': { for (const sx of [-1, 1]) { teil(0.06, 0.9, 0.06, sx * b / 2, 0.45, 0, '#c9a24a'); teil(0.22, 0.03, 0.22, sx * b / 2, 0.015, 0, '#c9a24a'); } teil(b, 0.04, 0.04, 0, 0.78, 0, '#8a1f2a'); break; }
+    default: teil(b, h, t, 0, h / 2, 0);
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Eine Figur aus einfachen Formen. look = Farben für Hemd, Hose, Haut, Haar, Mütze, Rucksack …
 // ---------------------------------------------------------------------------------------------
 export function figur(look = {}) {
@@ -43,7 +103,7 @@ export function figur(look = {}) {
     const tief = new THREE.Group(); tief.position.y = -0.68; tief.add(...g.children); g.add(tief); g.userData.sitzt = true;
   }
   // Gibt es für diese Person ein fertiges Modell mit Knochen (assets/modelle/<modell>.glb)? Dann ersetzt es die Klötzchen, sobald es geladen ist.
-  if (look.modell) ladePolizist(g, look.modell, look.art || 'polizei', look.sitzt ? 'sitzen' : null, look.rucksack || null);
+  if (look.modell) ladePolizist(g, look.modell, look.art || 'polizei', look.sitzt ? 'sitzen' : null, look.weste ? 'weste' : look.rucksack || null);
   return g;
 }
 
@@ -165,7 +225,7 @@ function folieKleben(material, gr) {
 export function autoRaeder(g, weg, lenk = 0) {
   for (const r of g.userData.raeder || []) { r.rad.rotation.x = weg / r.r; if (r.vorn) r.lenk.rotation.y += (lenk * 0.45 - r.lenk.rotation.y) * 0.2; }
 }
-export function autoModell(farbe = '#f4f4f4', polizei = false, sorte = 'auto_kombi') {
+export function autoModell(farbe = '#f4f4f4', polizei = false, sorte = 'auto_kombi', ohneLampen = false) {
   const g = new THREE.Group(), kisten = new THREE.Group();
   g.add(kisten);
   const unten = kiste(1.9, 0.6, 4.4, farbe); unten.position.y = 0.62;
@@ -193,10 +253,13 @@ export function autoModell(farbe = '#f4f4f4', polizei = false, sorte = 'auto_kom
       b.position.set(x, 0.05, 0); leiste.add(b); return b;
     });
     // Scheinwerfer für die Fahrt im Dunkeln und ein blaues Licht, das beim Blaulicht mitblitzt.
-    const sw = new THREE.SpotLight('#fff4d0', 0, 60, 0.6, 0.5, 1.2); sw.position.set(0, 1, 2.2);
-    sw.target.position.set(0, 0, 14); g.add(sw, sw.target);
-    const blitz = new THREE.PointLight('#2a6bff', 0, 30, 1.4); blitz.position.set(0, 2.2, 0); g.add(blitz);
-    g.userData = { blau, sw, blitz, leiste };
+    if (ohneLampen) g.userData = { blau, leiste };       // Wagen der Kollegen: keine eigenen Lampen (jede Lampe kostet Rechenzeit)
+    else {
+      const sw = new THREE.SpotLight('#fff4d0', 0, 60, 0.6, 0.5, 1.2); sw.position.set(0, 1, 2.2);
+      sw.target.position.set(0, 0, 14); g.add(sw, sw.target);
+      const blitz = new THREE.PointLight('#2a6bff', 0, 30, 1.4); blitz.position.set(0, 2.2, 0); g.add(blitz);
+      g.userData = { blau, sw, blitz, leiste };
+    }
   }
   // Das fertige Modell ersetzt die Kisten, sobald es geladen ist.
   // Der Streifenwagen bekommt die Vorlage in voller Qualität (19.000 Dreiecke, scharfes Bild, Glanz), die anderen Autos die kleine Datei.
@@ -295,7 +358,7 @@ function schrankModell(d) {
 
 // Wie ein Ding aussieht, hängt von seiner Art ab.
 function dingModell(d) {
-  if (d.art === 'auto') { const a = autoModell(d.farbe, d.polizei); a.rotation.y = d.h || 0; return a; }
+  if (d.art === 'auto') { const a = autoModell(d.farbe, d.polizei, 'auto_kombi', !!d.leicht); a.rotation.y = d.h || 0; return a; }
   if (d.art === 'spind') return spindModell();
   if (d.art === 'schrank') return schrankModell(d);
   if (d.art === 'tuer') {       // eine Tür im Rahmen, die aufschwingt
@@ -338,7 +401,7 @@ export function baueOrt(def) {
     for (const r of def.plan.fest) fest.push(r);
     for (const h of def.plan.haeuser) if (h.schild) { const s = schild(h.schild, 6); s.position.set(h.x, h.h + (h.dach.h || 0) + 3.5, h.z); gruppe.add(s); hausSchilder.push(s); }
   } else {
-    gruppe.add(flaeche([G[0] - 200, G[1] - 200, G[2] + 200, G[3] + 200], '#111', -0.02));
+    gruppe.add(flaeche([G[0] - 200, G[1] - 200, G[2] + 200, G[3] + 200], def.aussen || '#5b6166', -0.02));       // rund ums Haus: Pflaster statt schwarzer Leere
     // Jeder Boden liegt ein kleines Stück höher als der davor – lägen zwei genau gleich hoch, würden ihre Farben flackern.
     def.boden.forEach((b, i) => gruppe.add(flaeche(b.r, b.farbe, 0.01 + i * 0.012)));
   }
@@ -350,6 +413,7 @@ export function baueOrt(def) {
   }
   for (const q of def.moebel) {
     const m = kiste(q.b, q.h, q.t, q.farbe); m.position.set(q.x, q.h / 2, q.z); gruppe.add(m);
+    if (q.form) { const n = moebelForm(q); n.position.set(q.x, 0, q.z); n.rotation.y = q.dreh || 0; m.visible = false; gruppe.add(n); }       // selbst gebautes Möbel statt der Kiste
     if (q.glas) { const gl = kiste(q.b - 0.1, 0.7, q.t - 0.1, '#bfe6ff', { transparent: true, opacity: 0.35 }); gl.position.y = q.h / 2 + 0.35; m.add(gl); }
     if (q.gold) { const go = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 16), mat('#e8c030', { emissive: '#7a5a00' })); go.position.y = q.h / 2 + 0.06; m.add(go); }
     if (q.modell) MOD.lade(q.modell).then(mo => {       // ein fertiges Modell ersetzt die Kiste
@@ -363,7 +427,8 @@ export function baueOrt(def) {
     fest.push([q.x - q.b / 2, q.z - q.t / 2, q.x + q.b / 2, q.z + q.t / 2]);
   }
   // Fertige Modelle als Schmuck (ohne Hindernis): { modell, x, z, y (Höhe), dreh, mal (größer/kleiner) }
-  for (const q of def.deko || []) MOD.lade(q.modell).then(mo => {
+  for (const q of def.deko || []) if (q.form) { const n = moebelForm(q); n.position.set(q.x, q.y || 0, q.z); n.rotation.y = q.dreh || 0; gruppe.add(n); }
+  for (const q of (def.deko || []).filter(q => q.modell)) MOD.lade(q.modell).then(mo => {
     if (!mo) return;
     const n = new THREE.Mesh(mo.geo, mo.mat); n.position.set(q.x, q.y || 0, q.z); n.rotation.y = q.dreh || 0; if (q.mal) n.scale.setScalar(q.mal); gruppe.add(n);
   });

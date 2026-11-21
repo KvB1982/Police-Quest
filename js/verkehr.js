@@ -15,6 +15,7 @@ const WEG_MENSCH = 175, NEU_MENSCH = [28, 150];
 const RAND = 1.5;               // so weit fahren sie dabei an den rechten Rand (Meter)
 const ZURUECK = 1.2;           // so schnell rollt ein weggeschobenes Auto zurück an seinen Platz (Meter pro Sekunde)
 const WEICHT_VOR = 16, WEICHT_BREIT = 3.2, WEICHT_TEMPO = 3.4;      // Fußgänger weichen aus: so weit vor dir, so breit, so schnell
+export const STREIFE_JEDES = 11;   // jedes wievielte Auto im Verkehr ein Streifenwagen auf Streife ist (bei 46 Autos sind das 4)
 const GASSE = 55;              // mit Blaulicht halten Autos in diesem Umkreis an
 const spur = W => W.art === 'autobahn' ? 3.9 : W.b / 4 - 0.5;                 // so weit rechts von der Straßenmitte fährt ein Auto
 const schnell = W => W.art === 'autobahn' ? 2.3 : W.art === 'ring' || W.b >= 14 ? 1.25 : W.art === 'rampe' ? 1.2 : 1;
@@ -76,7 +77,7 @@ export function neuerVerkehr(saat = 5) {
     m.da = false;
   }
 
-  for (let i = 0; i < AUTOS; i++) autos.push({ art: Math.floor(w() * 4), farbe: Math.floor(w() * 8), da: false });
+  for (let i = 0; i < AUTOS; i++) autos.push({ art: Math.floor(w() * 4), farbe: Math.floor(w() * 8), da: false, polizei: i % STREIFE_JEDES === 4 });      // jedes elfte Auto ist ein Streifenwagen der Kollegen
   for (let i = 0; i < LEUTE; i++) leute.push({ hemd: KLEIDER[Math.floor(w() * KLEIDER.length)], hose: HOSEN[Math.floor(w() * HOSEN.length)], haut: HAUT[Math.floor(w() * HAUT.length)], haar: HAAR[Math.floor(w() * HAAR.length)],
     gross: zw(0.94, 1.06), tempo: zw(1.1, 1.6), schritt: w() * 6, geht: 0, da: false });
 

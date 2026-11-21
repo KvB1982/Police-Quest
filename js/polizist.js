@@ -42,6 +42,14 @@ function pistole() {
 
 // Tauscht die Kisten-Figur in "gruppe" gegen das Modell aus, sobald es geladen ist. Klappt das Laden nicht, bleibt die Kisten-Figur.
 // datei = welche Figur ('polizist' = Kim, 'otto', 'thomsen' …), art = welches Gerüst: 'polizei', 'frau' oder 'mann'
+const WESTE = [0.205, 0.165];      // Schutzweste: halbe Breite und halbe Tiefe in Metern
+let schriftBild = null;
+function polizeiSchrift() {       // weiße Schrift POLIZEI als Bild (einmal gemalt, für alle Westen)
+  if (schriftBild) return schriftBild;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 72; const x = c.getContext('2d');
+  x.fillStyle = '#ffffff'; x.font = 'bold 54px Arial, Helvetica, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('POLIZEI', 128, 39, 248);
+  schriftBild = new THREE.CanvasTexture(c); schriftBild.colorSpace = THREE.SRGBColorSpace; return schriftBild;
+}
 export function ladePolizist(gruppe, datei = 'polizist', art = 'polizei', haltung = null, rucksack = null) {
   Promise.all([hole(datei), hole('bewegungen_' + art)]).then(([gltf, bew]) => {
     const modell = kopiere(gltf.scene), polizei = art === 'polizei';
@@ -54,7 +62,19 @@ export function ladePolizist(gruppe, datei = 'polizist', art = 'polizei', haltun
     for (const kind of [...gruppe.children]) gruppe.remove(kind);
     gruppe.add(modell);
     // Rucksack: ein Kasten mit Trägern, der am Rücken festhängt (am Knochen der Brust, damit er jede Bewegung mitmacht)
-    if (rucksack) { let brust; modell.traverse(o => { if (o.isBone && /Spine2$/.test(o.name)) brust = o; });
+    // Schutzweste der Kollegen: ein dunkler Mantel um die Brust mit der Schrift POLIZEI vorn und hinten (hängt wie der Rucksack am Brust-Knochen)
+    if (rucksack === 'weste') { let brust; modell.traverse(o => { if (o.isBone && /Spine2$/.test(o.name)) brust = o; });
+      const weste = new THREE.Group(), stoff = new THREE.MeshStandardMaterial({ color: '#141a2c', roughness: 0.85 });
+      const mantel = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.93, 0.36, 20), stoff); mantel.scale.set(WESTE[0], 1, WESTE[1]);
+      const kragen = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 1, 0.07, 20), stoff); kragen.scale.set(WESTE[0], 1, WESTE[1]); kragen.position.y = 0.215;
+      weste.add(mantel, kragen);
+      const schrift = new THREE.MeshBasicMaterial({ map: polizeiSchrift(), transparent: true, alphaTest: 0.4 });
+      const hinten = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.056), schrift); hinten.position.set(0, 0.07, -WESTE[1] - 0.003); hinten.rotation.y = Math.PI;
+      const vorn = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.034), schrift); vorn.position.set(0.085, 0.09, WESTE[1] - 0.006); vorn.rotation.x = -0.04;
+      const funk = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.1, 0.035), new THREE.MeshStandardMaterial({ color: '#0c0d10', roughness: 0.6 })); funk.position.set(-0.1, 0.06, WESTE[1] - 0.004);
+      weste.add(hinten, vorn, funk); weste.traverse(o => { o.castShadow = true; });
+      gruppe.add(weste); gruppe.userData.sackOffen = brust; gruppe.userData.sack = weste; gruppe.userData.sackOrt = [0.02, -0.012]; }
+    else if (rucksack) { let brust; modell.traverse(o => { if (o.isBone && /Spine2$/.test(o.name)) brust = o; });
       const m = new THREE.MeshStandardMaterial({ color: rucksack, roughness: 0.9 }), sack = new THREE.Group();
       const koerper = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 0.15), m), fach = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.05), m);
       fach.position.set(0, -0.08, -0.09); sack.add(koerper, fach);
@@ -117,6 +137,6 @@ export function polizistBewegen(gruppe, dt, tempo) {
   u.mixer.update(dt);
   if (u.sackOffen) { gruppe.updateMatrixWorld(true);                                 // der Rucksack: so groß wie die Figur, auf Höhe der Brust, dann am Knochen festmachen
     const ort = gruppe.worldToLocal(u.sackOffen.getWorldPosition(new THREE.Vector3())), k = ort.y / 1.33;
-    u.sack.scale.setScalar(k); u.sack.position.set(ort.x, ort.y - 0.06 * k, ort.z - 0.2 * k); gruppe.updateMatrixWorld(true); u.sackOffen.attach(u.sack); u.sackOffen = null; }
+    const [tief, hinter] = u.sackOrt || [0.06, 0.2]; u.sack.scale.setScalar(k); u.sack.position.set(ort.x, ort.y - tief * k, ort.z - hinter * k); gruppe.updateMatrixWorld(true); u.sackOffen.attach(u.sack); u.sackOffen = null; }
   if (u.waffe) { const da = WAFFE_DA[soll], t = T[soll].a.time; u.waffe.visible = !!da && t >= da[0] && t <= da[1]; }
 }

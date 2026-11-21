@@ -64,7 +64,8 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.localClippingEnabled = true;                 // damit Häuser vor der Kamera aufgeschnitten werden können
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const szene = new THREE.Scene();
-const kamera = new THREE.PerspectiveCamera(50, 1, 0.8, 12000);
+const WINKEL = 50, WINKEL_DRINNEN = 34;      // Blickwinkel der Kamera in Grad: draußen weit, drinnen eng (sieht weniger verzerrt aus)
+const kamera = new THREE.PerspectiveCamera(WINKEL, 1, 0.8, 12000);
 const blick = new THREE.Vector3();
 const oben = new THREE.HemisphereLight('#ffffff', '#8a8a7a', 2);
 const sonne = new THREE.DirectionalLight('#fff4e0', 1.5); sonne.position.set(30, 60, 40);
@@ -531,13 +532,32 @@ function ottoFolgt(dt) {
   }
 }
 
+// Kollegen auf ihrer Runde: Sie gehen von Punkt zu Punkt (runde in daten.js), bleiben an manchen Punkten eine Weile stehen
+// und halten an, wenn du dicht vor ihnen stehst oder mit ihnen redest.
+const RUNDE_TEMPO = 1.25, RUNDE_HALT = 1.5, RUNDE_GEDULD = 3.5;       // so schnell gehen sie (m/s) · so nah (Meter) bleiben sie für dich stehen
+function rundenSchritt(dt) {
+  for (const o of welt.objekte) {
+    const R = o.def.runde; if (!R || !o.da || o.typ !== 'leut') continue;
+    if (o.ri === undefined) { o.x = o.def.x; o.z = o.def.z; o.ri = 1 % R.length; o.warte = R[0][2] || 0; if (R[0][3] !== undefined) { o.mesh.rotation.y = R[0][3]; o.mesh.userData.grund = R[0][3]; } }
+    const beiDir = !Z.imAuto && abstand(spieler.x, spieler.z, o.x, o.z) < RUNDE_HALT, redet = beschaeftigt && o.def === aktiv;
+    // Stehst du im Weg, wartet der Kollege höchstens RUNDE_GEDULD Sekunden und geht dann an dir vorbei.
+    o.halt = beiDir ? (o.halt || 0) + dt : 0;
+    if (o.warte > 0 || (beiDir && o.halt < RUNDE_GEDULD) || redet) { if (!beiDir && !redet) o.warte -= dt; o.geht = false; o.mesh.userData.selbst = false; continue; }
+    const [zx, zz, pause, blick] = R[o.ri], dx = zx - o.x, dz = zz - o.z, d = Math.hypot(dx, dz), weg = RUNDE_TEMPO * dt;
+    if (d <= weg) { o.x = zx; o.z = zz; o.ri = (o.ri + 1) % R.length; if (pause) { o.warte = pause; if (blick !== undefined) o.mesh.userData.grund = blick; } }
+    else { o.x += dx / d * weg; o.z += dz / d * weg;
+      let w = Math.atan2(dx, dz) - o.mesh.rotation.y; while (w > Math.PI) w -= 2 * Math.PI; while (w < -Math.PI) w += 2 * Math.PI; o.mesh.rotation.y += w * Math.min(1, dt * 7); }
+    o.mesh.position.set(o.x, 0, o.z); o.mesh.userData.selbst = true; figurBewegen(o.mesh, dt, RUNDE_TEMPO); o.geht = true;
+  }
+}
+
 // Türen, Spind und Schrank: jedes Bild ein Stück weiter auf oder zu. Türen in den Wänden gehen von selbst auf, wenn du oder Otto davorstehen.
 function klappenSchritt(dt) {
   for (const k of Object.values(welt.klappen)) {
     if (k.auto) {
       const nah = (x, z) => abstand(x, z, k.auto.x, k.auto.z) < k.auto.r;
-      const soll = nah(spieler.x, spieler.z) || welt.objekte.some(o => o.def.folgt && nah(o.x, o.z)) ? 1 : 0;
-      if (soll && !k.soll) KLANG.spiel('tuer', 0.35);
+      const ich = nah(spieler.x, spieler.z), soll = ich || welt.objekte.some(o => (o.def.folgt || o.def.runde) && o.da && o.x !== undefined && nah(o.x, o.z)) ? 1 : 0;
+      if (soll && !k.soll) KLANG.spiel('tuer', ich ? 0.35 : 0.12);       // öffnet ein Kollege die Tür, hört man es nur leise
       k.soll = soll;
     }
     k.ist += Math.max(-dt * 2.6, Math.min(dt * 2.6, k.soll - k.ist));
@@ -553,7 +573,7 @@ function leuteLeben(dt) {
     const x = o.x ?? o.def.x, z = o.z ?? o.def.z, weit = abstand(spieler.x, spieler.z, x, z);
     const spricht = !!sprecher && (o.def.name.startsWith(sprecher) || (o.def === aktiv && sprecher !== 'Kim' && !sprecher.startsWith('Otto') && !sprecher.startsWith('Leitstelle')));
     if (o.rennt) continue;                     // rennt gerade weg: bewegt sich schon selbst
-    if (o.def.folgt && o.geht) continue;       // Otto läuft gerade: Dann schwingen Arme und Beine schon
+    if ((o.def.folgt || o.def.runde) && o.geht) continue;       // Otto oder ein Kollege läuft gerade: Dann schwingen Arme und Beine schon
     figurLeben(o.mesh, dt, zeit, spricht, weit < 5 && !Z.imAuto ? Math.atan2(spieler.x - x, spieler.z - z) : o.def.folgt ? o.mesh.rotation.y : null);
   }
 }
@@ -606,7 +626,10 @@ function kamSchritt(dt) {
 function kamLage() {
   const [hoch, weg] = Z.imAuto ? [KAMERA_AUTO[1], KAMERA_AUTO[0]] : ORTE[Z.ort].kamera;
   const e = Math.max(0.12, Math.min(1.5, Math.atan2(hoch - 1, weg) + kam.neig));
-  return { e, d: Math.hypot(hoch - 1, weg) * kam.mal };
+  // Drinnen schaut die Kamera mit einem engeren Blickwinkel von weiter weg: Dann kippen die Leute am Bildrand nicht so schief zur Seite.
+  const drinnen = !Z.imAuto && !ORTE[Z.ort].draussen, winkel = drinnen ? WINKEL_DRINNEN : WINKEL;
+  if (kamera.fov !== winkel) { kamera.fov = winkel; kamera.updateProjectionMatrix(); }
+  return { e, d: Math.hypot(hoch - 1, weg) * kam.mal * Math.tan(WINKEL * Math.PI / 360) / Math.tan(winkel * Math.PI / 360) };
 }
 
 function kameraSetzen(staerke) {
@@ -708,7 +731,7 @@ function schritt(dt) {
   if (welt.stadt) stadtSchritt(dt);
   if (wetter) { if (welt.stadt) wetter.fahnen(welt.stadt.schnitt); wetter.schritt(dt, { x: blick.x, z: blick.z, flags: Z.flags, imAuto: Z.imAuto, sparsam, stadt: welt.stadt }); }
   jagdLauf(dt, frei); gastSchritt(dt);
-  klappenSchritt(dt); leuteLeben(dt);
+  rundenSchritt(dt); klappenSchritt(dt); leuteLeben(dt);
   wegweiser();
   UI.knoepfe(lauf ? [] : moeglich(), k => k.tun());
   UI.fahrKnoepfe(Z.imAuto);
@@ -928,7 +951,7 @@ function laufSchritt(dt) {
 // ------------------------------------------------------------------ Einsatzwagen, die zu Hilfe kommen
 // Der Rettungswagen ist der weiße Kastenwagen mit rotem Streifen und Blaulicht, die zweite Streife ein Wagen wie deiner.
 // Sie fahren über das Straßennetz an (Strecke: anfahrt in jagd.js), halten, und zwei Leute steigen aus und gehen zu ihrer Stelle.
-const GAST_LEUTE = { rtw: [['aerztin', 'frau'], ['sani', 'mann']], streife: [['polizist', 'polizei'], ['polizist', 'polizei']] };
+const GAST_LEUTE = { rtw: [['aerztin', 'frau'], ['sani', 'mann']], streife: [['pol1', 'mann', 'weste'], ['pol2', 'frau', 'weste']] };      // Möwe 12: Jan Dirks und Meike Tammen
 const GAST_TEMPO = 15, GAST_GEHT = 2.0;       // so schnell fährt der Wagen (m/s) und so schnell gehen die Leute
 const gaeste = [];
 function gastBauen(art) {
@@ -944,7 +967,7 @@ function gastRufen(art, ziel, { aus = [0, 1], zu = null, bis = null } = {}) {
   if (!welt || !welt.stadt || !GAST_LEUTE[art]) return Promise.resolve();
   const T = JAGD.anfahrt(ziel, aus); if (!T) return Promise.resolve();
   const mesh = gastBauen(art); mesh.traverse(o => { if (o.isMesh) o.castShadow = true; }); szene.add(mesh);
-  const leute = GAST_LEUTE[art].map(([datei, gerüst], i) => { const g = new THREE.Group(); g.visible = false; szene.add(g); ladePolizist(g, datei, gerüst); return { g, x: 0, z: 0, h: 0, ziel: zu && zu[i] || null, tempo: 0 }; });
+  const leute = GAST_LEUTE[art].map(([datei, gerüst, weste], i) => { const g = new THREE.Group(); g.visible = false; szene.add(g); ladePolizist(g, datei, gerüst, null, weste || null); return { g, x: 0, z: 0, h: 0, ziel: zu && zu[i] || null, tempo: 0 }; });
   return new Promise(da => { gaeste.push({ art, T, s: 0, v: 0, weg: 0, x: T.pts[0][0], z: T.pts[0][1], h: 0, mesh, leute, bis, da, steht: false }); });
 }
 function gaesteWeg() { for (const G of gaeste) { szene.remove(G.mesh); for (const c of G.leute) szene.remove(c.g); if (G.da) G.da(); } gaeste.length = 0; }
