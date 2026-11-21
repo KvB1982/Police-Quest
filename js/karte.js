@@ -2,38 +2,57 @@
 // Vorbild: Radar und Landkarte im Reitturnier. Die Karte wird einmal aus dem Stadtplan gemalt (stadtplan.js)
 // und dann nur noch verschoben. Norden ist oben. Im Auto dreht sich das Radar mit: Oben ist dann, wohin du fährst.
 
-import { PLAN, BESONDERE, KARTEN_ORTE, UFER, STRASSEN_X, STRASSEN_Z, KAI, woBinIch } from './stadtplan.js';
+import { PLAN, KARTEN_ORTE, UFER, FLEET, STADT_RAND, ortAuf, woBinIch } from './stadtplan.js';
 
 const MASS = 1.25;                                   // Bildpunkte pro Meter auf dem Kartenbild
-const RAND = [-800, -470, 850, 850];                 // dieser Ausschnitt der Welt ist auf der Karte
+const RAND = [-900, -470, 920, 900];                 // dieser Ausschnitt der Welt ist auf der Karte
 const INSEL = { x: 720, z: -330 };
 const $ = id => document.getElementById(id);
 const kx = x => (x - RAND[0]) * MASS, kz = z => (z - RAND[1]) * MASS;
 let bild = null, gross = null;
 
-const HAUS_FARBE = { alt: '#c98f72', city: '#c9b8a4', reihe: '#d4a184', speicher: '#a8705a', einzel: '#d9a98a', wohnblock: '#c5c9cf', halle: '#b9c0c6', besonders: '#e8554a' };
+const HAUS_FARBE = { alt: '#c98f72', city: '#c9b8a4', reihe: '#d4a184', speicher: '#a8705a', einzel: '#d9a98a', wohnblock: '#c5c9cf', gewerbe: '#b9c0c6', besonders: '#e8554a' };
+const HOF_FARBE = { asphalt: '#cfd2d6', schotter: '#c9bfae', pflaster: '#e3dccb', kopfstein: '#eadfc6', weg: '#f1e6c2' };
+// So sieht eine Straße auf der Karte aus: die Autobahn orange, Ringe und breite Straßen gelb, Gassen hell, der Kai sandfarben
+const wegFarbe = W => W.art === 'autobahn' || W.art === 'rampe' ? '#f0a040' : W.art === 'kai' ? '#f1e6c2' : W.art === 'ring' || W.b > 12 ? '#ffe08a' : W.art === 'gasse' ? '#f6f1e6' : '#ffffff';
 
 function male(mitNamen) {
   const c = document.createElement('canvas'); c.width = Math.round((RAND[2] - RAND[0]) * MASS); c.height = Math.round((RAND[3] - RAND[1]) * MASS);
   const k = c.getContext('2d'), R = (r, farbe) => { k.fillStyle = farbe; k.fillRect(kx(r[0]), kz(r[1]), (r[2] - r[0]) * MASS, (r[3] - r[1]) * MASS); };
+  // eine Fläche mit Ecken (zum Beispiel ein schräges Haus), "rand" Meter größer
+  const vieleck = (h, farbe, rand = 0) => {
+    const f = rand ? [(h.b / 2 + rand) / (h.b / 2), (h.t / 2 + rand) / (h.t / 2)] : null, co = Math.cos(h.dreh || 0), si = Math.sin(h.dreh || 0);
+    k.fillStyle = farbe; k.beginPath();
+    h.ecken.forEach((p, i) => {
+      let x = p[0], z = p[1];
+      if (f) { const dx = x - h.x, dz = z - h.z, u = dx * co - dz * si, v = dx * si + dz * co; x = h.x + (u * f[0]) * co + (v * f[1]) * si; z = h.z - (u * f[0]) * si + (v * f[1]) * co; }
+      i ? k.lineTo(kx(x), kz(z)) : k.moveTo(kx(x), kz(z));
+    });
+    k.closePath(); k.fill();
+  };
+  const linie = (W, breit, farbe) => { k.strokeStyle = farbe; k.lineWidth = breit * MASS; k.beginPath(); W.pts.forEach((p, i) => i ? k.lineTo(kx(p[0]), kz(p[1])) : k.moveTo(kx(p[0]), kz(p[1]))); k.stroke(); };
+  k.lineJoin = 'round'; k.lineCap = 'round';
   k.fillStyle = '#b9d7a0'; k.fillRect(0, 0, c.width, c.height);                                   // Wiesen rundherum
   R([RAND[0], RAND[1], RAND[2], UFER], '#8fc0dc');                                                // das Meer
-  R([STRASSEN_X[0].p - 16, UFER, STRASSEN_X.at(-1).p + 16, STRASSEN_Z.at(-1).p + 16], '#e9e5dc'); // die Stadt (Gehwege)
   k.fillStyle = '#e6d7a8'; k.beginPath(); k.ellipse(kx(INSEL.x), kz(INSEL.z), 90 * MASS, 90 * MASS, 0, 0, 7); k.fill();
   k.fillStyle = '#a9cf8a'; k.beginPath(); k.ellipse(kx(INSEL.x), kz(INSEL.z), 60 * MASS, 60 * MASS, 0, 0, 7); k.fill();
-  for (const r of PLAN.gruen) R(r, '#a9d38c');
-  for (const h of PLAN.hof) R(h.r, { asphalt: '#cfd2d6', schotter: '#c9bfae', pflaster: '#e3dccb', kopfstein: '#eadfc6', weg: '#f1e6c2' }[h.art]);
-  for (const r of PLAN.wasser) R(r, '#8fc0dc');
+  for (const W of PLAN.wege) if (W.art !== 'autobahn' && W.art !== 'rampe') linie(W, W.b + 2 * (W.geh || 3) + 30, '#e9e5dc');     // die Stadt: heller Boden rund um jede Straße
+  for (const r of PLAN.gruen) r.haus ? vieleck(r.haus, '#a9d38c', r.rand) : R(r, '#a9d38c');
+  for (const h of PLAN.hof) h.haus ? vieleck(h.haus, HOF_FARBE[h.art], h.rand) : R(h.r, HOF_FARBE[h.art]);
+  R(FLEET, '#8fc0dc');
   k.fillStyle = '#8fc0dc'; for (const t of PLAN.teiche) { k.beginPath(); k.ellipse(kx(t.x), kz(t.z), t.rx * MASS, t.rz * MASS, 0, 0, 7); k.fill(); }
   for (const d of PLAN.deko) if (d.art === 'steg') R([d.x - 2.2, UFER - d.lang, d.x + 2.2, UFER], '#b08a5a');
-  for (const x of [-492, 652]) R([x - 4, UFER - 170, x + 4, UFER], '#9a968e');
-  // Straßen: große Ringe gelb, die anderen weiß, der Kai sandfarben
-  for (const s of PLAN.strassen) R(s.achse === 'x' ? [s.p - s.b / 2, s.von === KAI.p ? KAI.p : s.von - 5, s.p + s.b / 2, s.bis + 5] : [s.von - (s.kai ? 0 : 5), s.p - s.b / 2, s.bis + (s.kai ? 0 : 5), s.p + s.b / 2], s.kai ? '#f1e6c2' : s.b > 10 ? '#ffe08a' : '#ffffff');
-  R([STRASSEN_X[0].p - 400, 203, STRASSEN_X[0].p, 217], '#ffe08a'); R([STRASSEN_X.at(-1).p, 203, RAND[2], 217], '#ffe08a');
-  k.strokeStyle = '#6a625a'; k.lineWidth = 1.2; k.setLineDash([5, 4]);
-  for (const g of PLAN.gleise) { k.beginPath(); k.moveTo(kx(g.x), kz(RAND[1] < g.z1 ? g.z1 : RAND[1])); k.lineTo(kx(g.x), kz(RAND[3])); k.stroke(); }
+  // Straßen: erst der Gehweg als Rand, dann die Fahrbahn; die großen zuletzt, damit sie obenauf liegen
+  const wege = [...PLAN.wege].sort((a, b) => a.b - b.b);
+  for (const W of wege) if (W.art !== 'autobahn' && W.art !== 'rampe') linie(W, W.b + 2.4, '#d6d0c4');
+  for (const W of wege) linie(W, W.art === 'autobahn' ? W.b + 3 : W.b, W.art === 'autobahn' ? '#c97a20' : wegFarbe(W));
+  for (const W of wege) if (W.art === 'autobahn') linie(W, W.b, wegFarbe(W));
+  for (const p of PLAN.wendeplatz) { k.fillStyle = '#ffffff'; k.beginPath(); k.arc(kx(p.x), kz(p.z), p.r * MASS, 0, 7); k.fill(); }
+  k.strokeStyle = '#6a625a'; k.lineWidth = 1.2; k.setLineDash([5, 4]); k.lineCap = 'butt';
+  for (const g of PLAN.gleise) { k.beginPath(); k.moveTo(kx(g.x), kz(Math.max(RAND[1], g.z1))); k.lineTo(kx(g.x), kz(RAND[3])); k.stroke(); }
   k.setLineDash([]);
-  for (const h of PLAN.haeuser) { R(h.r, HAUS_FARBE[h.typ] || '#c9b8a4'); if (h.typ === 'besonders') { k.strokeStyle = '#8a2a22'; k.lineWidth = 1.5; k.strokeRect(kx(h.r[0]), kz(h.r[1]), (h.r[2] - h.r[0]) * MASS, (h.r[3] - h.r[1]) * MASS); } }
+  k.lineWidth = 1.5; k.strokeStyle = '#8a2a22';
+  for (const h of PLAN.haeuser) { vieleck(h, HAUS_FARBE[h.typ] || '#c9b8a4'); if (h.typ === 'besonders') k.stroke(); }
   k.fillStyle = '#5f9a4a'; for (const b of PLAN.baeume) { k.beginPath(); k.arc(kx(b.x), kz(b.z), 2.2, 0, 7); k.fill(); }
   // Zeichen für die besonderen Orte
   k.textAlign = 'center'; k.textBaseline = 'middle';
@@ -42,14 +61,19 @@ function male(mitNamen) {
     k.font = '19px system-ui, "Apple Color Emoji", "Noto Color Emoji", sans-serif'; k.fillStyle = '#000'; k.fillText(bild, kx(x), kz(z) + 1);
     if (mitNamen) { k.font = 'bold 13px system-ui, sans-serif'; k.lineWidth = 3.5; k.strokeStyle = 'rgba(255,255,255,0.9)'; k.strokeText(name, kx(x), kz(z) + 26); k.fillStyle = '#1a2440'; k.fillText(name, kx(x), kz(z) + 26); }
   };
-  if (mitNamen) {         // Straßennamen entlang der Straßen
-    k.font = '11px system-ui, sans-serif'; k.fillStyle = '#5a6272';
-    for (const s of STRASSEN_Z) for (const x of [-420, -40, 460]) k.fillText(s.name, kx(x), kz(s.p) + 0.5);
-    for (const s of STRASSEN_X) for (const z of [170, 550]) { k.save(); k.translate(kx(s.p), kz(z)); k.rotate(-Math.PI / 2); k.fillText(s.name, 0, 0.5); k.restore(); }
-    k.fillText('Am Kai', kx(-200), kz(KAI.p)); k.fillText('Am Kai', kx(480), kz(KAI.p));
+  if (mitNamen) {         // Straßennamen: Sie laufen an der Straße entlang, bei langen Straßen mehrmals
+    for (const W of PLAN.wege) {
+      if (W.art === 'rampe' || W.l < 60) continue;
+      k.font = `${W.art === 'gasse' ? 9 : W.b > 12 ? 12 : 11}px system-ui, sans-serif`; k.fillStyle = W.art === 'autobahn' ? '#6a3a00' : '#5a6272';
+      const n = Math.max(1, Math.round(W.l / 420));
+      for (let i = 0; i < n; i++) {
+        const [x, z, tx, tz] = ortAuf(W, W.l * (i + 0.5) / n); let w = Math.atan2(tz, tx); if (w > Math.PI / 2 || w < -Math.PI / 2) w += Math.PI;
+        k.save(); k.translate(kx(x), kz(z)); k.rotate(w); k.fillText(W.name, 0, 0.5); k.restore();
+      }
+    }
     k.font = 'italic bold 22px system-ui, sans-serif'; k.fillStyle = 'rgba(40,90,130,0.6)'; k.fillText('Nordsee', kx(-300), kz(-330)); k.fillText('Möwenbucht', kx(250), kz(-250));
   }
-  for (const b of BESONDERE) zeichen((b.r[0] + b.r[2]) / 2, (b.r[1] + b.r[3]) / 2, b.bild, b.schild.split(' – ')[0].split(' · ')[0]);
+  for (const h of PLAN.haeuser) if (h.typ === 'besonders' && h.bild) zeichen(h.x, h.z, h.bild, (h.schild || '').split(' – ')[0].split(' · ')[0]);
   for (const o of KARTEN_ORTE) zeichen(o.x, o.z, o.bild, o.name);
   return c;
 }

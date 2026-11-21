@@ -7,21 +7,21 @@ import * as THREE from 'three';
 import * as BILD from './bilder.js';
 import * as MOD from './modelle.js';
 import { Eimer, farbe, instanzen, instanzenGeteilt, baumForm, tanneForm } from './stadtbau.js';
-import { PLAN, STRASSEN_X, STRASSEN_Z, UFER, wuerfel } from './stadtplan.js';
+import { FLEET, STADT_RAND, UFER, wuerfel } from './stadtplan.js';
 
 export const INSEL = { x: 720, z: -330 };          // hier steht der Leuchtturm
 const WELT = 5200;                                 // so weit reicht der Boden in jede Richtung
 
 export function baueUmland() {
   const gruppe = new THREE.Group(), w = wuerfel(909), zw = (a, b) => a + w() * (b - a);
-  const X0 = STRASSEN_X[0].p - 16, X1 = STRASSEN_X.at(-1).p + 16, Z1 = STRASSEN_Z.at(-1).p + 16;
+  const X0 = STADT_RAND.x0, X1 = STADT_RAND.x1, Z1 = STADT_RAND.z1;
   const inStadt = (x, z, rand = 0) => x > X0 - rand && x < X1 + rand && z < Z1 + rand;
   const gras = new Eimer(), bunt = new Eimer(), strasse = new Eimer(), sand = new Eimer();
 
   // ---- Boden: eine große Wiese, darauf ein Flickenteppich aus Feldern
   // (dort, wo in der Stadt das Fleet ist, bleibt ein Streifen frei – sonst läge die Wiese über dem Wasser)
-  const fx = [Math.min(...PLAN.wasser.map(r => r[0])), Math.max(...PLAN.wasser.map(r => r[2]))], wiese = farbe('#9cc27a');
-  gras.boden([-WELT, UFER, fx[0], WELT], -0.07, wiese, 9); gras.boden([fx[1], UFER, WELT, WELT], -0.07, wiese, 9); gras.boden([fx[0], Z1 - 21, fx[1], WELT], -0.07, wiese, 9);
+  const fx = [FLEET[0] - 1, FLEET[2] + 1], wiese = farbe('#9cc27a');
+  gras.boden([-WELT, UFER, fx[0], WELT], -0.07, wiese, 9); gras.boden([fx[1], UFER, WELT, WELT], -0.07, wiese, 9); gras.boden([fx[0], FLEET[3], fx[1], WELT], -0.07, wiese, 9);
   const FELD = ['#e8d34a', '#b9d46a', '#7fae58', '#c9b47a', '#a8c86a', '#d9c98a', '#8fb85e', '#b08a5a'];
   for (let i = 0; i < 260; i++) {
     const x = zw(-3400, 3400), z = zw(UFER + 90, 3400), b = zw(90, 260), t = zw(70, 220);
@@ -47,7 +47,12 @@ export function baueUmland() {
       if (w() < 0.75) laub.push({ x, z, h: zw(9, 13) });
     }
   };
-  land(X0, 210, -3600, 210); land(X1, 210, 3600, 210); land(-360, Z1, -360, 3600); land(400, Z1, 400, 3600);
+  land(-3600, 152, -826, 152); land(-1500, 56, -826, 56);
+  // Die Autobahn läuft an beiden Enden gerade weiter ins Land hinaus.
+  for (const [x, z, dx, dz] of [[-846, 462, -0.857, -0.515], [866, 552, 0.874, -0.486]]) {
+    const x2 = x + dx * 3200, z2 = z + dz * 3200, nx = -dz * 11, nz = dx * 11;
+    for (const [p, q, r, t] of [[[x + nx, z + nz], [x - nx, z - nz], [x2 - nx, z2 - nz], [x2 + nx, z2 + nz]]]) { strasse.quad([p[0], -0.02, p[1]], [q[0], -0.02, q[1]], [r[0], -0.02, r[1]], [t[0], -0.02, t[1]], asphalt, 0, 0, 4, 600); strasse.quad([q[0], -0.02, q[1]], [p[0], -0.02, p[1]], [t[0], -0.02, t[1]], [r[0], -0.02, r[1]], asphalt, 0, 0, 4, 600); }
+  }
 
   // ---- Wälder und einzelne Baumgruppen
   for (let k = 0; k < 34; k++) {

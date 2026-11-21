@@ -5,7 +5,7 @@ und trotzdem auf dem iPad flüssig laufen. Diese Liste sagt für jedes Modell: w
 
 ## Stand nach dem Review vom 21.11.2026 (große Stadt gebaut)
 
-Seit dem Review gibt es die große Stadt: 1,5 km × 0,9 km, rund 1880 Häuser in zwölf Vierteln, Fleet, Hafen, Bahnhof, Stadtpark,
+Seit dem Review gibt es die große Stadt: 1,7 km × 1,0 km, rund 1480 Häuser mit Altstadt-Gassen, Ringstraßen und Autobahn, Fleet, Hafen, Bahnhof, Stadtpark,
 Himmel mit Wolken, Umland mit Leuchtturminsel, Verkehr, Fußgänger, Radar und Stadtkarte. Dabei hat sich der Plan geändert:
 
 **Erledigt (steht weiter unten noch als Wunsch, ist aber da):**
