@@ -3,6 +3,33 @@
 Stand 21.11.2026. Ziel: Das Spiel soll statt aus Klötzen aus echten Modellen bestehen und „cool und realistisch“ aussehen –
 und trotzdem auf dem iPad flüssig laufen. Diese Liste sagt für jedes Modell: was, wo im Spiel, woher, wie groß, wie wichtig.
 
+## Stand nach dem Review vom 21.11.2026 (große Stadt gebaut)
+
+Seit dem Review gibt es die große Stadt: 1,5 km × 0,9 km, rund 1880 Häuser in zwölf Vierteln, Fleet, Hafen, Bahnhof, Stadtpark,
+Himmel mit Wolken, Umland mit Leuchtturminsel, Verkehr, Fußgänger, Radar und Stadtkarte. Dabei hat sich der Plan geändert:
+
+**Erledigt (steht weiter unten noch als Wunsch, ist aber da):**
+- Alle Powershot-Modelle, die wir brauchen, sind kopiert (Autos, Bäume, Laternen, Marktstand, Brunnen, Yacht, Bank, Mülltonne, Pflanzkübel).
+- 35 Modelle von Poly Haven und 7 Bodenbilder von ambientCG sind geladen (Liste in `assets/QUELLEN.md`). Davon stehen schon in der Stadt:
+  Kisten, Fässer, Fischkisten, Rettungsringe, Boje, Seezeichen, Tafel, Stromkasten. Die Möbel für drinnen (Schreibtisch, Regal, Sofa, Laptop …) warten auf die neuen Räume.
+- Lade-Baustein `js/modelle.js`, Verkleinerer `tools/modell_klein.mjs`.
+
+**Anders gelöst als geplant:**
+- Häuser (S1 Giebelhäuser, S2 Speicher, Wohnblocks, Hallen) sind **keine Modelle** mehr, sondern aus Formen gebaut mit gemalten Fassaden (`js/bilder.js`).
+  Grund: Bei fast 1900 Häusern wären Modelle zu schwer, und in die Maße gezogene Modelle sehen gestreckt aus (das Problem kennt Powershot).
+  Modelle lohnen sich nur noch für die **besonderen Häuser**, an denen man nah vorbeikommt.
+- Himmel, Wolken, Meer, Felder, Hügel, Windräder, Leuchtturm sind selbst gebaut (keine Dateien).
+
+**Was jetzt am meisten bringt (neue Reihenfolge):**
+1. **Streifenwagen V1** (3D AI Studio): Im Moment fährt ein silberner Kombi mit Blaulicht aus Kisten. Das ist das Modell, das man am längsten ansieht.
+2. **Figuren F1–F8** (3D AI Studio, T-Pose): Kim, Otto und die Leute der Geschichte sind noch Kisten-Figuren, die Fußgänger auch. Das fällt neben den Modellen jetzt am stärksten auf.
+3. **Wahrzeichen als Modell**: Polizeiwache W10, Stadtmuseum S3, Rathaus, Nikolaikirche, Bahnhof, Leuchtturm. Sie stehen schon als Kästen mit Turm an der richtigen Stelle – ein Modell ersetzt sie eins zu eins.
+4. **Hafen**: Fischkutter, Hafenkran, Güterwaggons, Bus (heute alle aus Kisten).
+5. **Straße**: Ampel, Verkehrsschilder, Bushaltestelle, Fahrrad, Bank am Fleet, Brückengeländer.
+6. Danach wie geplant die Innenräume (Wache, Museum, Wohnung) mit den schon geladenen Möbeln.
+
+Zu 1 bis 4 gibt es bei Poly Haven nichts Passendes – das geht nur über 3D AI Studio (kostet Guthaben) oder bleibt aus Formen.
+
 ## So hat es Powershot gemacht (das übernehmen wir)
 
 Powershot hat seine Modelle aus **zwei Quellen**:

@@ -73,3 +73,18 @@ Quelle: https://ambientcg.com (Lizenz CC0: https://docs.ambientcg.com/license/).
 1. Nur **CC0** oder **CC-BY** (bei CC-BY den Namen des Erstellers im Spiel nennen). Nichts mit „NC“ oder „Editorial“.
 2. Kein Logo, keine Marke, keine Waffen.
 3. Verkleinern mit `tools/modell_klein.mjs`, als Standbild ansehen, hier eintragen.
+
+## Aus dem Schwester-Spiel Powershot übernommen (22 Dateien, seit 21.11.2026)
+
+Kopiert aus `Powershot/assets/gelaende/` (die Bank aus `Powershot/assets/`). Dort steht die Herkunft in `assets/gelaende/QUELLEN.md`.
+
+| Datei | Herkunft | Wofür bei uns |
+|---|---|---|
+| `modelle/auto_kombi.glb`, `auto_kompakt.glb`, `auto_van.glb`, `auto_suv.glb` | 3D AI Studio (von uns erzeugt, kein Logo) | Verkehr, parkende Autos, Streifenwagen (Kombi mit Blaulicht), Falschparker |
+| `modelle/laterne.glb`, `baum_laub.glb`, `baum_fichte.glb`, `baum_laub_flach.webp` | 3D AI Studio | Straßen (Laterne modern), Bäume in der Nähe |
+| `modelle/stand.glb`, `schirmtisch.glb`, `absperrgitter.glb`, `mal_brunnen.glb`, `mal_yacht.glb`, `bank.glb` | 3D AI Studio | Marktstände, Brunnen auf dem Markt, Yachten im Hafen, Parkbank |
+| `modelle/laterne_alt.glb` | Poly Haven „street_lamp_01“ – https://polyhaven.com/a/street_lamp_01 (CC0) | Altstadt und Hafen |
+| `modelle/muelltonne.glb`, `pflanzkuebel.glb`, `bistro.glb` | Poly Haven „metal_trash_can“, „potted_plant_04“, „outdoor_table_chair_set_01“ (CC0) | Straßen in Altstadt und Innenstadt |
+| `boden/boden_asphalt.jpg`, `boden/boden_gras.jpg` | Poly Haven (CC0), Vorlagen siehe Powershot | Fahrbahn, Wiesen, Umland |
+
+Selbst gemalt (in `js/bilder.js`, keine Datei): alle Hausfassaden mit Fenstern, Dachziegel, Wellen, Wolken, Lichtflecken, die Stadtkarte.
