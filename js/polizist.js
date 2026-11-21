@@ -15,14 +15,20 @@ const TEMPO_GEHEN = 0.87, TEMPO_LAUFEN = 3.41;     // so schnell (Meter pro Seku
 const AB_LAUFEN = 2.2;              // ab diesem Tempo wird gelaufen statt gegangen
 const WECHSEL = 7;                  // so schnell wird zwischen zwei Bewegungen umgeblendet (größer = schneller)
 const HELLER = 1.5;                 // die dunkelblaue Uniform wäre im Spiel fast schwarz – so viel heller wird die Figur gemalt
+// Figuren aus MakeHuman sind in der Datei anders groß als Kim und Otto und brauchen kein Aufhellen:
+// hoch = so groß in der Datei, gross = so groß im Spiel (Meter; alle Figuren im Spiel sind ein Stück größer als echte Menschen), heller = Aufhellen
+const FIGUREN = {
+  thomsen: { hoch: 1.616, gross: 1.84, heller: 1.15 },
+};
 
 // Tauscht die Kisten-Figur in "gruppe" gegen das Modell aus, sobald es geladen ist. Klappt das Laden nicht, bleibt die Kisten-Figur.
 // datei = welche Figur: 'polizist' (Kim) oder 'otto'. Alle Figuren haben dasselbe Knochen-Gerüst und dieselben drei Bewegungen.
 export function ladePolizist(gruppe, datei = 'polizist') {
   new GLTFLoader().load(`assets/modelle/${datei}.glb`, gltf => {
     const modell = gltf.scene;
-    modell.scale.multiplyScalar(GROSS / MODELL_HOCH);
-    modell.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material.color.setScalar(HELLER); } });      // die Figur ist immer im Bild, also nie wegrechnen
+    const f = FIGUREN[datei] || { hoch: MODELL_HOCH, gross: GROSS, heller: HELLER };
+    modell.scale.multiplyScalar(f.gross / f.hoch);
+    modell.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material.color.multiplyScalar(f.heller); } });      // die Figur ist immer im Bild, also nie wegrechnen
     for (const kind of [...gruppe.children]) gruppe.remove(kind);
     gruppe.add(modell);
     const mixer = new THREE.AnimationMixer(modell), teile = {};

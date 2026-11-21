@@ -7,6 +7,7 @@ const kurz = n => n.replace(/^mixamorig:?_?/, '');
 // Welcher Knochen der neuen Figur folgt welchem der Spielfigur?
 const WIE = n => /^(Left|Right)Hand./.test(n) ? null : n;      // die Finger bleiben, wie MakeHuman sie formt (locker gekrümmt) – das sieht besser aus als die Sammel-Gelenke der Spielfigur
 // Zu welchem Kind zeigt ein Knochen? Daraus kommt seine Richtung in der Ruhe-Haltung.
+const FINGER = [0.2, 0.3, 0.2];      // so weit (im Bogenmaß) krümmen sich die drei Glieder jedes Fingers
 const KIND = { Spine: 'Spine1', Spine1: 'Spine2', Spine2: 'Neck', Neck: 'Head' };
 for (const S of ['Left', 'Right']) Object.assign(KIND, { [S + 'Shoulder']: S + 'Arm', [S + 'Arm']: S + 'ForeArm', [S + 'ForeArm']: S + 'Hand', [S + 'UpLeg']: S + 'Leg', [S + 'Leg']: S + 'Foot', [S + 'Foot']: S + 'ToeBase' });
 
@@ -14,6 +15,8 @@ window.uebertrage = async (vorbild, figur) => {
   const A = await ladeGlb(vorbild), Bg = await ladeGlb(figur);
   A.scene.updateMatrixWorld(true); Bg.scene.updateMatrixWorld(true);
   let ha, hb = []; A.scene.traverse(n => { if (n.isSkinnedMesh) ha = n; }); Bg.scene.traverse(n => { if (n.isSkinnedMesh) hb.push(n); });
+  // Haare, Brauen und Wimpern sind Bilder mit Löchern: Durchsichtig gemalt würden sie im Spiel flimmern, deshalb wird hart ausgeschnitten.
+  for (const m of hb) { const mat = m.material; if (mat.transparent) { mat.transparent = false; mat.alphaTest = 0.3; mat.depthWrite = true; mat.side = T.DoubleSide; } mat.metalness = 0; mat.roughness = Math.max(mat.roughness, 0.6); }
   // ---- Spielfigur: Eltern, Ruhe-Haltung im Raum
   const ka = ha.skeleton.bones, NA = ka.map(b => b.name), ea = Object.fromEntries(ka.map(b => [b.name, b.parent.isBone ? b.parent.name : null]));
   const ruheA = {}, ortA = {}; ka.forEach((b, i) => { const m = ha.skeleton.boneInverses[i].clone().invert(); ruheA[b.name] = new T.Quaternion().setFromRotationMatrix(m); ortA[b.name] = V().setFromMatrixPosition(m); });
@@ -33,6 +36,14 @@ window.uebertrage = async (vorbild, figur) => {
     aus[S + 'ForeArm'] = kreuz(ortA[S + 'Hand'].clone().sub(ortA[S + 'ForeArm']), rueckenA).multiply(kreuz(ortB[S + 'Hand'].clone().sub(ortB[S + 'ForeArm']), rueckenB).invert());
     aus[S + 'Hand'] = kreuz(ortA[S + 'Finger1'].clone().sub(ortA[S + 'Hand']), rueckenA).multiply(kreuz(ortB[S + 'HandMiddle1'].clone().sub(ortB[S + 'Hand']), rueckenB).invert());
     aus[S + 'ToeBase'] = new T.Quaternion(); }
+  // Finger: MakeHuman streckt sie gespreizt aus. Hier werden sie locker zur Handfläche gekrümmt (jedes Glied ein Stück), der Daumen nur wenig.
+  for (const [S, v] of [['Left', 1], ['Right', -1]]) { if (!KB[S + 'HandMiddle1']) continue;
+    const ruecken = ortB[S + 'HandIndex1'].clone().sub(ortB[S + 'Hand']).cross(ortB[S + 'HandPinky1'].clone().sub(ortB[S + 'Hand'])).multiplyScalar(v).normalize();
+    for (const [F, mal] of [['Index', 0.8], ['Middle', 1], ['Ring', 1.1], ['Pinky', 1.2], ['Thumb', 0.3]]) for (let g = 1; g <= 3; g++) { const n = S + 'Hand' + F + g, k = S + 'Hand' + F + (g + 1); if (!KB[n] || !KB[k]) continue;
+      const d = ortB[k].clone().sub(ortB[n]).normalize(), achse = d.clone().cross(ruecken.clone().negate()).normalize();
+      const dreh = new T.Quaternion().setFromAxisAngle(achse, FINGER[g - 1] * mal);
+      lokalB[n].multiply(ruheB[n].clone().invert().multiply(dreh).multiply(ruheB[n])); } }
+  aus.LeftShoulder = new T.Quaternion(); aus.RightShoulder = new T.Quaternion();      // das Schlüsselbein bleibt, wie MakeHuman es gebaut hat, und macht nur die Bewegung mit – sonst zieht es die Schultern hoch
   aus.Head = aus.Neck.clone();
   const mass = (ortB.Hips.y - Math.min(ortB.LeftToeBase.y, ortB.LeftFoot.y)) / (ortA.Hips.y * 0.01), ordnung = Object.keys(KB);      // Reihenfolge von der Hüfte nach außen (so stehen die Knochen in der Datei)
   ordnung.sort((x, y) => { const tief = n => { let t = 0; while (eb(n)) { n = eb(n); t++; } return t; }; return tief(x) - tief(y); });
