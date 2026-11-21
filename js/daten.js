@@ -13,6 +13,8 @@
 // "wenn" und "bis" sind Merker aus der Geschichte: Das Ding gibt es erst, wenn der Merker "wenn"
 // gesetzt ist, und nur so lange, bis der Merker "bis" gesetzt ist.
 
+import { PLAN, GROSS } from './stadtplan.js';
+
 const POLIZEI = { hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#5a3b22', muetze: '#f4f4f4' };
 
 // Eine dünne Wand von (x1, z1) nach (x2, z2) – entweder waagerecht oder senkrecht.
@@ -75,78 +77,21 @@ const wache = {
 };
 
 // ---------------------------------------------------------------------------------------------
-// Die Stadt Möwenbrück (erster Teil): ein Netz aus drei mal drei Straßen mit Häuserblocks dazwischen.
+// Die Stadt Möwenbrück: Was die Geschichte dort braucht.
 // ---------------------------------------------------------------------------------------------
-export const STRASSEN_X = [-80, 0, 80];    // Straßen, die von Norden nach Süden laufen
-export const STRASSEN_Z = [-60, 0, 60];    // Straßen, die von Westen nach Osten laufen
-export const STRASSE_BREIT = 10;
-
-// Ein Würfel, der immer dieselben "Zufalls"-Zahlen liefert – so sieht die Stadt bei jedem Start gleich aus.
-function wuerfel(start) {
-  let s = start;
-  return () => (s = (s * 16807) % 2147483647) / 2147483647;
-}
-
-function schneidet(a, b, rand = 0) {
-  return a[0] < b[2] + rand && a[2] > b[0] - rand && a[1] < b[3] + rand && a[3] > b[1] - rand;
-}
-
-// Besondere Häuser, die in der Geschichte vorkommen.
-const BESONDERE = [
-  { r: [25, -22, 55, -8], h: 7, farbe: '#dfe6ee', dach: '#3c5a8a', schild: 'Polizeiwache' },
-  { r: [-55, 38, -32, 52], h: 5, farbe: '#ffd27a', dach: '#d0603a', schild: 'Kita Sonnenhang' },
-  { r: [-28, 40, -14, 52], h: 6, farbe: '#e8b89a', dach: '#8a4a3a', schild: 'Bäckerei Kruse' },
-  { r: [52, 18, 73, 42], h: 9, farbe: '#c9b79c', dach: '#6a5a4a', schild: 'Stadtmuseum' },
-];
-// Flächen, auf die der Zufall keine Häuser stellen darf.
-const FREI = [[-75, -55, -5, -5], [22, -24, 58, -5], [-58, 36, -10, 55], [48, 16, 75, 44]];
-
-const FARBEN = ['#e9d8b8', '#d9c0a0', '#c7d3d9', '#e6c9c0', '#cfd8b8', '#d8d0e0', '#f0e2c0', '#bfcad6'];
-const SPEICHER = ['#a8563c', '#b8664a', '#8f4a36', '#9c5f48'];
-
-function stadtHaeuser() {
-  const w = wuerfel(1326);
-  const h = [];
-  const xs = [[-115, -85], [-75, -5], [5, 75], [85, 115]];
-  const zs = [[-95, -65], [-55, -5], [5, 55], [65, 95]];
-  for (const [x1, x2] of xs) for (const [z1, z2] of zs) {
-    const hafen = z1 < -60;                                   // ganz im Norden stehen die Speicherhäuser
-    const nx = Math.max(1, Math.round((x2 - x1) / 15)), nz = Math.max(1, Math.round((z2 - z1) / 15));
-    const bx = (x2 - x1) / nx, bz = (z2 - z1) / nz;
-    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
-      const rand = 1.5 + w() * 1.5;
-      const r = [x1 + i * bx + rand, z1 + j * bz + rand, x1 + (i + 1) * bx - rand, z1 + (j + 1) * bz - rand];
-      const hoch = hafen ? 8 + w() * 4 : 5 + w() * 9;
-      const farbe = (hafen ? SPEICHER : FARBEN)[Math.floor(w() * (hafen ? SPEICHER.length : FARBEN.length))];
-      if (FREI.some(f => schneidet(r, f, 1))) continue;
-      if (w() < 0.12) continue;                               // ab und zu eine Lücke: ein kleiner Platz mit Baum
-      h.push({ r, h: hoch, farbe, dach: hafen ? '#5a3a30' : '#7a5548' });
-    }
-  }
-  return h.concat(BESONDERE);
-}
-
-function baeume() {
-  const w = wuerfel(77);
-  const b = [];
-  for (let i = 0; i < 14; i++) b.push({ x: -72 + w() * 64, z: -52 + (i % 2 ? 0 : 44) + w() * 3 });   // Rand vom Markt
-  for (let i = 0; i < 6; i++) b.push({ x: -56 + i * 4.2, z: 35.5 });                                  // hinter der Kita
-  for (let i = 0; i < 5; i++) b.push({ x: 50, z: 19 + i * 5.5 });                                     // am Museum
-  return b;
-}
-
+// Die ganze Stadt (Straßen, Häuser, Viertel, Kanal, Hafen …) wird in stadtplan.js ausgerechnet.
+// Hier steht nur, was die Geschichte in der Stadt braucht: Marktstände, Dinge und Leute.
 const STAND = ['#d9534f', '#f0ad4e', '#5cb85c', '#5bc0de', '#d9534f', '#f0ad4e'];
 const marktStaende = [[-60, -40], [-48, -42], [-30, -44], [-20, -36], [-62, -20], [-50, -14], [-28, -16], [-18, -24]]
   .map(([x, z], i) => ({ x, z, b: 4, t: 2.4, h: 1, farbe: '#c9a777', dach: STAND[i % STAND.length] }));
 
 const stadt = {
   name: 'Möwenbrück',
-  gross: [-120, -100, 120, 100],
-  kamera: [12, 10.5],
+  gross: GROSS,
+  kamera: [8.5, 14],
   draussen: true,
-  haeuser: stadtHaeuser(),
-  baeume: baeume(),
-  boden: [{ r: [-75, -55, -5, -5], farbe: '#d6c7a8' }],   // Marktplatz mit Pflaster
+  plan: PLAN,                 // der große Stadtplan aus stadtplan.js
+  boden: [],
   waende: [],
   moebel: marktStaende,
   schilder: [{ x: -40, z: -30, text: 'Marktplatz', hoch: 7 }],

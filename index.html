@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="css/style.css">
   <!-- three.js kommt aus dem Internet (jsDelivr), wie bei Powershot und Rennspiel. Kein Build-Schritt. -->
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
   </script>
 </head>
 <body>
@@ -25,6 +26,13 @@
   </div>
   <div id="pfeil" hidden><div id="pfeilBild">⬆</div><div id="pfeilWeit"></div></div>
   <div id="tacho" hidden></div>
+  <!-- Radar: kleine Karte rund um dich. Antippen (oder Taste M) öffnet die große Stadtkarte. -->
+  <div id="radar" hidden title="Stadtkarte (Taste M)"><canvas id="radarBild" width="300" height="300"></canvas><div id="radarNord">N</div></div>
+  <div id="karte" hidden>
+    <div id="karteKopf"><b>🗺️ Stadtkarte von Möwenbrück</b><span id="karteWo"></span><button id="karteZu">Schließen</button></div>
+    <div id="karteRahmen"><canvas id="karteBild"></canvas></div>
+    <div id="karteFuss">🔵 du · 🟡 dein Ziel · 🚓 Streifenwagen · Ziehen = verschieben · Rad oder zwei Finger = größer und kleiner</div>
+  </div>
   <div id="toast" hidden></div>
 
   <!-- Knöpfe für das, was man gerade tun kann -->
@@ -61,7 +69,7 @@
     <p>Ein Polizei-Abenteuer · Fall 1: Die Feder im Museum · Tag 1</p>
     <button id="neuesSpiel">Neues Spiel</button>
     <button id="weiterSpielen" hidden>Weiterspielen</button>
-    <p class="klein">Laufen: Pfeiltasten oder auf den Boden tippen · Benutzen: E oder Knopf unten · Funk: F · Notizbuch: N · Tasche: T · Blaulicht: B</p>
+    <p class="klein">Laufen: Pfeiltasten oder auf den Boden tippen · Benutzen: E oder Knopf unten · Funk: F · Notizbuch: N · Tasche: T · Blaulicht: B · Stadtkarte: M</p>
   </div>
 
   <div id="ende" class="voll" hidden>

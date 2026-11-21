@@ -1,0 +1,381 @@
+// Blaulicht über Möwenbrück – baut die große Stadt in 3D (aus dem Stadtplan in stadtplan.js).
+//
+// So wird es schnell: Alle Wände mit derselben Fassade landen in EINER großen Form ("Eimer"), alle Dächer in einer,
+// alle Straßen in einer … Die Grafikkarte muss dann nur wenige Dinge zeichnen, obwohl es fast 2000 Häuser sind.
+// Vorbild für die Straßenschluchten: js/stadtbau.js im Rennspiel. Bäume, Laternen und Autos sind "Instanzen":
+// eine Form, viele Male hingestellt. Nur die nächsten bekommen das schöne geladene Modell (siehe NahTausch).
+
+import * as THREE from 'three';
+import * as BILD from './bilder.js';
+import * as MOD from './modelle.js';
+import { PLAN, STRASSEN_X, STRASSEN_Z, KAI, UFER, wuerfel } from './stadtplan.js';
+
+const GEHRAND = 0;
+const FELD = 3, STOCK = 3.05, EG = 3.5;       // ein Fensterfeld ist 3 m breit, ein Stockwerk 3,05 m hoch, das Erdgeschoss 3,5 m
+export const AUTO_FARBEN = ['#f2f2f2', '#c9ced3', '#2a2d31', '#2f5d9a', '#b3372e', '#3d6b4f', '#d9cfb8', '#70777e'];
+
+// ---------------------------------------------------------------------------------------------
+// Der Eimer: sammelt Dreiecke (Ort, Richtung, Bild-Stelle, Farbe) und macht am Ende eine einzige Form daraus.
+// ---------------------------------------------------------------------------------------------
+const tmpF = new THREE.Color();
+export class Eimer {
+  constructor() { this.p = []; this.n = []; this.u = []; this.c = []; }
+  ecke(a, nx, ny, nz, u, v, f) { this.p.push(a[0], a[1], a[2]); this.n.push(nx, ny, nz); this.u.push(u, v); this.c.push(f.r, f.g, f.b); }
+  // Viereck a-b-c-d (gegen den Uhrzeigersinn, von außen gesehen); das Bild reicht von (u0, v0) bei a bis (u1, v1) bei c
+  quad(a, b, c, d, f, u0 = 0, v0 = 0, u1 = 1, v1 = 1) {
+    let nx = (b[1] - a[1]) * (d[2] - a[2]) - (b[2] - a[2]) * (d[1] - a[1]), ny = (b[2] - a[2]) * (d[0] - a[0]) - (b[0] - a[0]) * (d[2] - a[2]), nz = (b[0] - a[0]) * (d[1] - a[1]) - (b[1] - a[1]) * (d[0] - a[0]);
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    this.ecke(a, nx, ny, nz, u0, v0, f); this.ecke(b, nx, ny, nz, u1, v0, f); this.ecke(c, nx, ny, nz, u1, v1, f);
+    this.ecke(a, nx, ny, nz, u0, v0, f); this.ecke(c, nx, ny, nz, u1, v1, f); this.ecke(d, nx, ny, nz, u0, v1, f);
+  }
+  drei(a, b, c, f, u = 0.01, v = 0.02) {
+    let nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]), nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    this.ecke(a, nx, ny, nz, u, v, f); this.ecke(b, nx, ny, nz, u, v, f); this.ecke(c, nx, ny, nz, u, v, f);
+  }
+  // Fläche auf dem Boden (schaut nach oben); das Bild wiederholt sich alle "kachel" Meter
+  boden(r, y, f, kachel = 4) {
+    const [x1, z1, x2, z2] = r;
+    this.quad([x1, y, z2], [x2, y, z2], [x2, y, z1], [x1, y, z1], f, x1 / kachel, -z2 / kachel, x2 / kachel, -z1 / kachel);
+  }
+  // Kiste mit einer einzigen Farbe (Bild-Stelle u, v)
+  kiste(x1, y1, z1, x2, y2, z2, f, u = 0.01, v = 0.02) {
+    const q = (a, b, c, d) => this.quad(a, b, c, d, f, u, v, u, v);
+    q([x1, y1, z2], [x2, y1, z2], [x2, y2, z2], [x1, y2, z2]); q([x2, y1, z1], [x1, y1, z1], [x1, y2, z1], [x2, y2, z1]);
+    q([x2, y1, z2], [x2, y1, z1], [x2, y2, z1], [x2, y2, z2]); q([x1, y1, z1], [x1, y1, z2], [x1, y2, z2], [x1, y2, z1]);
+    q([x1, y2, z2], [x2, y2, z2], [x2, y2, z1], [x1, y2, z1]);
+  }
+  form() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    return g;
+  }
+}
+export const farbe = hex => new THREE.Color(hex);
+
+// Kleiner Helfer: viele Kopien einer Form (Instanzen)
+export function instanzen(geo, mat, liste, setze, schatten = true) {
+  const im = new THREE.InstancedMesh(geo, mat, Math.max(1, liste.length)), o = new THREE.Object3D();
+  im.count = liste.length;
+  liste.forEach((e, i) => { o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); const f = setze(o, e, i); o.updateMatrix(); im.setMatrixAt(i, o.matrix); if (f) im.setColorAt(i, tmpF.set(f)); });
+  im.castShadow = schatten; im.receiveShadow = false; im.frustumCulled = false;
+  return im;
+}
+
+// Dasselbe, aber in Stücke geteilt: Die Stadt wird in Kästchen von "zelle" Metern geteilt, jedes Kästchen bekommt seine eigene
+// Instanzen-Form. Die Grafikkarte zeichnet dann nur die Kästchen, die gerade im Bild sind (und nur die nahen werfen Schatten).
+// Zurück kommt { gruppe, ort }: ort[i] = [Form, Nummer] sagt, wo das i-te Ding der Liste steckt.
+export function instanzenGeteilt(geo, mat, liste, setze, schatten = true, zelle = 200) {
+  const gruppe = new THREE.Group(), kaesten = new Map(), ort = new Array(liste.length);
+  liste.forEach((e, i) => { const k = Math.floor(e.x / zelle) * 1000 + Math.floor(e.z / zelle); if (!kaesten.has(k)) kaesten.set(k, []); kaesten.get(k).push(i); });
+  for (const nummern of kaesten.values()) {
+    const im = instanzen(geo, mat, nummern.map(i => liste[i]), (o, e, j) => setze(o, e, nummern[j]), schatten);
+    im.computeBoundingSphere(); im.frustumCulled = true;
+    nummern.forEach((i, j) => { ort[i] = [im, j]; });
+    gruppe.add(im);
+  }
+  return { gruppe, ort };
+}
+
+// Einfache Formen für die Ferne: Baum, Tanne, Auto, Laterne (Farben stecken in den Ecken der Form)
+function gefaerbt(geo, hex) { const f = farbe(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = f.r; a[i * 3 + 1] = f.g; a[i * 3 + 2] = f.b; } geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo.index ? geo.toNonIndexed() : geo; }
+function zusammen(teile) {
+  const p = [], n = [], c = [];
+  for (const g of teile) { p.push(...g.attributes.position.array); n.push(...g.attributes.normal.array); c.push(...g.attributes.color.array); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(n, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+  return g;
+}
+const kisteGeo = (b, h, t, x, y, z, hex) => gefaerbt(new THREE.BoxGeometry(b, h, t).translate(x, y, z), hex);
+export function baumForm() {       // 1 Einheit hoch
+  const krone = new THREE.IcosahedronGeometry(0.34, 1).scale(1, 0.92, 1).translate(0, 0.66, 0), k2 = new THREE.IcosahedronGeometry(0.24, 0).translate(0.16, 0.5, 0.1);
+  return zusammen([gefaerbt(new THREE.CylinderGeometry(0.035, 0.05, 0.42, 6).translate(0, 0.21, 0), '#6b4a2e'), gefaerbt(krone, '#ffffff'), gefaerbt(k2, '#e6e6e6')]);
+}
+export function tanneForm() {
+  return zusammen([gefaerbt(new THREE.CylinderGeometry(0.03, 0.04, 0.2, 5).translate(0, 0.1, 0), '#5a3f2a'), gefaerbt(new THREE.ConeGeometry(0.26, 0.5, 7).translate(0, 0.42, 0), '#ffffff'), gefaerbt(new THREE.ConeGeometry(0.18, 0.42, 7).translate(0, 0.78, 0), '#f0f0f0')]);
+}
+export function autoForm() {       // vorn ist +z, 4,4 m lang
+  const t = [kisteGeo(1.8, 0.62, 4.4, 0, 0.6, 0, '#ffffff'), kisteGeo(1.6, 0.52, 2.3, 0, 1.16, -0.25, '#1d242b'), kisteGeo(1.62, 0.07, 2.2, 0, 1.45, -0.25, '#ffffff')];
+  for (const [x, z] of [[-0.86, 1.4], [0.86, 1.4], [-0.86, -1.4], [0.86, -1.4]]) t.push(kisteGeo(0.22, 0.62, 0.62, x, 0.31, z, '#15171a'));
+  t.push(kisteGeo(1.5, 0.14, 0.06, 0, 0.72, 2.2, '#fff6c8'), kisteGeo(1.5, 0.14, 0.06, 0, 0.72, -2.2, '#a82a22'));
+  return zusammen(t);
+}
+function laterneForm(alt) {
+  return alt ? zusammen([kisteGeo(0.2, 3.6, 0.2, 0, 1.8, 0, '#22262a'), kisteGeo(0.4, 0.5, 0.4, 0, 3.85, 0, '#30353a')])
+    : zusammen([kisteGeo(0.24, 6.3, 0.24, 0, 3.15, 0, '#6d747b'), kisteGeo(0.26, 0.12, 1.5, 0, 6.3, 0.6, '#6d747b')]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// NahTausch: Alle Dinge einer Sorte stehen als einfache Form da. Die nächsten am Spieler werden gegen das
+// geladene Modell getauscht (das einfache schrumpft so lange auf null). Zweimal pro Sekunde wird neu gezählt.
+// ---------------------------------------------------------------------------------------------
+class NahTausch {
+  constructor(gruppe, liste, einfach, setze, modellName, platz, weit, schnitt) {
+    this.liste = liste; this.einfach = einfach; this.setze = setze; this.platz = platz; this.weit = weit; this.aktiv = [];
+    this.o = new THREE.Object3D(); this.null = new THREE.Matrix4().makeScale(0, 0, 0);
+    MOD.lade(modellName).then(m => {
+      if (!m) return;
+      if (schnitt) { m.mat.clippingPlanes = [schnitt]; m.mat.side = THREE.DoubleSide; }
+      this.modell = new THREE.InstancedMesh(m.geo, m.mat, platz);
+      this.modell.count = 0; this.modell.castShadow = true; this.modell.frustumCulled = false;
+      gruppe.add(this.modell);
+    });
+  }
+  matrix(e, i, modell) { const o = this.o; o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); const f = this.setze(o, e, i, modell); o.updateMatrix(); return f; }
+  neu(x, z) {
+    if (!this.modell) return;
+    const nah = [];
+    for (let i = 0; i < this.liste.length; i++) { const e = this.liste[i], d = (e.x - x) ** 2 + (e.z - z) ** 2; if (d < this.weit * this.weit) nah.push([d, i]); }
+    nah.sort((a, b) => a[0] - b[0]); nah.length = Math.min(nah.length, this.platz);
+    const E = this.einfach.ort;       // wo jedes Ding in den geteilten Instanzen steckt
+    for (const i of this.aktiv) { this.matrix(this.liste[i], i, false); E[i][0].setMatrixAt(E[i][1], this.o.matrix); E[i][0].instanceMatrix.needsUpdate = true; }
+    this.aktiv = nah.map(n => n[1]);
+    this.aktiv.forEach((i, k) => {
+      E[i][0].setMatrixAt(E[i][1], this.null); E[i][0].instanceMatrix.needsUpdate = true;
+      const f = this.matrix(this.liste[i], i, true); this.modell.setMatrixAt(k, this.o.matrix); if (f) this.modell.setColorAt(k, tmpF.set(f));
+    });
+    this.modell.count = this.aktiv.length; this.modell.instanceMatrix.needsUpdate = true;
+    if (this.modell.instanceColor) this.modell.instanceColor.needsUpdate = true;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Die Stadt bauen. Zurück kommt { gruppe, schritt(dt, x, z), licht(name), schnitt }.
+// ---------------------------------------------------------------------------------------------
+export function baueStadt() {
+  const gruppe = new THREE.Group(), P = PLAN, w = wuerfel(4711);
+  const schnitt = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1e9);      // alles südlich davon (zur Kamera hin) wird weggeschnitten
+  const eimer = new Map(), leuchtend = [];
+  const E = key => { if (!eimer.has(key)) eimer.set(key, new Eimer()); return eimer.get(key); };
+  const WEISS = farbe('#ffffff');
+
+  // ---- Boden: Gehweg unter der ganzen Stadt, darauf Straßen, Höfe, Rasen
+  const X0 = STRASSEN_X[0].p - 16, X1 = STRASSEN_X.at(-1).p + 16, Z1 = STRASSEN_Z.at(-1).p + 16;
+  // Der Gehweg liegt unter der ganzen Stadt – nur nicht dort, wo das Fleet (der Kanal) ist. Über das Fleet führen die Brücken.
+  const fleet = P.wasser.length ? [Math.min(...P.wasser.map(r => r[0])), Math.max(...P.wasser.map(r => r[2]))] : null, hell = farbe('#f1eee6');
+  if (fleet) {
+    E('gehweg').boden([X0, UFER, fleet[0], Z1], 0, hell, 1.6); E('gehweg').boden([fleet[1], UFER, X1, Z1], 0, hell, 1.6);
+    for (const s of STRASSEN_Z) E('gehweg').boden([fleet[0], s.p - s.b / 2 - 0.2, fleet[1], s.p + s.b / 2 + 0.2], 0, hell, 1.6);
+    E('gehweg').boden([fleet[0], UFER, fleet[1], KAI.p + KAI.b / 2], 0, hell, 1.6); E('gehweg').boden([fleet[0], Z1 - 11, fleet[1], Z1], 0, hell, 1.6);
+  } else E('gehweg').boden([X0, UFER, X1, Z1], 0, hell, 1.6);
+  const asphalt = farbe('#8a8d92');
+  for (const s of P.strassen) {
+    const h = s.b / 2;
+    if (s.achse === 'x') E('asphalt').boden([s.p - h, s.von === KAI.p ? KAI.p + KAI.b / 2 : s.von - 5, s.p + h, s.bis + 5], 0.02, asphalt, 5);
+    else {        // Ost-West-Straßen stückweise zwischen den Nord-Süd-Straßen, damit an Kreuzungen nichts doppelt liegt
+      const stuecke = [s.von - 5, ...STRASSEN_X.filter(q => q.p > s.von - 1 && q.p < s.bis + 1).flatMap(q => [q.p - q.b / 2, q.p + q.b / 2]), s.bis + 5];
+      if (s.kai) { E('kopfstein').boden([s.von, s.p - h, s.bis, s.p + h], 0.02, farbe('#cfc8bb'), 3.5); continue; }
+      for (let i = 0; i + 1 < stuecke.length; i += 2) if (stuecke[i + 1] > stuecke[i]) E('asphalt').boden([stuecke[i], s.p - h, stuecke[i + 1], s.p + h], 0.02, asphalt, 5);
+    }
+    // Bordstein und Mittelstreifen zwischen den Kreuzungen
+    const quer = (s.achse === 'x' ? STRASSEN_Z : STRASSEN_X).filter(q => q.p > s.von - 1 && q.p < s.bis + 1);
+    if (s.achse === 'x' && s.von === KAI.p) quer.unshift({ p: KAI.p, b: KAI.b });
+    for (let k = 0; k + 1 < quer.length && !s.kai; k++) {
+      const a = quer[k].p + quer[k].b / 2, b = quer[k + 1].p - quer[k + 1].b / 2, bord = farbe('#b9b6ae');
+      for (const seite of [-1, 1]) {
+        const q = s.p + seite * (h + 0.15);
+        if (s.achse === 'x') E('farbe').kiste(q - 0.15, 0, a + GEHRAND, q + 0.15, 0.13, b - GEHRAND, bord); else E('farbe').kiste(a + GEHRAND, 0, q - 0.15, b - GEHRAND, 0.13, q + 0.15, bord);
+      }
+      const strich = (t1, t2, ab, breit) => s.achse === 'x' ? E('strich').boden([s.p + ab - breit / 2, t1, s.p + ab + breit / 2, t2], 0.035, WEISS) : E('strich').boden([t1, s.p + ab - breit / 2, t2, s.p + ab + breit / 2], 0.035, WEISS);
+      for (let t = a + 8; t + 3 < b - 8; t += 9) strich(t, t + 3, 0, 0.15);
+      if (s.b > 10) for (const ab of [-3.4, 3.4]) for (let t = a + 8; t + 3 < b - 8; t += 9) strich(t, t + 3, ab, 0.12);
+      // Haltelinie und Zebrastreifen vor jeder Kreuzung
+      for (const [t, r] of [[a, 1], [b, -1]]) {
+        strich(t + r * 6.2, t + r * 6.6, r * -h / 2, h - 0.4);
+        for (let q = -h + 0.6; q < h - 0.3; q += 1.1) strich(t + r * 1.6, t + r * 4.8, q + 0.25, 0.5);
+      }
+    }
+  }
+  for (const r of P.gruen) E('gras').boden(r, 0.03, farbe('#9fc777'), 6);
+  const HOF = { asphalt: ['asphalt', '#7c7f84', 5], schotter: ['gehweg', '#8f7f6c', 2], pflaster: ['kopfstein', '#d8d2c6', 3.5], kopfstein: ['kopfstein', '#e0d6c2', 3.5], weg: ['gehweg', '#e6d9b8', 2] };
+  for (const h of P.hof) { const [k, f, kachel] = HOF[h.art]; E(k).boden(h.r, h.art === 'weg' ? 0.045 : 0.025, farbe(f), kachel); }
+
+  // ---- Wasser: das Meer, das Fleet (Kanal), die Teiche
+  const blau = farbe('#ffffff');
+  E('wasser').boden([-5000, -5000, 5000, UFER], -0.9, blau, 26);
+  E('stein').quad([X0, -2.5, UFER], [X1, -2.5, UFER], [X1, 0, UFER], [X0, 0, UFER], farbe('#8d8a84'), X0 / 3, 0, X1 / 3, 1);       // Kaimauer (schaut nach Norden)
+  for (const r of P.wasser) {
+    E('wasser').boden(r, -1.1, blau, 26);
+    const st = farbe('#8d8a84');
+    E('stein').quad([r[0], -2.5, r[1]], [r[0], -2.5, r[3]], [r[0], 0, r[3]], [r[0], 0, r[1]], st, r[1] / 3, 0, r[3] / 3, 1);
+    E('stein').quad([r[2], -2.5, r[3]], [r[2], -2.5, r[1]], [r[2], 0, r[1]], [r[2], 0, r[3]], st, r[1] / 3, 0, r[3] / 3, 1);
+    E('gehweg').boden([r[0] - 1, r[1], r[0], r[3]], 0.01, farbe('#bdb9b0'), 3); E('gehweg').boden([r[2], r[1], r[2] + 1, r[3]], 0.01, farbe('#bdb9b0'), 3);
+  }
+  for (const t of P.teiche) { const e = E('wasser'); for (let i = 0; i < 20; i++) { const a = i / 20 * 6.2832, b = (i + 1) / 20 * 6.2832;
+    e.drei([t.x, 0.05, t.z], [t.x + Math.cos(b) * t.rx, 0.05, t.z + Math.sin(b) * t.rz], [t.x + Math.cos(a) * t.rx, 0.05, t.z + Math.sin(a) * t.rz], blau, t.x / 26, t.z / 26); } }
+  // Geländer an Fleet und Brücken
+  for (const [x1, z1, x2, z2] of P.gelaender) { const f = farbe('#3b4045');
+    E('farbe').kiste(Math.min(x1, x2) - 0.05, 0.95, Math.min(z1, z2) - 0.05, Math.max(x1, x2) + 0.05, 1.05, Math.max(z1, z2) + 0.05, f);
+    const l = Math.hypot(x2 - x1, z2 - z1), n = Math.max(1, Math.round(l / 3));
+    for (let i = 0; i <= n; i++) { const x = x1 + (x2 - x1) * i / n, z = z1 + (z2 - z1) * i / n; E('farbe').kiste(x - 0.05, 0, z - 0.05, x + 0.05, 1, z + 0.05, f); } }
+  // Gleise
+  for (const g of P.gleise) for (const ab of [-0.72, 0.72]) E('farbe').kiste(g.x + ab - 0.05, 0.03, g.z1, g.x + ab + 0.05, 0.16, g.z2, farbe('#5c5650'));
+  for (const g of P.gleise) for (let z = -160; z < 1000; z += 1.4) E('farbe').kiste(g.x - 1.2, 0.02, z, g.x + 1.2, 0.08, z + 0.3, farbe('#4f4338'));
+
+  // ---- Häuser
+  for (const h of P.haeuser) haus(h);
+  function haus(h) {
+    const [x1, z1, x2, z2] = h.r, f = farbe(h.farbe), stil = h.stil;
+    const y1 = h.typ === 'einzel' ? EG + 0.2 : h.h, yE = Math.min(EG, y1);
+    const art = h.typ === 'speicher' || stil === 'halle' ? 'tor' : h.laden ? 'laden' : 'wohn';
+    const og = E('og_' + stil), eg = E(`eg_${stil}_${art}`);
+    const stock = Math.max(1, Math.round((y1 - yE) / STOCK)), uo = Math.floor(w() * 4) / 4, vo = Math.floor(w() * 4) / 4;
+    const wand = (ax, az, bx, bz) => {
+      const n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / FELD)) / 4;
+      eg.quad([ax, 0, az], [bx, 0, bz], [bx, yE, bz], [ax, yE, az], f, uo, 0, uo + n, yE / EG);
+      if (y1 > yE + 0.5) og.quad([ax, yE, az], [bx, yE, bz], [bx, y1, bz], [ax, y1, az], f, uo, vo, uo + n, vo + stock / 4);
+    };
+    wand(x1, z2, x2, z2); wand(x2, z1, x1, z1); wand(x2, z2, x2, z1); wand(x1, z1, x1, z2);
+    const D = h.dach, df = farbe(D.farbe);
+    if (D.art === 'flach') {
+      E('flach').boden([x1, z1, x2, z2], y1 - 0.4, df, 4);
+      if (h.typ === 'city' || h.typ === 'wohnblock') { const mx = x1 + (x2 - x1) * (0.3 + w() * 0.4), mz = z1 + (z2 - z1) * (0.3 + w() * 0.4); E('aufbau').kiste(mx - 1.6, y1 - 0.4, mz - 1.4, mx + 1.6, y1 + 1.5, mz + 1.4, farbe('#9aa0a6')); }
+    } else {
+      const yr = y1 + D.h, dach = E('dach'), ue = 0.35;       // ue = so weit steht das Dach über
+      if (D.first === 'x') {
+        const zm = (z1 + z2) / 2, l = (x2 - x1) / 3, s = Math.hypot(zm - z1, D.h) / 3;
+        dach.quad([x1, y1, z2 + ue], [x2, y1, z2 + ue], [x2, yr, zm], [x1, yr, zm], df, 0, 0, l, s);
+        dach.quad([x2, y1, z1 - ue], [x1, y1, z1 - ue], [x1, yr, zm], [x2, yr, zm], df, 0, 0, l, s);
+        og.drei([x1, y1, z1], [x1, y1, z2], [x1, yr, zm], f, uo + 0.01, vo + 0.02); og.drei([x2, y1, z2], [x2, y1, z1], [x2, yr, zm], f, uo + 0.01, vo + 0.02);
+        if (h.treppe) for (const xe of (h.seite === 'w' ? [x1] : h.seite === 'o' ? [x2] : [x1, x2])) for (let k = 0; k < 4; k++) { const hb = (z2 - z1) / 2 * (1 - (k + 0.3) / 4.4); og.kiste(xe - 0.3, y1 + k * D.h / 3.7, zm - hb, xe + 0.3, y1 + (k + 1) * D.h / 3.7 + 0.5, zm + hb, f, uo + 0.01, vo + 0.02); }
+        if (h.schornstein) og.kiste(x1 + (x2 - x1) * 0.3 - 0.35, yr - 1, zm + 0.6, x1 + (x2 - x1) * 0.3 + 0.35, yr + 0.9, zm + 1.3, farbe('#b9a394'), uo + 0.01, vo + 0.02);
+      } else {
+        const xm = (x1 + x2) / 2, l = (z2 - z1) / 3, s = Math.hypot(xm - x1, D.h) / 3;
+        dach.quad([x2 + ue, y1, z2], [x2 + ue, y1, z1], [xm, yr, z1], [xm, yr, z2], df, 0, 0, l, s);
+        dach.quad([x1 - ue, y1, z1], [x1 - ue, y1, z2], [xm, yr, z2], [xm, yr, z1], df, 0, 0, l, s);
+        og.drei([x1, y1, z2], [x2, y1, z2], [xm, yr, z2], f, uo + 0.01, vo + 0.02); og.drei([x2, y1, z1], [x1, y1, z1], [xm, yr, z1], f, uo + 0.01, vo + 0.02);
+        if (h.treppe) for (const ze of (h.seite === 'n' ? [z1] : h.seite === 's' ? [z2] : [z1, z2])) for (let k = 0; k < 4; k++) { const hb = (x2 - x1) / 2 * (1 - (k + 0.3) / 4.4); og.kiste(xm - hb, y1 + k * D.h / 3.7, ze - 0.3, xm + hb, y1 + (k + 1) * D.h / 3.7 + 0.5, ze + 0.3, f, uo + 0.01, vo + 0.02); }
+        if (h.schornstein) og.kiste(xm + 0.6, yr - 1, z1 + (z2 - z1) * 0.3 - 0.35, xm + 1.3, yr + 0.9, z1 + (z2 - z1) * 0.3 + 0.35, farbe('#b9a394'), uo + 0.01, vo + 0.02);
+      }
+    }
+    if (h.turm) {         // Turm mit spitzem Dach (Rathaus, Kirche, Bahnhof)
+      const [tx, tz, tb, th] = h.turm, a = tb / 2, n = Math.max(1, Math.round(tb / FELD)) / 4, st = Math.round(th / STOCK) / 4;
+      const tw = (ax, az, bx, bz) => og.quad([ax, 0, az], [bx, 0, bz], [bx, th, bz], [ax, th, az], f, 0, 0, n, st);
+      tw(tx - a, tz + a, tx + a, tz + a); tw(tx + a, tz - a, tx - a, tz - a); tw(tx + a, tz + a, tx + a, tz - a); tw(tx - a, tz - a, tx - a, tz + a);
+      const sp = [tx, th + tb * 1.5, tz], e = [[tx - a - 0.4, th, tz + a + 0.4], [tx + a + 0.4, th, tz + a + 0.4], [tx + a + 0.4, th, tz - a - 0.4], [tx - a - 0.4, th, tz - a - 0.4]];
+      for (let i = 0; i < 4; i++) E('dach').drei(e[i], e[(i + 1) % 4], sp, df, 0.5, 0.5);
+    }
+  }
+
+  // ---- Kleinkram aus einfachen Formen: Stege, Kräne, Boote, Waggons, Bussteige
+  const holz = farbe('#ffffff');
+  for (const d of P.deko) {
+    const e = E('farbe');
+    if (d.art === 'steg') {
+      E('steg').boden([d.x - 2.2, UFER - d.lang, d.x + 2.2, UFER], 0.02, holz, 2.5);
+      E('farbe').kiste(d.x - 2.2, -0.3, UFER - d.lang, d.x + 2.2, 0, UFER, farbe('#6b5a48'));
+      for (let z = UFER - 3; z > UFER - d.lang; z -= 7) for (const sx of [-2.1, 2.1]) e.kiste(d.x + sx - 0.18, -2.5, z - 0.18, d.x + sx + 0.18, 0.7, z + 0.18, farbe('#5a4a3a'));
+    } else if (d.art === 'kran') {
+      const f = farbe('#d8a020');
+      for (const [sx, sz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) e.kiste(d.x + sx - 0.4, 0, d.z + sz - 0.4, d.x + sx + 0.4, 22, d.z + sz + 0.4, f);
+      e.kiste(d.x - 3.5, 22, d.z - 3.5, d.x + 3.5, 25, d.z + 3.5, f); e.kiste(d.x - 0.8, 25, d.z - 34, d.x + 0.8, 26.6, d.z + 12, f);
+      e.kiste(d.x - 0.08, 9, d.z - 30.08, d.x + 0.08, 25, d.z - 29.92, farbe('#333333')); e.kiste(d.x - 1.2, 25, d.z + 6, d.x + 1.2, 28, d.z + 11, farbe('#5a6066'));
+    } else if (d.art === 'boot') {
+      const f = farbe(['#f2f2f2', '#2f5d9a', '#b3372e', '#3d6b4f'][Math.floor(w() * 4)]);
+      e.kiste(d.x - 1.5, -1.3, d.z - 5, d.x + 1.5, -0.3, d.z + 5, f); e.kiste(d.x - 1.1, -0.3, d.z - 2, d.x + 1.1, 0.9, d.z + 1.5, farbe('#f4f0e6')); e.kiste(d.x - 0.05, 0.9, d.z - 0.05, d.x + 0.05, 3.2, d.z + 0.05, farbe('#444444'));
+    } else if (d.art === 'waggons') {
+      for (let k = 0; k < d.n; k++) { const z = d.z + k * 15, f = farbe(['#8a3b2e', '#4a5a66', '#6b7a4a', '#a8742e'][Math.floor(w() * 4)]);
+        e.kiste(d.x - 1.45, 1, z - 6.8, d.x + 1.45, 4, z + 6.8, f); e.kiste(d.x - 1.3, 0.3, z - 6.2, d.x + 1.3, 1, z + 6.2, farbe('#2a2a2a')); }
+    } else if (d.art === 'bussteig') {
+      e.kiste(d.x - 22, 3.4, d.z - 2.4, d.x + 22, 3.7, d.z + 2.4, farbe('#e9edf0')); E('farbe').kiste(d.x - 22, 0, d.z - 2, d.x + 22, 0.16, d.z + 2, farbe('#c9c6bd'));
+      for (let x = -18; x <= 18; x += 9) e.kiste(d.x + x - 0.12, 0, d.z - 0.12, d.x + x + 0.12, 3.4, d.z + 0.12, farbe('#59626a'));
+    }
+  }
+  // Kutter an den Stegen (aus Kisten; echte Modelle stehen auf der Wunschliste)
+  for (const d of P.deko.filter(d => d.art === 'steg')) for (const seite of [-1, 1]) {
+    if (w() < 0.35) continue;
+    const e = E('farbe'), x = d.x + seite * 5.4, z = UFER - 10 - w() * (d.lang - 22), f = farbe(['#2f5d9a', '#b3372e', '#3d6b4f', '#f2f2f2', '#1f3d5a'][Math.floor(w() * 5)]);
+    e.kiste(x - 2, -1.4, z - 6.5, x + 2, 0.5, z + 6.5, f); e.kiste(x - 1.7, 0.5, z - 6.3, x + 1.7, 0.75, z + 6.3, farbe('#f4f0e6'));
+    e.kiste(x - 1.3, 0.5, z + 1, x + 1.3, 2.9, z + 4.4, farbe('#f4f0e6')); e.kiste(x - 1.35, 2.9, z + 0.9, x + 1.35, 3.05, z + 4.5, farbe('#7a3a2c'));
+    e.kiste(x - 0.07, 0.5, z - 2.07, x + 0.07, 6.5, z - 1.93, farbe('#4a3a2a')); e.kiste(x - 0.05, 3, z - 5, x + 0.05, 3.1, z - 2, farbe('#4a3a2a'));
+  }
+
+  // ---- Materialien und fertige Formen
+  const bodenMat = (name, extra = {}) => new THREE.MeshStandardMaterial({ map: BILD.boden(name), vertexColors: true, roughness: 0.95, ...extra });
+  const MAT = {
+    gehweg: () => bodenMat('boden_gehweg'), asphalt: () => bodenMat('boden_asphalt'), kopfstein: () => bodenMat('boden_kopfstein'), gras: () => bodenMat('boden_gras'),
+    steg: () => bodenMat('boden_steg'), stein: () => bodenMat('boden_kopfstein', { side: THREE.DoubleSide }),
+    strich: () => new THREE.MeshStandardMaterial({ color: '#e9e9e2', roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 }),
+    farbe: () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }),
+    flach: () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, clippingPlanes: [schnitt] }),
+    aufbau: () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, clippingPlanes: [schnitt] }),
+    dach: () => new THREE.MeshStandardMaterial({ map: BILD.ziegel(), vertexColors: true, roughness: 0.8, side: THREE.DoubleSide, clippingPlanes: [schnitt] }),
+    wasser: () => new THREE.MeshStandardMaterial({ map: BILD.wellen(), color: '#2f7391', roughness: 0.18, metalness: 0.25 }),
+  };
+  let wasserMat = null;
+  for (const [key, e] of eimer) {
+    if (!e.p.length) continue;
+    let mat;
+    if (key.startsWith('og_') || key.startsWith('eg_')) {
+      const [, stil, art] = key.split('_'), b = key.startsWith('og_') ? BILD.fassade(stil) : BILD.erdgeschoss(stil, art);
+      mat = new THREE.MeshStandardMaterial({ map: b.map, emissiveMap: b.leucht, emissive: '#ffe2b0', emissiveIntensity: 0, vertexColors: true, roughness: 0.9, side: THREE.DoubleSide, clippingPlanes: [schnitt] });
+      leuchtend.push(mat);
+    } else mat = MAT[key]();
+    if (key === 'wasser') wasserMat = mat;
+    const m = new THREE.Mesh(e.form(), mat);
+    const hoch = key.startsWith('og_') || key.startsWith('eg_') || key === 'dach' || key === 'farbe';
+    m.castShadow = hoch; m.receiveShadow = true; m.frustumCulled = false;
+    if (key === 'strich') m.receiveShadow = false;
+    gruppe.add(m);
+  }
+
+  // ---- Bäume, Laternen, parkende Autos: einfache Formen für alle, Modelle für die nächsten
+  const tausch = [];
+  const schnittMat = extra => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true, clippingPlanes: [schnitt], ...extra });
+  const GRUEN = ['#4f8040', '#5a8c46', '#44763a', '#648f48', '#4c7c42'];
+  const laub = P.baeume.filter(b => b.art !== 'fichte'), fichten = P.baeume.filter(b => b.art === 'fichte');
+  const setzBaum = (o, b, i, modell) => { o.position.set(b.x, 0, b.z); o.rotation.y = i * 2.4; o.scale.setScalar(modell ? b.h / 8 : b.h); return modell ? null : GRUEN[i % GRUEN.length]; };
+  const laubIM = instanzenGeteilt(baumForm(), schnittMat(), laub, setzBaum); gruppe.add(laubIM.gruppe);
+  gruppe.add(instanzenGeteilt(tanneForm(), schnittMat(), fichten, (o, b, i) => { o.position.set(b.x, 0, b.z); o.scale.setScalar(b.h * 1.2); return ['#3f6f4a', '#4a7a52', '#37634a'][i % 3]; }).gruppe);
+  tausch.push(new NahTausch(gruppe, laub, laubIM, setzBaum, 'baum_laub', 12, 60, schnitt));
+  for (const alt of [true, false]) {
+    const liste = P.laternen.filter(l => !!l.alt === alt);
+    const setz = (o, l) => { o.position.set(l.x, 0, l.z); o.rotation.y = l.dreh; };
+    const im = instanzenGeteilt(laterneForm(alt), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }), liste, setz, false); gruppe.add(im.gruppe);
+    tausch.push(new NahTausch(gruppe, liste, im, setz, alt ? 'laterne_alt' : 'laterne', 16, 60));
+  }
+  const autoMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.2 });
+  const setzAuto = (o, a) => { o.position.set(a.x, 0, a.z); o.rotation.y = a.h; return AUTO_FARBEN[a.farbe]; };
+  const ARTEN = ['auto_kombi', 'auto_kompakt', 'auto_van', 'auto_suv'];
+  ARTEN.forEach((name, k) => {
+    const liste = P.parker.filter(a => a.art === k), im = instanzenGeteilt(autoForm(), autoMat, liste, setzAuto); gruppe.add(im.gruppe);
+    tausch.push(new NahTausch(gruppe, liste, im, (o, a, i, modell) => { const f = setzAuto(o, a); return modell ? (k < 2 ? f : '#ffffff') : f; }, name, 10, 75));
+  });
+  // Laternen-Licht für den Abend: ein heller Punkt oben und ein Lichtfleck auf dem Boden
+  const kopf = l => l.alt ? [l.x, 3.85, l.z] : [l.x + Math.sin(l.dreh) * 1.2, 6.2, l.z + Math.cos(l.dreh) * 1.2];
+  const punkt = instanzen(new THREE.SphereGeometry(0.28, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffe9b8', fog: false }), P.laternen, (o, l) => { o.position.set(...kopf(l)); }, false);
+  const fleckGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const fleck = instanzen(fleckGeo, new THREE.MeshBasicMaterial({ map: BILD.schein('rgba(255,214,150,1)', 'rgba(255,200,120,0)'), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }),
+    P.laternen, (o, l) => { const k = kopf(l); o.position.set(k[0], 0.06, k[2]); o.scale.setScalar(l.alt ? 13 : 19); }, false);
+  punkt.visible = fleck.visible = false; fleck.renderOrder = 2;
+  gruppe.add(punkt, fleck);
+
+  // Kleinteile als geladene Modelle (erst da, wenn die Datei geladen ist)
+  const NAME = { brunnen: 'mal_brunnen' }, nachArt = new Map();
+  for (const d of P.deko) { const n = NAME[d.art] || d.art; if (MOD.MODELLE[n]) { if (!nachArt.has(n)) nachArt.set(n, []); nachArt.get(n).push(d); } }
+  for (const [name, liste] of nachArt) MOD.lade(name).then(m => { if (m) gruppe.add(instanzen(m.geo, m.mat, liste, (o, d) => { o.position.set(d.x, 0, d.z); o.rotation.y = d.dreh || 0; })); });
+  // Yachten und Bojen im Hafen
+  const yachten = P.deko.filter(d => d.art === 'steg').filter((d, i) => i % 2 === 0).map(d => ({ x: d.x - 6.5, z: UFER - d.lang + 9, dreh: 0 }));
+  MOD.lade('mal_yacht').then(m => { if (m) { m.geo.translate(0, -1.1, 0); gruppe.add(instanzen(m.geo, m.mat, yachten, (o, d) => { o.position.set(d.x, 0, d.z); })); } });
+  const bojen = [[-300, -230], [-60, -260], [150, -240], [420, -250], [272, -170]].map(([x, z]) => ({ x, z }));
+  MOD.lade('boje').then(m => { if (m) { m.geo.translate(0, -1.6, 0); gruppe.add(instanzen(m.geo, m.mat, bojen, (o, d) => { o.position.set(d.x, 0, d.z); })); } });
+
+  let uhr = 0, tauschZeit = 0;
+  return {
+    gruppe, schnitt, tausch,
+    // dt = vergangene Zeit, x/z = wo der Spieler ist
+    schritt(dt, x, z) {
+      uhr += dt;
+      if (wasserMat) wasserMat.map.offset.set(uhr * 0.006, uhr * 0.011);
+      if ((tauschZeit -= dt) <= 0) { tauschZeit = 0.5; for (const t of tausch) t.neu(x, z); }
+    },
+    // abends und nachts leuchten Fenster und Laternen
+    licht(name) {
+      const an = name === 'abend' ? 0.75 : name === 'nacht' ? 1.15 : 0;
+      for (const m of leuchtend) m.emissiveIntensity = an;
+      punkt.visible = fleck.visible = an > 0;
+      if (wasserMat) wasserMat.color.set(name === 'nacht' ? '#0c2233' : name === 'abend' ? '#5a6f88' : '#2f7391');
+    },
+  };
+}

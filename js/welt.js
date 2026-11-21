@@ -1,8 +1,10 @@
 // Blaulicht über Möwenbrück – baut aus den Daten eines Ortes (daten.js) die 3D-Welt.
-// Alles besteht aus einfachen Formen: Kisten, Rollen, Kugeln. Fertige Modelle kommen später.
+// Drinnen besteht alles aus einfachen Formen: Kisten, Rollen, Kugeln. Die große Stadt baut stadtbau.js.
+// Fertige Modelle (assets/modelle/) ersetzen die Kisten, sobald sie geladen sind.
 
 import * as THREE from 'three';
-import { STRASSEN_X, STRASSEN_Z, STRASSE_BREIT } from './daten.js';
+import * as MOD from './modelle.js';
+import { baueStadt } from './stadtbau.js';
 
 const mat = (farbe, extra = {}) => new THREE.MeshLambertMaterial({ color: farbe, ...extra });
 const kiste = (b, h, t, farbe, extra) => new THREE.Mesh(new THREE.BoxGeometry(b, h, t), mat(farbe, extra));
@@ -64,29 +66,44 @@ function hund() {
 // Ein Auto aus Kisten. Vorn ist bei +z. Mit polizei = true bekommt es Streifen und Blaulicht.
 // ---------------------------------------------------------------------------------------------
 export function autoModell(farbe = '#f4f4f4', polizei = false) {
-  const g = new THREE.Group();
+  const g = new THREE.Group(), kisten = new THREE.Group();
+  g.add(kisten);
   const unten = kiste(1.9, 0.6, 4.4, farbe); unten.position.y = 0.62;
   const oben = kiste(1.7, 0.56, 2.3, '#263238'); oben.position.set(0, 1.2, -0.25);
   const dach = kiste(1.72, 0.08, 2.2, farbe); dach.position.set(0, 1.5, -0.25);
-  g.add(unten, oben, dach);
+  kisten.add(unten, oben, dach);
   for (const [x, z] of [[-0.95, 1.4], [0.95, 1.4], [-0.95, -1.4], [0.95, -1.4]]) {
-    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.26, 14), mat('#1a1a1a')); r.rotation.z = Math.PI / 2; r.position.set(x, 0.36, z); g.add(r);
+    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.26, 14), mat('#1a1a1a')); r.rotation.z = Math.PI / 2; r.position.set(x, 0.36, z); kisten.add(r);
   }
   for (const x of [-0.65, 0.65]) {
-    const l = kiste(0.4, 0.18, 0.06, '#fff7c0', { emissive: '#fff2a0', emissiveIntensity: 0.6 }); l.position.set(x, 0.72, 2.21); g.add(l);
-    const r = kiste(0.4, 0.16, 0.06, '#c0392b', { emissive: '#7a1a10', emissiveIntensity: 0.5 }); r.position.set(x, 0.72, -2.21); g.add(r);
+    const l = kiste(0.4, 0.18, 0.06, '#fff7c0', { emissive: '#fff2a0', emissiveIntensity: 0.6 }); l.position.set(x, 0.72, 2.21); kisten.add(l);
+    const r = kiste(0.4, 0.16, 0.06, '#c0392b', { emissive: '#7a1a10', emissiveIntensity: 0.5 }); r.position.set(x, 0.72, -2.21); kisten.add(r);
   }
+  const streifen = [];
   if (polizei) {
-    for (const x of [-0.96, 0.96]) { const s = kiste(0.03, 0.28, 3.6, '#2b6fd6'); s.position.set(x, 0.66, 0); g.add(s); }
-    const hb = kiste(1.5, 0.02, 0.5, '#2b6fd6'); hb.position.set(0, 0.93, 1.6); g.add(hb);
+    for (const x of [-0.96, 0.96]) { const s = kiste(0.03, 0.28, 3.6, '#2b6fd6'); s.position.set(x, 0.66, 0); g.add(s); streifen.push(s); }
+    const hb = kiste(1.5, 0.02, 0.5, '#2b6fd6'); hb.position.set(0, 0.93, 1.6); kisten.add(hb);
     const balken = kiste(1.1, 0.1, 0.3, '#333'); balken.position.set(0, 1.58, -0.1); g.add(balken);
     const blau = [-0.36, 0.36].map(x => { const b = kiste(0.34, 0.14, 0.26, '#1e4fd0', { emissive: '#1e66ff', emissiveIntensity: 0 }); b.position.set(x, 1.67, -0.1); g.add(b); return b; });
     // Scheinwerfer für die Fahrt im Dunkeln und ein blaues Licht, das beim Blaulicht mitblitzt.
     const sw = new THREE.SpotLight('#fff4d0', 0, 60, 0.6, 0.5, 1.2); sw.position.set(0, 1, 2.2);
     sw.target.position.set(0, 0, 14); g.add(sw, sw.target);
     const blitz = new THREE.PointLight('#2a6bff', 0, 30, 1.4); blitz.position.set(0, 2.2, 0); g.add(blitz);
-    g.userData = { blau, sw, blitz };
+    g.userData = { blau, sw, blitz, balken };
   }
+  // Das fertige Modell (ein Kombi) ersetzt die Kisten, sobald es geladen ist. Streifen und Blaulicht rücken an seine Maße.
+  MOD.lade('auto_kombi').then(m => {
+    if (!m) return;
+    const material = m.mat.clone(); if (!polizei) material.color.set(farbe);
+    const netz = new THREE.Mesh(m.geo, material); netz.castShadow = true;
+    kisten.visible = false; g.add(netz);
+    if (polizei) {
+      const hoch = m.gr.y, breit = m.gr.x;
+      streifen.forEach((s, i) => { s.position.set((i ? 1 : -1) * (breit / 2 - 0.21), hoch * 0.47, -0.1); s.scale.set(1, 0.5, 0.72); });
+      g.userData.balken.position.y = hoch + 0.04; g.userData.balken.position.z = -0.35;
+      for (const b of g.userData.blau) { b.position.y = hoch + 0.13; b.position.z = -0.35; }
+    }
+  });
   return g;
 }
 
@@ -100,19 +117,6 @@ export function schild(text, hoch = 3) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
   s.scale.set(hoch * 2.4, hoch * 0.45, 1); s.renderOrder = 10;
   return s;
-}
-
-// Ein Bild mit Fenstern für die Häuser – einmal gemalt, für alle Häuser benutzt.
-let fensterBild = null;
-function fenster() {
-  if (fensterBild) return fensterBild;
-  const c = document.createElement('canvas'); c.width = 128; c.height = 128;
-  const k = c.getContext('2d');
-  k.fillStyle = '#fff'; k.fillRect(0, 0, 128, 128);
-  k.fillStyle = '#5d7385';
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) k.fillRect(10 + i * 30, 12 + j * 38, 18, 24);
-  fensterBild = new THREE.CanvasTexture(c); fensterBild.colorSpace = THREE.SRGBColorSpace;
-  return fensterBild;
 }
 
 function flaeche(r, farbe, y = 0.01) {
@@ -148,47 +152,18 @@ function dingModell(d) {
 export function baueOrt(def) {
   const gruppe = new THREE.Group();
   const fest = [];                 // Rechtecke, die im Weg stehen
-  const haeuser = [];
   const G = def.gross;
+  let stadt = null;
+  const hausSchilder = [];         // Namen über den besonderen Häusern (man sieht sie nur aus der Nähe)
 
-  // Boden
-  gruppe.add(flaeche([G[0] - 200, G[1] - 200, G[2] + 200, G[3] + 200], def.draussen ? '#7fa86a' : '#111', -0.02));
-  for (const b of def.boden) gruppe.add(flaeche(b.r, b.farbe));
-
-  if (def.draussen) {
-    // Gehwege unter den Häuserblocks, dann die Straßen darüber
-    gruppe.add(flaeche([-118, -98, 118, 98], '#b9b6ad', 0.0));
-    for (const b of def.boden) gruppe.add(flaeche(b.r, b.farbe, 0.015));
-    const w = STRASSE_BREIT / 2;
-    for (const x of STRASSEN_X) gruppe.add(flaeche([x - w, G[1], x + w, G[3]], '#4a4d52', 0.02));
-    for (const z of STRASSEN_Z) gruppe.add(flaeche([G[0], z - w, G[2], z + w], '#4a4d52', 0.02));
-    // Mittelstreifen: viele kleine weiße Striche als eine einzige Form (das ist schneller)
-    const striche = [];
-    for (const x of STRASSEN_X) for (let z = G[1] + 4; z < G[3]; z += 8) if (!STRASSEN_Z.some(s => Math.abs(z - s) < w + 1)) striche.push([x, z, 0]);
-    for (const z of STRASSEN_Z) for (let x = G[0] + 4; x < G[2]; x += 8) if (!STRASSEN_X.some(s => Math.abs(x - s) < w + 1)) striche.push([x, z, 1]);
-    const im = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.25, 3), new THREE.MeshBasicMaterial({ color: '#e8e8e0' }), striche.length);
-    const o = new THREE.Object3D();
-    striche.forEach(([x, z, quer], i) => { o.position.set(x, 0.03, z); o.rotation.set(-Math.PI / 2, 0, quer ? Math.PI / 2 : 0); o.updateMatrix(); im.setMatrixAt(i, o.matrix); });
-    gruppe.add(im);
-    // Das Meer im Norden
-    gruppe.add(flaeche([-400, -500, 400, -100], '#3f7fb0', 0.0));
-    // Häuser
-    for (const h of def.haeuser) {
-      const b = h.r[2] - h.r[0], t = h.r[3] - h.r[1];
-      const bild = fenster().clone(); bild.wrapS = bild.wrapT = THREE.RepeatWrapping;
-      bild.repeat.set(Math.max(1, Math.round(Math.max(b, t) / 9)), Math.max(1, Math.round(h.h / 8))); bild.needsUpdate = true;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(b, h.h, t), mat(h.farbe, { map: bild, transparent: true }));
-      m.position.set((h.r[0] + h.r[2]) / 2, h.h / 2, (h.r[1] + h.r[3]) / 2);
-      const d = kiste(b + 0.6, 0.5, t + 0.6, h.dach, { transparent: true }); d.position.y = h.h / 2 + 0.25; m.add(d);
-      gruppe.add(m); fest.push(h.r); haeuser.push({ mesh: m, r: h.r });
-      if (h.schild) { const s = schild(h.schild, 6); s.position.set(m.position.x, h.h + 3, m.position.z); gruppe.add(s); }
-    }
-    // Bäume
-    for (const b of def.baeume) {
-      const st = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 2.2, 8), mat('#6a4a2a')); st.position.set(b.x, 1.1, b.z);
-      const kr = new THREE.Mesh(new THREE.SphereGeometry(1.9, 10, 8), mat('#4f8a3f')); kr.position.set(b.x, 3.6, b.z);
-      gruppe.add(st, kr); fest.push([b.x - 0.4, b.z - 0.4, b.x + 0.4, b.z + 0.4]);
-    }
+  if (def.plan) {
+    // Die große Stadt: Straßen, Häuser, Hafen … kommen fertig aus stadtbau.js
+    stadt = baueStadt(); gruppe.add(stadt.gruppe);
+    for (const r of def.plan.fest) fest.push(r);
+    for (const h of def.plan.haeuser) if (h.schild) { const s = schild(h.schild, 6); s.position.set((h.r[0] + h.r[2]) / 2, h.h + (h.dach.h || 0) + 3.5, (h.r[1] + h.r[3]) / 2); gruppe.add(s); hausSchilder.push(s); }
+  } else {
+    gruppe.add(flaeche([G[0] - 200, G[1] - 200, G[2] + 200, G[3] + 200], '#111', -0.02));
+    for (const b of def.boden) gruppe.add(flaeche(b.r, b.farbe));
   }
 
   // Wände: drinnen niedrig, damit man von oben in die Räume schauen kann
@@ -201,7 +176,9 @@ export function baueOrt(def) {
     if (q.glas) { const gl = kiste(q.b - 0.1, 0.7, q.t - 0.1, '#bfe6ff', { transparent: true, opacity: 0.35 }); gl.position.y = q.h / 2 + 0.35; m.add(gl); }
     if (q.gold) { const go = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 16), mat('#e8c030', { emissive: '#7a5a00' })); go.position.y = q.h / 2 + 0.06; m.add(go); }
     if (q.dach) { const d = kiste(q.b + 0.8, 0.15, q.t + 1, q.dach); d.position.y = q.h / 2 + 1.6; m.add(d);
-      for (const sx of [-1, 1]) { const st = kiste(0.1, 1.6, 0.1, '#666'); st.position.set(sx * q.b / 2, q.h / 2 + 0.8, q.t / 2); m.add(st); } }
+      for (const sx of [-1, 1]) { const st = kiste(0.1, 1.6, 0.1, '#666'); st.position.set(sx * q.b / 2, q.h / 2 + 0.8, q.t / 2); m.add(st); }
+      // Marktstand: das geladene Modell ersetzt die Kisten
+      MOD.lade('stand').then(mo => { if (!mo) return; const n = new THREE.Mesh(mo.geo, mo.mat); n.position.set(q.x, 0, q.z); n.castShadow = true; m.visible = false; gruppe.add(n); }); }
     fest.push([q.x - q.b / 2, q.z - q.t / 2, q.x + q.b / 2, q.z + q.t / 2]);
   }
   for (const s of def.schilder || []) { const sp = schild(s.text, s.hoch ? 5 : 1.6); sp.position.set(s.x, s.hoch || 2.3, s.z); gruppe.add(sp); }
@@ -219,5 +196,5 @@ export function baueOrt(def) {
     m.position.set(l.x || 0, 0, l.z || 0); gruppe.add(m);
     objekte.push({ def: l, mesh: m, typ: 'leut', x: l.x || 0, z: l.z || 0 });
   }
-  return { gruppe, fest, haeuser, objekte };
+  return { gruppe, fest, objekte, stadt, hausSchilder };
 }
