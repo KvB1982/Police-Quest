@@ -4,6 +4,7 @@
 // und die Punkte bei bestem Vorgehen stimmen mit MAX_PUNKTE überein.
 import { ORTE } from '../js/daten.js';
 import * as STORY from '../js/story.js';
+import * as JAGD from '../js/jagd.js';
 
 const laut = process.argv.includes('laut');
 let fehler = 0;
@@ -14,6 +15,21 @@ for (const [name, ort] of Object.entries(ORTE)) for (const d of [...ort.dinge, .
   if (d.akt && !d.name) melde(`${name}: „${d.id}“ hat keinen Namen für den Knopf`);
 }
 for (const z of STORY.ZONEN) if (!STORY.AKT[z.akt]) melde(`Zone ${z.id}: Aktion „${z.akt}“ fehlt`);
+
+// Die Verfolgungsfahrt: Gibt es eine Strecke, ist sie lang genug, und kommt der Fluchtwagen bis zum Ende, wenn man dranbleibt?
+{
+  const j = JAGD.neueJagd(STORY.JAGD), sp = { x: STORY.JAGD.start[0], z: STORY.JAGD.start[1] - 30 };
+  if (j.T.l < 300) melde(`Verfolgung: Die Strecke ist nur ${Math.round(j.T.l)} m lang`);
+  let zeit = 0, v = 0;
+  // Ein gedachter Streifenwagen fährt mit höchstens 26 m/s hinterher und hält 20 m Abstand.
+  for (; zeit < 300 && !j.fertig; zeit += 1 / 30) {
+    JAGD.jagdSchritt(j, 1 / 30, sp, true, true);
+    v = Math.min(26, j.abstand > 20 ? v + 7 / 30 : Math.max(0, v - 14 / 30));
+    const dx = j.x - sp.x, dz = j.z - sp.z, d = Math.hypot(dx, dz) || 1; sp.x += dx / d * v / 30; sp.z += dz / d * v / 30;
+  }
+  if (!j.fertig) melde('Verfolgung: Der Fluchtwagen kommt nicht am Ziel an');
+  console.log(`Verfolgung: ${Math.round(j.T.l)} m, dauert etwa ${Math.round(zeit)} Sekunden.`);
+}
 
 function spiele(durchlauf) {
   const Z = { flags: {}, punkte: 0, sachen: [], notizen: [], ort: STORY.START.ort, blau: false, ende: false };
@@ -28,7 +44,7 @@ function spiele(durchlauf) {
     flag: n => { Z.flags[n] = true; }, hat: n => !!Z.flags[n], wo: () => Z.ort,
     punkte: n => { Z.punkte += n; }, notiz: t => Z.notizen.push(t), gib: s => Z.sachen.push(s),
     ziel: () => {}, ort: n => { if (!ORTE[n]) melde(`Ort „${n}“ gibt es nicht`); Z.ort = n; }, auto: () => {}, licht: () => {}, uhr: () => {},
-    klang: () => {}, blaulicht: () => true, speichern: () => {}, ende: async () => { Z.ende = true; },
+    klang: () => {}, blaulicht: () => 1, blaulichtAn: () => {}, jagd: () => ({ rumms: 0, sirene: true }), imWagen: () => true, speichern: () => {}, ende: async () => { Z.ende = true; },
   };
   return (async () => {
     await STORY.beginn(S);
