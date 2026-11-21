@@ -93,6 +93,20 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
 
 Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `akt` eine Funktion in `story.js`, den Weg in `DURCHLAUF` ergänzen, `node tools/story.mjs` laufen lassen.
 
+## Spielgefühl (seit 21.11.2026 abends, Wünsche des Nutzers)
+
+- Leitsatz des Nutzers: Was passiert, soll man im Spiel sehen und selbst tun – nicht nur als Text lesen. Rennt jemand weg, wird wirklich verfolgt; schafft man es nicht, nochmal.
+- Einsätze beginnen erst, wenn man angehalten hat (`zonen` in `main.js`, `STEHT`): Im Auto fährt das Spiel an einer Stelle aus `ZONEN` einfach weiter, es kommt nur der Hinweis „Halt an“. Auch das Ende der Verfolgungsfahrt.
+- Streife mit Pausen: `S.streife(akt, sekunden)` – die Zeit läuft nur beim Fahren, dann piept der Funk, und die Stelle `akt` (`ruf_unfall`, `ruf_markt`, `ruf_museum`) kommt, sobald man anhält. Steht in `Z.streife`.
+- Festgenommene fährt man selbst zur Wache (Zonen `za1`, `za2` vor der Wache, Stellen `z_abgabe1`, `z_abgabe2`). Den Festgenommenen sieht man dabei nicht im Wagen.
+- Verfolgung zu Fuß: `await S.verfolge(id, weg)` lässt eine Person ihren Weg entlangrennen (`laufStart`, `laufSchritt`, Zahlen `LAUF_…`), zurück kommt true (gefangen) oder false (entwischt, Person steht wieder am Anfang). Bisher: der Taschendieb (`DIEB_WEG` in `story.js`).
+- Einsatzwagen kommen wirklich: `S.kommt('rtw' | 'streife', [x, z], { aus, zu, bis })` – Strecke über das Straßennetz (`anfahrt` in `jagd.js`), zwei Leute steigen aus und gehen zu ihren Stellen (`gastRufen`, `gastSchritt`). Rettungswagen = weißer Kastenwagen mit rotem Streifen, Ärztin und Sanitäter in Rot (`aerztin.glb`, `sani.glb`); Möwe 12 = zweiter Streifenwagen, die beiden Kollegen sehen aus wie Kim (es gibt nur eine Uniform-Figur). Sie fahren durch den übrigen Verkehr hindurch, haben keine Sirene und stehen nicht im Spielstand (nach dem Neuladen sind sie weg). Im Museum (drinnen) kommt der Rettungswagen weiter nur im Text.
+- Fahren: Der Streifenwagen wird als zwei Kreise gerechnet (`schiebWagen`), prallt nicht zurück, sondern rutscht am Hindernis entlang; fahrende und parkende Autos lassen sich bis `SCHUB_WEIT` 6 m wegschieben (`SCHUB`, `parkSchub`; Verkehrsautos rollen danach zurück). Räder drehen sich und lenken (`autoRaeder`, `radForm`, `raederVon` misst die Rad-Stellen am Modell; bei den Verkehrsautos als Instanzen in `verkehrbau.js`). Mit Blaulicht (Stufe 1 und 2) machen Autos und Fußgänger Platz; Fußgänger springen auch ohne Blaulicht vor dem fahrenden Wagen zur Seite, durch sie hindurch kann man nicht fahren, Verkehrsautos bremsen für sie.
+- Passanten: Die nächsten `NAH_LEUTE` 12 sind Menschen aus MakeHuman (`p1` … `p8`, Rezepte in `tools/figur/leute.py`), weiter weg bleiben es die Figuren aus Kästen. Kinder gibt es unter den Passanten nicht mehr.
+- Kamera wie im Reitturnier (`kam`, `kamSchritt`, `kamLage`): zwei Finger drehen, neigen, kneifen; rechte Maustaste ziehen, Mausrad; Knöpfe ⟲ ⟳ ＋ － 🎯; Tasten Q, R, +, −, Pos1. Die Pfeiltasten laufen in Bildschirm-Richtung, die Schnitt-Ebene der Stadt dreht mit. Im Auto dreht die Kamera beim Fahren von selbst wieder hinter den Wagen. Ein Finger tippt erst beim Loslassen (sonst stört der zweite Finger). Das Radar dreht nicht mit.
+- iPad: Auto durch Neigen lenken (`js/neigung.js` aus dem Rennspiel, Knopf „📱 Neigen“ und „↕ Mitte“ im Auto; geht auf Geräten mit Finger-Bildschirm beim Start von selbst an, gemerkt in `blaulicht.neigen.v1`). Dann liegen Bremse links und Gas rechts unter den Daumen. Braucht https.
+- Geprüft: `tools/story.mjs`, `tools/stadt.mjs` und im Test-Browser ohne Grafikkarte mit einem Test-Spieler (ganzer Tag 1, Verfolgungsfahrt ohne Rempler, Dieb gefangen) und als Standbilder. Nicht von Hand gespielt, nicht auf dem iPad: Zwei-Finger-Kamera, Neigen und ob Tempo und Vorsprung des Diebs für ein Kind passen, sind nicht erprobt. Alle Zahlen geschätzt.
+
 ## Steuerung: Point and Click (seit 21.11.2026)
 
 - Wie in einem klassischen Adventure: unten links vier Tätigkeiten (🚶 Gehen, 👁 Ansehen, 💬 Reden, ✋ Benutzen; Tasten 1–4, rechte Maustaste = nächste).
@@ -105,7 +119,7 @@ Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `a
   Die Lupe 🔍 (Taste H) zeigt vier Sekunden lang die Namen von allem, was man antippen kann. Spuren im dunklen Museum zählen erst, wenn die Taschenlampe darauf zeigt.
 - Geblieben sind Pfeiltasten zum Laufen und die Knöpfe „was hier gerade geht“ (Taste E) unten rechts – sie fragen nicht nach der Tätigkeit.
 - Im Auto gibt es keine Tätigkeiten, dort sind Fahr-Knöpfe und der Blaulicht-Knopf. Blaulicht hat drei Stufen (`Z.blaulicht`: 0 aus, 1 nur Blaulicht, 2 mit Sirene; Knopf oder Taste B schaltet reihum).
-  Schnell fahren darf man mit 1 und 2, Platz machen die anderen nur bei 2. Beim Aussteigen geht die Sirene aus, das Blaulicht bleibt an (sichert die Unfallstelle).
+  Schnell fahren darf man mit 1 und 2, Platz machen die anderen bei 1 und 2 (seit 21.11.2026 abends); bei einer Verfolgung verlangt Otto die Sirene. Beim Aussteigen geht die Sirene aus, das Blaulicht bleibt an (sichert die Unfallstelle).
 - Für das iPad vorbereitet: nur Zeiger-Ereignisse (Maus und Finger gleich), große Knöpfe, Abstand zum Bildschirmrand (`env(safe-area-inset-…)`), Vollbild vom Home-Bildschirm.
   Auf einem echten iPad nicht erprobt.
 

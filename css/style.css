@@ -90,3 +90,17 @@ body:not(.imAuto) #knoepfe { bottom: calc(22px + env(safe-area-inset-bottom, 0px
 #karteBild { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 #karteFuss { padding: 8px 14px; font-size: 14px; opacity: 0.8; text-align: center; }
 @media (max-width: 700px) { #radar { width: 116px; height: 116px; } #tacho { right: 142px; } }
+
+/* Kamera-Knöpfe am rechten Rand: drehen, zoomen, zurück */
+#kamKnoepfe { position: fixed; right: calc(12px + env(safe-area-inset-right, 0px)); top: 240px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+#kamKnoepfe button { width: 46px; height: 46px; padding: 0; font-size: 22px; background: rgba(10, 20, 45, 0.72); border-radius: 12px; }
+@media (max-width: 700px), (max-height: 560px) { #kamKnoepfe { top: 190px; gap: 4px; } #kamKnoepfe button { width: 40px; height: 40px; font-size: 19px; } }
+
+/* Lenken durch Neigen: Dann braucht man keine Pfeile, die Bremse liegt unter dem linken Daumen, das Gas unter dem rechten. */
+#fahren .pedalLinks { display: none; }
+body.neigen #fahren .pfeil, body.neigen #fahren .pedalRechts { display: none; }
+body.neigen #fahren .pedalLinks { display: block; }
+body.neigen #fahren button { min-width: 120px; height: 104px; font-size: 22px; }
+#neigLeiste { position: fixed; bottom: calc(214px + env(safe-area-inset-bottom, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); display: flex; gap: 8px; z-index: 2; }
+#neigLeiste button { background: #24304f; min-height: 46px; font-size: 15px; font-weight: 700; }
+#neigLeiste button.an { background: #2b5fc0; }

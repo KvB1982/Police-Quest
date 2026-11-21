@@ -579,7 +579,7 @@ function baue() {
     return q;
   };
   P.fest = P.haeuser.map(h => schraeg(h.x, h.z, h.b / 2, h.t / 2, h.dreh)).concat(P.sperre, P.baeume.map(b => [b.x - 0.35, b.z - 0.35, b.x + 0.35, b.z + 0.35]),
-    P.parker.map(p => schraeg(p.x, p.z, 0.95, 2.2, p.h)));
+    P.parker.map(p => { const q = schraeg(p.x, p.z, 0.95, 2.2, p.h); q.park = p; return q; }));      // q.park: Dieses Hindernis ist ein parkendes Auto – der Streifenwagen kann es wegschieben
   return P;
 }
 

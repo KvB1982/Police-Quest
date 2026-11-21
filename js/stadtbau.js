@@ -95,6 +95,15 @@ export function baumForm() {       // 1 Einheit hoch
 export function tanneForm() {
   return zusammen([gefaerbt(new THREE.CylinderGeometry(0.03, 0.04, 0.2, 5).translate(0, 0.1, 0), '#5a3f2a'), gefaerbt(new THREE.ConeGeometry(0.26, 0.5, 7).translate(0, 0.42, 0), '#ffffff'), gefaerbt(new THREE.ConeGeometry(0.18, 0.42, 7).translate(0, 0.78, 0), '#f0f0f0')]);
 }
+// Ein Rad für fahrende Autos: schwarzer Reifen, dunkle Schüssel, fünf silberne Speichen (an denen sieht man, dass es sich dreht).
+// Halbmesser 1 – wer es benutzt, macht es so groß wie die Räder seines Modells. Die Achse liegt quer (in x-Richtung).
+export const RAD_BREIT = 0.23;
+export function radForm() {
+  const t = [gefaerbt(new THREE.CylinderGeometry(1, 1, 1, 22).rotateZ(Math.PI / 2), '#131518'), gefaerbt(new THREE.CylinderGeometry(0.66, 0.66, 1.03, 18).rotateZ(Math.PI / 2), '#24272c')];
+  for (let i = 0; i < 5; i++) t.push(gefaerbt(new THREE.BoxGeometry(1.07, 0.6, 0.15).translate(0, 0.33, 0).rotateX(i * Math.PI * 2 / 5), '#b9bfc7'));
+  t.push(gefaerbt(new THREE.CylinderGeometry(0.17, 0.17, 1.1, 10).rotateZ(Math.PI / 2), '#c9ced4'));
+  return zusammen(t);
+}
 export function autoForm() {       // vorn ist +z, 4,4 m lang
   const t = [kisteGeo(1.8, 0.62, 4.4, 0, 0.6, 0, '#ffffff'), kisteGeo(1.6, 0.52, 2.3, 0, 1.16, -0.25, '#1d242b'), kisteGeo(1.62, 0.07, 2.2, 0, 1.45, -0.25, '#ffffff')];
   for (const [x, z] of [[-0.86, 1.4], [0.86, 1.4], [-0.86, -1.4], [0.86, -1.4]]) t.push(kisteGeo(0.22, 0.62, 0.62, x, 0.31, z, '#15171a'));
@@ -123,6 +132,14 @@ class NahTausch {
     });
   }
   matrix(e, i, modell) { const o = this.o; o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); const f = this.setze(o, e, i, modell); o.updateMatrix(); return f; }
+  // Ein Ding wurde verschoben (ein parkendes Auto, das der Streifenwagen weggedrückt hat): neu hinstellen
+  versetzt(e) {
+    if (!this.nr) { this.nr = new Map(); this.liste.forEach((l, i) => this.nr.set(l, i)); }
+    const i = this.nr.get(e); if (i === undefined) return;
+    const k = this.aktiv.indexOf(i), E = this.einfach.ort;
+    if (k >= 0 && this.modell) { this.matrix(e, i, true); this.modell.setMatrixAt(k, this.o.matrix); this.modell.instanceMatrix.needsUpdate = true; }
+    else { this.matrix(e, i, false); E[i][0].setMatrixAt(E[i][1], this.o.matrix); E[i][0].instanceMatrix.needsUpdate = true; }
+  }
   neu(x, z) {
     if (!this.modell) return;
     const nah = [];
@@ -410,9 +427,10 @@ export function baueStadt() {
   const autoMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.2 });
   const setzAuto = (o, a) => { o.position.set(a.x, 0, a.z); o.rotation.y = a.h; return AUTO_FARBEN[a.farbe]; };
   const ARTEN = ['auto_kombi', 'auto_kompakt', 'auto_van', 'auto_suv'];
+  const parkTausch = [];
   ARTEN.forEach((name, k) => {
     const liste = P.parker.filter(a => a.art === k), im = instanzenGeteilt(autoForm(), autoMat, liste, setzAuto); gruppe.add(im.gruppe);
-    tausch.push(new NahTausch(gruppe, liste, im, (o, a, i, modell) => { const f = setzAuto(o, a); return modell ? (k < 2 ? f : '#ffffff') : f; }, name, 10, 75));
+    tausch.push(new NahTausch(gruppe, liste, im, (o, a, i, modell) => { const f = setzAuto(o, a); return modell ? (k < 2 ? f : '#ffffff') : f; }, name, 10, 75)); parkTausch[k] = tausch[tausch.length - 1];
   });
   // Laternen-Licht für den Abend: ein heller Punkt oben und ein Lichtfleck auf dem Boden
   const kopf = l => l.alt ? [l.x, 3.85, l.z] : [l.x + Math.sin(l.dreh) * 1.2, 6.2, l.z + Math.cos(l.dreh) * 1.2];
@@ -436,6 +454,7 @@ export function baueStadt() {
   let uhr = 0, tauschZeit = 0;
   return {
     gruppe, schnitt, tausch,
+    parkBewegt(p) { parkTausch[p.art].versetzt(p); },
     // dt = vergangene Zeit, x/z = wo der Spieler ist
     schritt(dt, x, z) {
       uhr += dt;

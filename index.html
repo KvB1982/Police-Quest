@@ -32,6 +32,7 @@
   <div id="pfeil" hidden><div id="pfeilBild">⬆</div><div id="pfeilWeit"></div></div>
   <div id="tacho" hidden></div>
   <!-- Radar: kleine Karte rund um dich. Antippen (oder Taste M) öffnet die große Stadtkarte. -->
+  <div id="kamKnoepfe" hidden><button data-k="links" title="Kamera nach links drehen (Taste Q)" aria-label="Kamera nach links drehen">⟲</button><button data-k="rechts" title="Kamera nach rechts drehen (Taste R)" aria-label="Kamera nach rechts drehen">⟳</button><button data-k="nah" title="näher (Taste +)" aria-label="näher">＋</button><button data-k="fern" title="weiter weg (Taste −)" aria-label="weiter weg">－</button><button data-k="normal" title="Kamera wie am Anfang (Taste Pos1)" aria-label="Kamera wie am Anfang">🎯</button></div>
   <div id="radar" hidden title="Stadtkarte (Taste M)"><canvas id="radarBild" width="300" height="300"></canvas><div id="radarNord">N</div></div>
   <div id="karte" hidden>
     <div id="karteKopf"><b>🗺️ Stadtkarte von Möwenbrück</b><span id="karteWo"></span><button id="karteZu">Schließen</button></div>
@@ -53,9 +54,10 @@
     <button id="kLupe" title="Zeigen, was man antippen kann (Taste H)"><b>🔍</b>Was gibt es?</button>
   </div>
   <button id="blaulicht" hidden title="Blaulicht (Taste B): aus → nur Blaulicht → Blaulicht mit Sirene">🚨 Blaulicht: aus</button>
+  <div id="neigLeiste" hidden><button id="neigKnopf" title="Das iPad wie ein Lenkrad drehen">📱 Neigen: aus</button><button id="neigMitte" hidden title="So wie du es jetzt hältst, ist geradeaus">↕ Mitte</button></div>
   <div id="fahren" hidden>
-    <div><button data-t="links">◀</button><button data-t="rechts">▶</button></div>
-    <div><button data-t="runter">Bremse</button><button data-t="hoch">Gas</button></div>
+    <div><button data-t="links" class="pfeil">◀</button><button data-t="rechts" class="pfeil">▶</button><button data-t="runter" class="pedalLinks">Bremse</button></div>
+    <div><button data-t="runter" class="pedalRechts">Bremse</button><button data-t="hoch">Gas</button></div>
   </div>
 
   <!-- Sprechblase und Auswahl -->
