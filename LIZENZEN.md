@@ -33,6 +33,32 @@ Wie bei den Geschwister-Spielen Reitturnier und Rennspiel: auf Freesound suchen,
 Pixabay sperrt Programme (Cloudflare) und ging deshalb nicht. Kurz zuschneiden (Dauer-Geräusche als Schleife),
 Datei in `sounds/` legen, Namen in `sounds/liste.json` und `KLAENGE` (`js/klang.js`) eintragen und hier eine Zeile ergänzen.
 
+## Musik
+
+Die Hintergrundmusik stammt von [Pixabay](https://pixabay.com/music/) und steht unter der
+[Pixabay-Inhaltslizenz](https://pixabay.com/service/license-summary/): kostenlos nutzbar, auch ohne Namensnennung,
+aber **nicht gemeinfrei**. Die Stücke dürfen nicht unverändert einzeln weitergegeben oder verkauft werden –
+wer sie anderswo verwenden möchte, lädt sie bitte selbst bei Pixabay. Wir nennen die Urheber gern und bedanken uns.
+Keines der Stücke ist bei Pixabay als KI-erzeugt markiert.
+
+Für das Spiel wurde aus jedem Stück eine Schleife von 80 Sekunden geschnitten (die ersten 84 Sekunden, das Ende geht
+4 Sekunden lang weich in den Anfang über: `tools/musik_schleife.py`), die Lautstärke angeglichen und als MP3
+(96 kbit/s) gespeichert. Sie liegen im Ordner `musik/`; welche Stimmung welches Stück spielt, steht in `MUSIK` (`js/klang.js`).
+
+| Datei | Wofür | Stück | Urheber |
+| --- | --- | --- | --- |
+| `titel.mp3` | Startbild | [Detective Intro](https://pixabay.com/music/introoutro-detective-intro-578734/) | Nikita Kondrashev (leberch) |
+| `wache.mp3` | auf der Wache | [Investigation](https://pixabay.com/music/crime-scene-investigation-625069/) | Nikita Kondrashev (leberch) |
+| `streife.mp3` | unterwegs in der Stadt | [Detective Documentary](https://pixabay.com/music/pulses-detective-documentary-313738/) | Nikita Kondrashev (leberch) |
+| `hafen.mp3` | zu Fuß am Wasser | [Aquatic Downtime](https://pixabay.com/music/ambient-aquatic-downtime-363761/) | Geoff Harvey (geoffharvey) |
+| `jagd.mp3` | Verfolgungsfahrt | [Chase](https://pixabay.com/music/main-title-chase-254539/) | Nikita Kondrashev (leberch) |
+| `museum.mp3` | im Museum | [Dark Ambient](https://pixabay.com/music/ambient-dark-ambient-590151/) | AtlasAudio |
+| `spannung.mp3` | nachts in der Stadt, Alarm | [Grey Square (Tension)](https://pixabay.com/music/suspense-grey-square-tension-614347/) | Nikita Kondrashev (leberch) |
+| `raetsel.mp3` | Zahlenschloss | [Investigation Piano](https://pixabay.com/music/crime-scene-investigation-piano-611639/) | Nikita Kondrashev (leberch) |
+
+Neue Musik: Pixabay sperrt Programme, im Browser geht es. Stück als MP3 laden, mit ffmpeg die ersten 84,5 Sekunden als WAV
+speichern, `python3 tools/musik_schleife.py ein.wav aus.wav`, als MP3 nach `musik/`, in `MUSIK` eintragen und hier eine Zeile ergänzen.
+
 ## Programme
 
 - [three.js](https://threejs.org) r160, MIT-Lizenz, geladen von jsDelivr.

@@ -149,6 +149,8 @@ export function marken(liste) {
 }
 
 // Startbild: Neues Spiel oder Weiterspielen.
+export const menueOffen = () => !$('menue').hidden;      // für die Musik: Startbild zu sehen?
+export const schlossOffen = () => !$('schloss').hidden;  // … oder das Zahlenschloss?
 export function menue(gibtStand) {
   return new Promise(fertig => {
     $('menue').hidden = false; $('weiterSpielen').hidden = !gibtStand;

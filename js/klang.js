@@ -83,4 +83,63 @@ export function schleife(name, laut, tempo = 1) {
   else { s.g.gain.value = 0.015 * laut; s.q.frequency.value = 45 * tempo; }
 }
 
+// ------------------------------------------------------------------ Hintergrundmusik
+//
+// Zu jeder Stimmung gibt es ein Musikstück im Ordner musik/ (Schleifen von 80 Sekunden, Quellen in LIZENZEN.md).
+// Das Spiel sagt in jedem Bild, welche Stimmung gerade passt: musik('wache'). Bleibt der Wunsch eine Weile gleich,
+// blendet die Musik weich hinüber. Geladen wird ein Stück erst, wenn es zum ersten Mal gebraucht wird.
+export const MUSIK = {
+  titel: { datei: 'titel.mp3', laut: 0.5 },          // Startbild
+  wache: { datei: 'wache.mp3', laut: 0.4 },          // auf der Wache
+  streife: { datei: 'streife.mp3', laut: 0.4 },      // unterwegs in der Stadt
+  hafen: { datei: 'hafen.mp3', laut: 0.45 },         // zu Fuß am Wasser
+  jagd: { datei: 'jagd.mp3', laut: 0.55 },           // Verfolgungsfahrt
+  museum: { datei: 'museum.mp3', laut: 0.45 },       // im dunklen Museum
+  spannung: { datei: 'spannung.mp3', laut: 0.5 },    // nachts in der Stadt, Alarm
+  raetsel: { datei: 'raetsel.mp3', laut: 0.45 },     // Zahlenschloss
+};
+const MUSIK_STUFEN = [1, 0.45, 0];      // Schalter 🎵: laut → leise → aus
+const MUSIK_WARTEN = 1.2;               // so viele Sekunden muss ein Wunsch gleich bleiben, bevor die Musik wechselt
+const MUSIK_BLENDE = 1.8;               // so viele Sekunden dauert das Überblenden
+const MUSIK_MERKEN = 'blaulicht.musik.v1';
+const stuecke = {};                     // Name → geladenes Stück (oder 'laedt', 'fehlt')
+let musikStufe = 0, musikAus = null, wunsch = null, wunschSeit = 0, spielt = null;      // spielt = { name, q, g }
+try { musikStufe = Math.min(2, Math.max(0, +localStorage.getItem(MUSIK_MERKEN) || 0)); } catch (e) { musikStufe = 0; }
+
+// Schalter: 0 = laut, 1 = leise, 2 = aus. Ohne Zahl wird eine Stufe weitergeschaltet. Gibt die neue Stufe zurück.
+export function musikSchalter(stufe) {
+  musikStufe = stufe === undefined ? (musikStufe + 1) % MUSIK_STUFEN.length : stufe;
+  try { localStorage.setItem(MUSIK_MERKEN, musikStufe); } catch (e) { /* dann merkt es sich das Spiel eben nicht */ }
+  if (musikAus) musikAus.gain.setTargetAtTime(MUSIK_STUFEN[musikStufe], ton.currentTime, 0.15);
+  return musikStufe;
+}
+export const musikStand = () => ({ stufe: musikStufe, wunsch, spielt: spielt && spielt.name, geladen: Object.keys(stuecke).filter(n => stuecke[n] && stuecke[n].duration) });
+
+async function musikLaden(name) {
+  stuecke[name] = 'laedt';
+  try { stuecke[name] = await ton.decodeAudioData(await (await fetch('musik/' + MUSIK[name].datei)).arrayBuffer()); } catch (e) { stuecke[name] = 'fehlt'; }
+}
+
+// Welche Musik passt gerade? In jedem Bild aufrufen. null = keine Musik.
+export function musik(name) {
+  if (!ton) return;
+  const jetzt = ton.currentTime;
+  if (name !== wunsch) { wunsch = name; wunschSeit = jetzt; }
+  if (musikStufe === 2) {                                                    // ausgeschaltet: nichts laden, Laufendes ausblenden
+    if (spielt) { spielt.g.gain.setTargetAtTime(0, jetzt, 0.2); spielt.q.stop(jetzt + 1.5); spielt = null; }
+    return;
+  }
+  if (name && !stuecke[name]) musikLaden(name);
+  const dran = spielt ? spielt.name : null;
+  if (name === dran || (dran && jetzt - wunschSeit < MUSIK_WARTEN)) return;  // nicht bei jedem kurzen Wechsel umschalten
+  if (name && !(stuecke[name] && stuecke[name].duration)) { if (stuecke[name] !== 'fehlt') return; name = null; if (!dran) return; }
+  if (!musikAus) { musikAus = ton.createGain(); musikAus.gain.value = MUSIK_STUFEN[musikStufe]; musikAus.connect(ton.destination); }
+  if (spielt) { const alt = spielt; alt.g.gain.setTargetAtTime(0, jetzt, MUSIK_BLENDE / 4); alt.q.stop(jetzt + MUSIK_BLENDE * 1.5); spielt = null; }
+  if (!name) return;
+  const q = ton.createBufferSource(), g = ton.createGain();
+  q.buffer = stuecke[name]; q.loop = true; g.gain.value = 0; g.gain.setTargetAtTime(MUSIK[name].laut, jetzt, MUSIK_BLENDE / 4);
+  q.connect(g).connect(musikAus); q.start();
+  spielt = { name, q, g };
+}
+
 export function alleAus() { for (const n of Object.keys(laufend)) schleife(n, 0); }

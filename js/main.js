@@ -218,7 +218,31 @@ function geraeusche(dt) {
   KLANG.schleife('moewen', stadt && Z.licht !== 'nacht' ? 0.25 + Math.max(0, 1 - (spieler.z - UFER) / 160) * 0.75 : 0);      // am Wasser lauter
   KLANG.schleife('alarm', stadt && Z.flags.alarm && !Z.flags.tagEnde ? nah(74, 30, 70) : 0);
   if (!Z.imAuto && spieler.tempo > 0 && (schrittZeit -= dt) <= 0) { schrittZeit = 0.34; KLANG.spiel('schritt'); }
+  KLANG.musik(musikWahl());
 }
+
+// Welche Hintergrundmusik passt gerade? (Die Stücke und der Schalter stehen in klang.js.)
+const HAFEN_NAH = 90;            // so viele Meter vom Ufer weg hört man zu Fuß noch die Hafen-Musik
+function musikWahl() {
+  if (UI.menueOffen()) return 'titel';
+  if (UI.schlossOffen()) return 'raetsel';
+  const stadt = Z.ort === 'stadt';
+  if (stadt && Z.flags.flucht && !Z.flags.jagdFertig) return 'jagd';
+  if (Z.ort === 'museum') return 'museum';
+  if (Z.ort === 'wache') return 'wache';
+  if (Z.licht === 'nacht' || Z.licht === 'dunkel' || (Z.flags.alarm && !Z.flags.tagEnde)) return 'spannung';
+  if (!Z.imAuto && spieler.z - UFER < HAFEN_NAH) return 'hafen';
+  return 'streife';
+}
+const MUSIK_KNOPF = [['🎵', 'Musik: laut'], ['🎵', 'Musik: leise'], ['🔇', 'Musik: aus']];
+function musikKnopf(stufe) {
+  const b = document.getElementById('kMusik'); if (!b) return;
+  b.textContent = MUSIK_KNOPF[stufe][0]; b.title = MUSIK_KNOPF[stufe][1] + ' (Taste U)'; b.classList.toggle('leise', stufe === 1);
+}
+function musikWeiter() { KLANG.an(); const s = KLANG.musikSchalter(); musikKnopf(s); UI.toast(MUSIK_KNOPF[s][0] + ' ' + MUSIK_KNOPF[s][1]); }
+musikKnopf(KLANG.musikStand().stufe);
+document.getElementById('kMusik').onclick = musikWeiter;
+addEventListener('pointerdown', () => KLANG.an(), { capture: true });      // schon auf dem Startbild: Ton an, sobald man irgendwo tippt
 
 // ------------------------------------------------------------------ Was kann man gerade tun?
 function abstand(ax, az, bx, bz) { return Math.hypot(ax - bx, az - bz); }
@@ -589,6 +613,7 @@ addEventListener('keydown', e => {
   if (KARTE.kartOffen()) { if (k === 'm' || k === 'Escape' || k === 'Enter') KARTE.karteZu(); e.preventDefault(); return; }
   if (UI.taste(k)) { e.preventDefault(); return; }
   if (TASTE[k]) { tasten[TASTE[k]] = true; e.preventDefault(); return; }
+  if (k === 'u') { musikWeiter(); return; }          // Musik geht immer, auch mitten im Gespräch
   if (beschaeftigt) return;
   if (k === 'e' || k === 'Enter') { const m = moeglich(); if (m.length) m[0].tun(); }
   else if (k === 'f') funkAuf(); else if (k === 'n') notizbuchAuf(); else if (k === 't') tascheAuf();
