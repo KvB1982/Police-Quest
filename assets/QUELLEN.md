@@ -71,7 +71,7 @@ Quelle: https://ambientcg.com (Lizenz CC0: https://docs.ambientcg.com/license/).
 ## Neue freie Modelle dazunehmen
 
 1. Nur **CC0** oder **CC-BY** (bei CC-BY den Namen des Erstellers im Spiel nennen). Nichts mit „NC“ oder „Editorial“.
-2. Kein Logo, keine Marke, keine Waffen.
+2. Kein Logo, keine Marke. Polizei-Ausrüstung (Dienstpistole im Holster, Handschellen) ist seit 21.11.2026 erlaubt.
 3. Verkleinern mit `tools/modell_klein.mjs`, als Standbild ansehen, hier eintragen.
 
 ## Aus dem Schwester-Spiel Powershot übernommen (22 Dateien, seit 21.11.2026)
