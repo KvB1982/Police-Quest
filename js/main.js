@@ -8,7 +8,7 @@ import { ORTE } from './daten.js';
 import * as STORY from './story.js';
 import * as UI from './oberflaeche.js';
 import * as KLANG from './klang.js';
-import { baueOrt, figur, figurBewegen, autoModell, spiegelBild } from './welt.js';
+import { baueOrt, figur, figurBewegen, figurLeben, autoModell, spiegelBild } from './welt.js';
 import { ladePolizist } from './polizist.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as BILD from './bilder.js';
@@ -159,8 +159,15 @@ function sichtbarkeit() {
 }
 
 // ------------------------------------------------------------------ Werkzeug für die Geschichte (siehe story.js)
+let sprecher = '', aktiv = null;       // wer gerade spricht und mit wem oder was man gerade zu tun hat (für die kleinen Bewegungen der Figuren)
 const S = {
-  sag: (wer, text) => UI.dialog(wer, text),
+  sag: (wer, text) => { sprecher = wer; return UI.dialog(wer, text).then(() => { sprecher = ''; }); },
+  // Etwas aufgehen (oder zugehen) lassen: eine Tür, den Spind, den Stahlschrank. Wartet, bis es offen ist.
+  oeffne(id, auf = true) {
+    const k = welt.klappen[id]; if (!k) return Promise.resolve();
+    k.soll = auf ? 1 : 0; KLANG.spiel('tuer', 0.6);
+    return new Promise(fertig => { k.wartet = fertig; });
+  },
   wahl: (wer, frage, antworten) => UI.wahl(wer, frage, antworten),
   schloss: titel => UI.schloss(titel),
   flag: n => { Z.flags[n] = true; },
@@ -186,8 +193,8 @@ const S = {
 // Eine Stelle der Geschichte abspielen. Solange sie läuft, bleibt die Figur stehen.
 async function tu(akt, def) {
   if (beschaeftigt || !STORY.AKT[akt]) return;
-  beschaeftigt = true; spieler.tap = null;
-  try { await STORY.AKT[akt](S, def); } finally { beschaeftigt = false; sichtbarkeit(); anzeigen(); }
+  beschaeftigt = true; spieler.tap = null; aktiv = def || null;
+  try { await STORY.AKT[akt](S, def); } finally { beschaeftigt = false; aktiv = null; sprecher = ''; sichtbarkeit(); anzeigen(); }
 }
 
 function anzeigen() {
@@ -437,7 +444,33 @@ function ottoFolgt(dt) {
     const tempo = d > 12 ? 40 : d > 1.2 ? LAUF_TEMPO * 1.05 : 0;      // zu weit weg: hinterherspringen
     if (tempo) { o.x += dx / d * Math.min(d, tempo * dt); o.z += dz / d * Math.min(d, tempo * dt); o.mesh.rotation.y = Math.atan2(dx, dz); }
     o.mesh.position.set(o.x, 0, o.z);
-    figurBewegen(o.mesh, dt, tempo ? 4 : 0);
+    figurBewegen(o.mesh, dt, tempo ? 4 : 0); o.geht = !!tempo;
+  }
+}
+
+// Türen, Spind und Schrank: jedes Bild ein Stück weiter auf oder zu. Türen in den Wänden gehen von selbst auf, wenn du oder Otto davorstehen.
+function klappenSchritt(dt) {
+  for (const k of Object.values(welt.klappen)) {
+    if (k.auto) {
+      const nah = (x, z) => abstand(x, z, k.auto.x, k.auto.z) < k.auto.r;
+      const soll = nah(spieler.x, spieler.z) || welt.objekte.some(o => o.def.folgt && nah(o.x, o.z)) ? 1 : 0;
+      if (soll && !k.soll) KLANG.spiel('tuer', 0.35);
+      k.soll = soll;
+    }
+    k.ist += Math.max(-dt * 2.6, Math.min(dt * 2.6, k.soll - k.ist));
+    const t = k.ist * k.ist * (3 - 2 * k.ist);       // weich anfahren und abbremsen
+    for (const e of k.teile) e.teil.rotation.y = e.zu + (e.auf - e.zu) * t;
+    if (k.wartet && Math.abs(k.ist - k.soll) < 0.02) { const f = k.wartet; k.wartet = null; f(); }
+  }
+}
+// Die Leute stehen nicht steif herum: Sie atmen, drehen sich zu dir, wenn du nah bist, und reden mit den Händen.
+function leuteLeben(dt) {
+  for (const o of welt.objekte) {
+    if (o.typ !== 'leut' || o.def.hund || !o.da) continue;
+    const x = o.x ?? o.def.x, z = o.z ?? o.def.z, weit = abstand(spieler.x, spieler.z, x, z);
+    const spricht = !!sprecher && (o.def.name.startsWith(sprecher) || (o.def === aktiv && sprecher !== 'Kim' && !sprecher.startsWith('Otto') && !sprecher.startsWith('Leitstelle')));
+    if (o.def.folgt && o.geht) continue;       // Otto läuft gerade: Dann schwingen Arme und Beine schon
+    figurLeben(o.mesh, dt, zeit, spricht, weit < 5 && !Z.imAuto ? Math.atan2(spieler.x - x, spieler.z - z) : o.def.folgt ? o.mesh.rotation.y : null);
   }
 }
 
@@ -536,6 +569,7 @@ function schritt(dt) {
   kameraSetzen(1 - Math.exp(-dt * (Z.imAuto ? 4 : 7)));
   if (welt.stadt) stadtSchritt(dt);
   jagdLauf(dt, frei);
+  klappenSchritt(dt); leuteLeben(dt);
   wegweiser();
   UI.knoepfe(moeglich(), k => k.tun());
   UI.fahrKnoepfe(Z.imAuto);
@@ -699,7 +733,7 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, S, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, frei: null,
+window.__polizei = { get Z() { return Z; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, frei: null,
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {

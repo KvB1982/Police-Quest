@@ -11,6 +11,7 @@
 //   S.ziel(text, [ort, x, z])         – was als Nächstes zu tun ist (mit Wegweiser)
 //   S.ort(name, x, z)                 – an einen anderen Ort wechseln
 //   S.klang(name)                     – ein Geräusch abspielen (Namen stehen in klang.js)
+//   await S.oeffne(ding, true/false)  – eine Tür, den Spind oder einen Schrank auf- oder zugehen lassen (Name = id in daten.js)
 //   S.auto(true/false), S.licht(..), S.uhr(..), S.speichern(), await S.ende(..)
 //   S.blaulicht()                     – 0 = aus, 1 = nur Blaulicht, 2 = Blaulicht mit Sirene · S.blaulichtAn(stufe) schaltet um
 //   S.jagd()                          – wie lief die Verfolgungsfahrt? { rumms: wie oft angestoßen, sirene: lief die Sirene? }
@@ -101,10 +102,11 @@ export const AKT = {
     const zahl = await S.schloss('Zahlenschloss an deinem Spind');
     if (zahl === null) return;
     if (zahl !== '4172') return S.sag('', 'Das Schloss bleibt zu. (Tipp: Die Dienstnummer steht auf deinem Ausweis in der Tasche 🎒.)');
-    S.klang('schloss');
+    S.klang('schloss'); await S.oeffne('spind');
     await S.sag('', 'Der Spind geht auf. Du ziehst Uniform und Schutzweste an und legst den Einsatzgürtel um: Funkgerät, Handschellen, Pfefferspray, Taschenlampe. Das Holster ist noch leer.');
     for (const s of ['funk', 'notizbuch', 'lampe', 'weste', 'handschellen', 'spray', 'schluessel']) S.gib(s);
     S.flag('spind'); S.punkte(2, 'Ausrüstung vollständig');
+    await S.oeffne('spind', false);
     S.ziel('Hol deine Dienstwaffe in der Waffenkammer (im Flur links)', ['wache', -11.6, 3]);
   },
 
@@ -113,6 +115,7 @@ export const AKT = {
     if (!S.hat('spind')) return S.sag(HARMS, 'Erst umziehen. Ohne Einsatzgürtel kein Holster, ohne Holster keine Waffe.');
     if (S.hat('waffe')) return S.sag(HARMS, 'Am Dienstende liegt sie wieder hier. Gesichert und vollzählig.');
     await S.sag(HARMS, 'Berger? Harms, Waffenkammer. Auf meiner Liste steht für Sie die Dienstpistole mit der Nummer MB-0417. Hier unterschreiben.');
+    await S.oeffne('waffenschrank');
     await S.sag('', 'Er legt eine Pistole auf den Tresen. Auf dem Verschluss ist eingeschlagen: MB-0471.');
     for (;;) {
       const a = await S.wahl(KIM, 'Was machst du?', [
@@ -133,7 +136,7 @@ export const AKT = {
       if (a === 0) await S.sag(HARMS, 'Und woher wissen Sie, ob sie geladen ist? Ob sie gesichert ist? Man prüft jede Waffe selbst. Jedes Mal. Nochmal.');
       else await S.sag(HARMS, 'Hinter der Tür ist der Flur. Eine Waffe zeigt nie auf etwas, das man nicht treffen will. Nochmal.');
     }
-    S.klang('schloss');
+    S.klang('schloss'); await S.oeffne('waffenschrank', false);
     S.gib('pistole'); S.flag('waffe'); S.punkte(3, 'Dienstwaffe nach Vorschrift übernommen');
     S.notiz('Dienstwaffe MB-0417 übernommen. Regel: ziehen nur, wenn jemand bewaffnet ist oder ein Leben in Gefahr ist.');
     await S.sag(HARMS, 'Eins noch, Berger. Die meisten hier ziehen sie in dreißig Jahren kein einziges Mal im Ernst. Das ist kein Zufall, das ist gute Arbeit.');
@@ -513,6 +516,7 @@ export const AKT = {
   },
   async museumstuer(S) {
     if (!S.hat('alarm')) return S.sag('', 'Das Stadtmuseum. Geöffnet von 10 bis 17 Uhr. Im Schaufenster hängt ein Plakat: „Im Dezember: 700 Jahre Möwenbrück!“');
+    await S.oeffne('museumstuer');
     S.ort('museum', 0, 6.3); S.licht('dunkel'); S.speichern();
     if (S.hat('imMuseum')) return;
     S.flag('imMuseum');
@@ -522,6 +526,7 @@ export const AKT = {
   },
   async ausgang(S) {
     if (!S.hat('tagEnde')) return S.sag(OTTO, 'Wir sind hier noch nicht fertig, Kim.');
+    await S.oeffne('ausgang');
     S.ort('stadt', 76, 30); S.licht('nacht');
   },
   async thomsen(S) {
