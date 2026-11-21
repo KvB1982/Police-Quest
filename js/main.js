@@ -16,7 +16,7 @@ import { baueHimmel } from './himmel.js';
 import { baueUmland } from './umland.js';
 import { neuerVerkehr } from './verkehr.js';
 import { baueVerkehr } from './verkehrbau.js';
-import { woBinIch, UFER } from './stadtplan.js';
+import { woBinIch, UFER, imHindernis } from './stadtplan.js';
 
 // ------------------------------------------------------------------ Zahlen zum Einstellen
 const LAUF_TEMPO = 4.6;          // Meter pro Sekunde zu Fuß
@@ -279,14 +279,19 @@ function schieben(x, z, r) {
     if (d < min && d > 0.001) { x = c.x + dx / d * min; z = c.z + dz / d * min; }
   }
   for (let runde = 0; runde < 2; runde++) for (const q of imWeg) {
-    const nx = Math.max(q[0], Math.min(x, q[2])), nz = Math.max(q[1], Math.min(z, q[3]));
-    let dx = x - nx, dz = z - nz; const d = Math.hypot(dx, dz);
+    // Steht das Hindernis schräg (q.o), rechnen wir kurz so, als stünde es gerade: Die Stelle wird in "seine" Richtung gedreht und danach zurück.
+    const o = q.o, R = o ? [-o.hb, -o.ht, o.hb, o.ht] : q;
+    let px = x, pz = z;
+    if (o) { px = (x - o.x) * o.c - (z - o.z) * o.s; pz = (x - o.x) * o.s + (z - o.z) * o.c; }
+    const nx = Math.max(R[0], Math.min(px, R[2])), nz = Math.max(R[1], Math.min(pz, R[3]));
+    let dx = px - nx, dz = pz - nz; const d = Math.hypot(dx, dz);
     if (d >= r) continue;
-    if (d > 0.0001) { x = nx + dx / d * r; z = nz + dz / d * r; }
+    if (d > 0.0001) { px = nx + dx / d * r; pz = nz + dz / d * r; }
     else {   // mitten im Rechteck: zur nächsten Kante hinaus
-      const l = x - q[0], re = q[2] - x, o = z - q[1], u = q[3] - z, m = Math.min(l, re, o, u);
-      if (m === l) x = q[0] - r; else if (m === re) x = q[2] + r; else if (m === o) z = q[1] - r; else z = q[3] + r;
+      const l = px - R[0], re = R[2] - px, ob = pz - R[1], u = R[3] - pz, m = Math.min(l, re, ob, u);
+      if (m === l) px = R[0] - r; else if (m === re) px = R[2] + r; else if (m === ob) pz = R[1] - r; else pz = R[3] + r;
     }
+    if (o) { x = o.x + px * o.c + pz * o.s; z = o.z - px * o.s + pz * o.c; } else { x = px; z = pz; }
   }
   const G = ORTE[Z.ort].gross;
   return [Math.max(G[0] + r, Math.min(G[2] - r, x)), Math.max(G[1] + r, Math.min(G[3] - r, z))];
@@ -306,7 +311,7 @@ function gitterBauen() {
     const j1 = Math.max(0, Math.floor((q[1] - r - G[1]) / k)), j2 = Math.min(nz - 1, Math.floor((q[3] + r - G[1]) / k));
     for (let j = j1; j <= j2; j++) for (let i = i1; i <= i2; i++) {
       const x = G[0] + (i + 0.5) * k, z = G[1] + (j + 0.5) * k;
-      if (Math.hypot(x - Math.max(q[0], Math.min(x, q[2])), z - Math.max(q[1], Math.min(z, q[3]))) < r) zu[j * nx + i] = 1;
+      if (q.o ? imHindernis(x, z, q, r) : Math.hypot(x - Math.max(q[0], Math.min(x, q[2])), z - Math.max(q[1], Math.min(z, q[3]))) < r) zu[j * nx + i] = 1;
     }
   }
   gitter = { G, k, nx, nz, zu };
@@ -424,7 +429,7 @@ function kameraSetzen(staerke) {
     const a = Z.auto;
     // Die Kamera fährt hinter dem Wagen her. Gerät sie dabei in ein Haus, rückt sie näher heran und höher.
     let weg = KAMERA_AUTO[0]; py = KAMERA_AUTO[1];
-    const imHaus = (x, z) => nahe(x, z, 1).some(q => q[2] - q[0] > 3 && q[3] - q[1] > 3 && x > q[0] - 0.8 && x < q[2] + 0.8 && z > q[1] - 0.8 && z < q[3] + 0.8);
+    const imHaus = (x, z) => nahe(x, z, 1).some(q => q[2] - q[0] > 3 && q[3] - q[1] > 3 && imHindernis(x, z, q, 0.8));
     while (weg > 2.5 && imHaus(a.x - Math.sin(a.h) * weg, a.z - Math.cos(a.h) * weg)) { weg -= 1.5; py += 0.9; }
     px = a.x - Math.sin(a.h) * weg; pz = a.z - Math.cos(a.h) * weg;
     bx = a.x + Math.sin(a.h) * 4; bz = a.z + Math.cos(a.h) * 4;

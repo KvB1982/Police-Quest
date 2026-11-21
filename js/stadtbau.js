@@ -8,9 +8,9 @@
 import * as THREE from 'three';
 import * as BILD from './bilder.js';
 import * as MOD from './modelle.js';
-import { PLAN, STRASSEN_X, STRASSEN_Z, KAI, UFER, wuerfel } from './stadtplan.js';
+import { PLAN, UFER, FLEET, STADT_RAND, viertel, ortAuf, wuerfel } from './stadtplan.js';
 
-const GEHRAND = 0;
+const GEH = 3;
 const FELD = 3, STOCK = 3.05, EG = 3.5;       // ein Fensterfeld ist 3 m breit, ein Stockwerk 3,05 m hoch, das Erdgeschoss 3,5 m
 export const AUTO_FARBEN = ['#f2f2f2', '#c9ced3', '#2a2d31', '#2f5d9a', '#b3372e', '#3d6b4f', '#d9cfb8', '#70777e'];
 
@@ -140,6 +140,24 @@ class NahTausch {
   }
 }
 
+// Ein Eimer für ein schräg stehendes Haus: Man gibt die Ecken so an, als stünde das Haus gerade mit der Mitte bei 0/0.
+// Jede Ecke wird dann gedreht und an den Platz des Hauses geschoben.
+export function lokal(e, h) {
+  const c = Math.cos(h.dreh), s = Math.sin(h.dreh), m = p => [h.x + p[0] * c + p[2] * s, p[1], h.z - p[0] * s + p[2] * c];
+  const L = {
+    quad: (a, b, cc, d, f, u0, v0, u1, v1) => e.quad(m(a), m(b), m(cc), m(d), f, u0, v0, u1, v1),
+    drei: (a, b, cc, f, u, v) => e.drei(m(a), m(b), m(cc), f, u, v),
+    boden: (r, y, f, kachel = 4) => L.quad([r[0], y, r[3]], [r[2], y, r[3]], [r[2], y, r[1]], [r[0], y, r[1]], f, r[0] / kachel, -r[3] / kachel, r[2] / kachel, -r[1] / kachel),
+    kiste: (x1, y1, z1, x2, y2, z2, f, u = 0.01, v = 0.02) => {
+      const q = (a, b, cc, d) => L.quad(a, b, cc, d, f, u, v, u, v);
+      q([x1, y1, z2], [x2, y1, z2], [x2, y2, z2], [x1, y2, z2]); q([x2, y1, z1], [x1, y1, z1], [x1, y2, z1], [x2, y2, z1]);
+      q([x2, y1, z2], [x2, y1, z1], [x2, y2, z1], [x2, y2, z2]); q([x1, y1, z1], [x1, y1, z2], [x1, y2, z2], [x1, y2, z1]);
+      q([x1, y2, z2], [x2, y2, z2], [x2, y2, z1], [x1, y2, z1]);
+    },
+  };
+  return L;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Die Stadt bauen. Zurück kommt { gruppe, schritt(dt, x, z), licht(name), schnitt }.
 // ---------------------------------------------------------------------------------------------
@@ -147,52 +165,97 @@ export function baueStadt() {
   const gruppe = new THREE.Group(), P = PLAN, w = wuerfel(4711);
   const schnitt = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1e9);      // alles südlich davon (zur Kamera hin) wird weggeschnitten
   const eimer = new Map(), leuchtend = [];
-  const E = key => { if (!eimer.has(key)) eimer.set(key, new Eimer()); return eimer.get(key); };
+  let E = key => { if (!eimer.has(key)) eimer.set(key, new Eimer()); return eimer.get(key); };
   const WEISS = farbe('#ffffff');
 
-  // ---- Boden: Gehweg unter der ganzen Stadt, darauf Straßen, Höfe, Rasen
-  const X0 = STRASSEN_X[0].p - 16, X1 = STRASSEN_X.at(-1).p + 16, Z1 = STRASSEN_Z.at(-1).p + 16;
-  // Der Gehweg liegt unter der ganzen Stadt – nur nicht dort, wo das Fleet (der Kanal) ist. Über das Fleet führen die Brücken.
-  const fleet = P.wasser.length ? [Math.min(...P.wasser.map(r => r[0])), Math.max(...P.wasser.map(r => r[2]))] : null, hell = farbe('#f1eee6');
-  if (fleet) {
-    E('gehweg').boden([X0, UFER, fleet[0], Z1], 0, hell, 1.6); E('gehweg').boden([fleet[1], UFER, X1, Z1], 0, hell, 1.6);
-    for (const s of STRASSEN_Z) E('gehweg').boden([fleet[0], s.p - s.b / 2 - 0.2, fleet[1], s.p + s.b / 2 + 0.2], 0, hell, 1.6);
-    E('gehweg').boden([fleet[0], UFER, fleet[1], KAI.p + KAI.b / 2], 0, hell, 1.6); E('gehweg').boden([fleet[0], Z1 - 11, fleet[1], Z1], 0, hell, 1.6);
-  } else E('gehweg').boden([X0, UFER, X1, Z1], 0, hell, 1.6);
-  const asphalt = farbe('#8a8d92');
-  for (const s of P.strassen) {
-    const h = s.b / 2;
-    if (s.achse === 'x') E('asphalt').boden([s.p - h, s.von === KAI.p ? KAI.p + KAI.b / 2 : s.von - 5, s.p + h, s.bis + 5], 0.02, asphalt, 5);
-    else {        // Ost-West-Straßen stückweise zwischen den Nord-Süd-Straßen, damit an Kreuzungen nichts doppelt liegt
-      const stuecke = [s.von - 5, ...STRASSEN_X.filter(q => q.p > s.von - 1 && q.p < s.bis + 1).flatMap(q => [q.p - q.b / 2, q.p + q.b / 2]), s.bis + 5];
-      if (s.kai) { E('kopfstein').boden([s.von, s.p - h, s.bis, s.p + h], 0.02, farbe('#cfc8bb'), 3.5); continue; }
-      for (let i = 0; i + 1 < stuecke.length; i += 2) if (stuecke[i + 1] > stuecke[i]) E('asphalt').boden([stuecke[i], s.p - h, stuecke[i + 1], s.p + h], 0.02, asphalt, 5);
-    }
-    // Bordstein und Mittelstreifen zwischen den Kreuzungen
-    const quer = (s.achse === 'x' ? STRASSEN_Z : STRASSEN_X).filter(q => q.p > s.von - 1 && q.p < s.bis + 1);
-    if (s.achse === 'x' && s.von === KAI.p) quer.unshift({ p: KAI.p, b: KAI.b });
-    for (let k = 0; k + 1 < quer.length && !s.kai; k++) {
-      const a = quer[k].p + quer[k].b / 2, b = quer[k + 1].p - quer[k + 1].b / 2, bord = farbe('#b9b6ae');
-      for (const seite of [-1, 1]) {
-        const q = s.p + seite * (h + 0.15);
-        if (s.achse === 'x') E('farbe').kiste(q - 0.15, 0, a + GEHRAND, q + 0.15, 0.13, b - GEHRAND, bord); else E('farbe').kiste(a + GEHRAND, 0, q - 0.15, b - GEHRAND, 0.13, q + 0.15, bord);
-      }
-      const strich = (t1, t2, ab, breit) => s.achse === 'x' ? E('strich').boden([s.p + ab - breit / 2, t1, s.p + ab + breit / 2, t2], 0.035, WEISS) : E('strich').boden([t1, s.p + ab - breit / 2, t2, s.p + ab + breit / 2], 0.035, WEISS);
-      for (let t = a + 8; t + 3 < b - 8; t += 9) strich(t, t + 3, 0, 0.15);
-      if (s.b > 10) for (const ab of [-3.4, 3.4]) for (let t = a + 8; t + 3 < b - 8; t += 9) strich(t, t + 3, ab, 0.12);
-      // Haltelinie und Zebrastreifen vor jeder Kreuzung
-      for (const [t, r] of [[a, 1], [b, -1]]) {
-        strich(t + r * 6.2, t + r * 6.6, r * -h / 2, h - 0.4);
-        for (let q = -h + 0.6; q < h - 0.3; q += 1.1) strich(t + r * 1.6, t + r * 4.8, q + 0.25, 0.5);
-      }
-    }
+  // ---- Boden: Die Stadt ist in Kästchen von 20 m geteilt. Jedes bekommt den Boden seines Viertels:
+  // Kopfstein in der Altstadt, Pflaster in der Innenstadt, Schotter an der Bahn, sonst Rasen. Wo das Fleet ist, bleibt ein Loch.
+  const BODEN = { alt: ['kopfstein', '#d8d0c0', 3.5], markt: ['kopfstein', '#e0d6c2', 3.5], speicher: ['kopfstein', '#cfc8bb', 3.5], bahnhof: ['kopfstein', '#d8d2c6', 3.5], city: ['gehweg', '#e6e2d8', 1.6],
+    gewerbe: ['gehweg', '#b9b8b2', 2], werft: ['gehweg', '#b0afa8', 2], bahn: ['gehweg', '#8f7f6c', 2] }, RASEN = ['gras', '#9fc777', 6];
+  const ohneFleet = (r, tu) => {
+    const F = [FLEET[0] - 1, UFER, FLEET[2] + 1, FLEET[3]];
+    if (r[0] >= F[2] || r[2] <= F[0] || r[1] >= F[3]) return tu(r);
+    if (r[0] < F[0]) tu([r[0], r[1], F[0], r[3]]); if (r[2] > F[2]) tu([F[2], r[1], r[2], r[3]]);
+    if (r[3] > F[3]) tu([Math.max(r[0], F[0]), F[3], Math.min(r[2], F[2]), r[3]]);
+  };
+  for (let x = STADT_RAND.x0; x < STADT_RAND.x1; x += 20) for (let z = UFER; z < STADT_RAND.z1; z += 20) {
+    const [k, f, kachel] = BODEN[viertel(x + 10, z + 10)] || RASEN;
+    ohneFleet([x, z, x + 20, z + 20], r => E(k).boden(r, 0, farbe(f), kachel));
   }
-  for (const r of P.gruen) E('gras').boden(r, 0.03, farbe('#9fc777'), 6);
+
+  // ---- Straßen: Jede Straße ist ein Band entlang ihrer Linie. band() legt ein Stück Band auf den Boden:
+  // von s1 bis s2 Meter, "ab" Meter rechts von der Mitte, "breit" Meter breit.
+  const band = (e, W, s1, s2, ab, breit, y, f, kachel = 4) => {
+    if (s2 < s1) [s1, s2] = [s2, s1];
+    s1 = Math.max(0, s1); s2 = Math.min(W.l, s2); if (s2 - s1 < 0.05) return;
+    const stellen = [s1, ...W.L.filter(l => l > s1 + 0.05 && l < s2 - 0.05), s2];
+    let alt = null;
+    for (const s of stellen) {
+      const a = ortAuf(W, s - 0.05), b = ortAuf(W, s + 0.05), o = ortAuf(W, s);
+      let tx = a[2] + b[2], tz = a[3] + b[3]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+      const mehr = 1 / Math.max(0.5, a[2] * tx + a[3] * tz);          // in einer Ecke muss das Band etwas breiter sein, sonst wird es dort schmal
+      const L = [o[0] - tz * (ab - breit / 2) * mehr, y, o[1] + tx * (ab - breit / 2) * mehr], R = [o[0] - tz * (ab + breit / 2) * mehr, y, o[1] + tx * (ab + breit / 2) * mehr];
+      if (alt) e.quad(alt.L, alt.R, R, L, f, 0, alt.s / kachel, breit / kachel, s / kachel);
+      alt = { L, R, s };
+    }
+  };
+  // Eine runde Scheibe auf dem Boden (für Kreuzungen und Wendeplätze)
+  const scheibe = (e, x, z, r, y, f) => { for (let i = 0; i < 14; i++) { const a = i / 14 * 6.2832, b = (i + 1) / 14 * 6.2832; e.drei([x, y, z], [x + Math.cos(b) * r, y, z + Math.sin(b) * r], [x + Math.cos(a) * r, y, z + Math.sin(a) * r], f, x / 5, z / 5); } };
+  // Eine niedrige Wand entlang einer Straße (Leitplanke), von beiden Seiten zu sehen
+  const planke = (W, s1, s2, ab, h, f) => {
+    for (let s = s1; s < s2 - 0.1; s += 8) {
+      const a = ortAuf(W, s), b = ortAuf(W, Math.min(s2, s + 8));
+      const p = [a[0] - a[3] * ab, a[1] + a[2] * ab], q = [b[0] - b[3] * ab, b[1] + b[2] * ab];
+      E('farbe').quad([p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], h, q[1]], [p[0], h, p[1]], f, 0.01, 0.02, 0.01, 0.02);
+      E('farbe').quad([q[0], 0, q[1]], [p[0], 0, p[1]], [p[0], h, p[1]], [q[0], h, q[1]], f, 0.01, 0.02, 0.01, 0.02);
+    }
+  };
+  const asphalt = farbe('#8a8d92'), hell = farbe('#f1eee6'), bord = farbe('#a9a69e');
+  const BELAG = { kai: ['kopfstein', '#cfc8bb', 3.5], gasse: ['kopfstein', '#bdb5a6', 3.5] };
+  P.wege.forEach((W, nr) => {
+    const [k, f, kachel] = BELAG[W.art] || ['asphalt', '#8a8d92', 5], schnell = W.art === 'autobahn' || W.art === 'rampe';
+    const y = 0.02 + nr * 0.0003 + (W.b > 10 ? 0.012 : W.art === 'gasse' ? -0.004 : 0);       // jede Straße liegt ein Haar höher als die vorige, damit an Kreuzungen nichts flimmert
+    if (!schnell && W.art !== 'kai') band(E('gehweg'), W, 0, W.l, 0, W.b + 2 * W.geh, 0.008 + nr * 0.0001, hell, 1.6);
+    band(E(k), W, 0, W.l, 0, W.b, y, farbe(f), kachel);
+    if (W.art === 'gasse' || W.art === 'kai') return;
+    // Die Stücke zwischen den Kreuzungen: Bordstein, Mittelstreifen, Haltelinien, Zebrastreifen
+    const gross = W.kreuz.filter(q => q.autos >= 3 || q.s === 0 || q.s === W.l);
+    for (let i = 0; i + 1 < gross.length; i++) {
+      const a = gross[i].s + gross[i].rf, b = gross[i + 1].s - gross[i + 1].rf;
+      if (b - a < 4) continue;
+      for (const seite of [-1, 1]) band(E('farbe'), W, a, b, seite * (W.b / 2 + 0.14), 0.28, 0.058, schnell ? WEISS : bord);
+      const striche = (ab, breit, voll) => { if (voll) return band(E('strich'), W, a, b, ab, breit, 0.064, WEISS); for (let t = a + 6; t + 3 < b - 6; t += 9) band(E('strich'), W, t, t + 3, ab, breit, 0.064, WEISS); };
+      if (W.art === 'autobahn') {
+        for (const seite of [-1, 1]) { striche(seite * 6.2, 0.15); striche(seite * 1.6, 0.2, true); planke(W, a, b, seite * (W.b / 2 + 0.9), 0.8, farbe('#b9bec4')); }
+        band(E('gras'), W, a, b, 0, 2.4, 0.06, farbe('#8fb86a'), 6); planke(W, a, b, 0, 0.9, farbe('#c9ced3'));
+        continue;
+      }
+      if (W.art === 'rampe') continue;
+      striche(0, 0.15); if (W.b > 10) for (const ab of [-3.4, 3.4]) striche(ab, 0.12);
+      for (const [q, r] of [[gross[i], 1], [gross[i + 1], -1]]) {
+        if (q.autos < 3 || b - a < 26) continue;
+        const t = q.s + r * q.rf;
+        band(E('strich'), W, t + r * 5.6, t + r * 6, -r * W.b / 4, W.b / 2 - 0.4, 0.064, WEISS);                         // Haltelinie auf der rechten Spur
+        for (let ab = -W.b / 2 + 0.85; ab < W.b / 2 - 0.3; ab += 1.1) band(E('strich'), W, t + r * 1, t + r * 4.2, ab, 0.5, 0.064, WEISS);       // Zebrastreifen
+      }
+    }
+  });
+  // Kreuzungen und Wendeplätze: eine runde Scheibe füllt die Ecken zwischen den Bändern
+  for (const K of P.knoten) {
+    const auto = K.kanten.filter(e => e.weg.art !== 'gasse'), b = Math.max(...(auto.length ? auto : K.kanten).map(e => e.weg.b)), kai = K.kanten.some(e => e.weg.art === 'kai');
+    if (K.grad < 2 || K.kanten.some(e => e.weg.art === 'autobahn')) continue;
+    if (!kai) scheibe(E('gehweg'), K.x, K.z, b / 2 + (auto.length ? GEH : 1.5), 0.007, hell);
+    scheibe(E(auto.length && !kai ? 'asphalt' : 'kopfstein'), K.x, K.z, b / 2, 0.0185, auto.length && !kai ? asphalt : farbe(kai ? '#cfc8bb' : '#bdb5a6'));
+  }
+  for (const p of P.wendeplatz) { scheibe(E('gehweg'), p.x, p.z, p.r + 2, 0.007, hell); scheibe(E('asphalt'), p.x, p.z, p.r, 0.0185, asphalt); }
+  // Rasen und Höfe: entweder ein gerades Rechteck oder ein Streifen rund um ein (schräges) Haus
   const HOF = { asphalt: ['asphalt', '#7c7f84', 5], schotter: ['gehweg', '#8f7f6c', 2], pflaster: ['kopfstein', '#d8d2c6', 3.5], kopfstein: ['kopfstein', '#e0d6c2', 3.5], weg: ['gehweg', '#e6d9b8', 2] };
-  for (const h of P.hof) { const [k, f, kachel] = HOF[h.art]; E(k).boden(h.r, h.art === 'weg' ? 0.045 : 0.025, farbe(f), kachel); }
+  const umHaus = (e, h, rand, y, f, kachel) => lokal(e, h).boden([-h.b / 2 - rand, -h.t / 2 - rand, h.b / 2 + rand, h.t / 2 + rand], y, f, kachel);
+  for (const r of P.gruen) { if (r.haus) umHaus(E('gras'), r.haus, r.rand, 0.004, farbe('#9fc777'), 6); else E('gras').boden(r, 0.005, farbe('#9fc777'), 6); }
+  for (const h of P.hof) { const [k, f, kachel] = HOF[h.art]; if (h.haus) umHaus(E(k), h.haus, h.rand, 0.004, farbe(f), kachel); else E(k).boden(h.r, h.art === 'weg' ? 0.045 : 0.006, farbe(f), kachel); }
 
   // ---- Wasser: das Meer, das Fleet (Kanal), die Teiche
-  const blau = farbe('#ffffff');
+  const blau = farbe('#ffffff'), X0 = STADT_RAND.x0, X1 = STADT_RAND.x1;
   E('wasser').boden([-5000, -5000, 5000, UFER], -0.9, blau, 26);
   E('stein').quad([X0, -2.5, UFER], [X1, -2.5, UFER], [X1, 0, UFER], [X0, 0, UFER], farbe('#8d8a84'), X0 / 3, 0, X1 / 3, 1);       // Kaimauer (schaut nach Norden)
   for (const r of P.wasser) {
@@ -200,8 +263,11 @@ export function baueStadt() {
     const st = farbe('#8d8a84');
     E('stein').quad([r[0], -2.5, r[1]], [r[0], -2.5, r[3]], [r[0], 0, r[3]], [r[0], 0, r[1]], st, r[1] / 3, 0, r[3] / 3, 1);
     E('stein').quad([r[2], -2.5, r[3]], [r[2], -2.5, r[1]], [r[2], 0, r[1]], [r[2], 0, r[3]], st, r[1] / 3, 0, r[3] / 3, 1);
-    E('gehweg').boden([r[0] - 1, r[1], r[0], r[3]], 0.01, farbe('#bdb9b0'), 3); E('gehweg').boden([r[2], r[1], r[2] + 1, r[3]], 0.01, farbe('#bdb9b0'), 3);
+    E('stein').quad([r[2], -2.5, r[3]], [r[0], -2.5, r[3]], [r[0], 0, r[3]], [r[2], 0, r[3]], st, r[0] / 3, 0, r[2] / 3, 1);
+    E('gehweg').boden([r[0] - 1, r[1], r[0], r[3]], 0.006, farbe('#bdb9b0'), 3); E('gehweg').boden([r[2], r[1], r[2] + 1, r[3]], 0.006, farbe('#bdb9b0'), 3);
   }
+  // Brücken über das Fleet: eine Platte aus Stein, darauf liegen die Straßen
+  for (const [z0, z1] of P.bruecken) { E('kopfstein').boden([FLEET[0] - 1, z0, FLEET[2] + 1, z1], 0.003, farbe('#cfc8bb'), 3.5); E('farbe').kiste(FLEET[0] - 1, -0.7, z0, FLEET[2] + 1, 0, z1, farbe('#8d8a84')); }
   for (const t of P.teiche) { const e = E('wasser'); for (let i = 0; i < 20; i++) { const a = i / 20 * 6.2832, b = (i + 1) / 20 * 6.2832;
     e.drei([t.x, 0.05, t.z], [t.x + Math.cos(b) * t.rx, 0.05, t.z + Math.sin(b) * t.rz], [t.x + Math.cos(a) * t.rx, 0.05, t.z + Math.sin(a) * t.rz], blau, t.x / 26, t.z / 26); } }
   // Geländer an Fleet und Brücken
@@ -211,12 +277,17 @@ export function baueStadt() {
     for (let i = 0; i <= n; i++) { const x = x1 + (x2 - x1) * i / n, z = z1 + (z2 - z1) * i / n; E('farbe').kiste(x - 0.05, 0, z - 0.05, x + 0.05, 1, z + 0.05, f); } }
   // Gleise
   for (const g of P.gleise) for (const ab of [-0.72, 0.72]) E('farbe').kiste(g.x + ab - 0.05, 0.03, g.z1, g.x + ab + 0.05, 0.16, g.z2, farbe('#5c5650'));
-  for (const g of P.gleise) for (let z = -160; z < 1000; z += 1.4) E('farbe').kiste(g.x - 1.2, 0.02, z, g.x + 1.2, 0.08, z + 0.3, farbe('#4f4338'));
+  for (const g of P.gleise) for (let z = g.z1; z < 900; z += 1.4) E('farbe').kiste(g.x - 1.2, 0.02, z, g.x + 1.2, 0.08, z + 0.3, farbe('#4f4338'));
 
   // ---- Häuser
   for (const h of P.haeuser) haus(h);
   function haus(h) {
-    const [x1, z1, x2, z2] = h.r, f = farbe(h.farbe), stil = h.stil;
+    // Das Haus wird so gebaut, als stünde es gerade (Tür nach Süden, Mitte bei 0/0). "lokal" dreht und schiebt jede Ecke an ihren Platz.
+    const x1 = -h.b / 2, z1 = -h.t / 2, x2 = h.b / 2, z2 = h.t / 2, f = farbe(h.farbe), stil = h.stil;
+    const E0 = E; { const alt = E0; E = key => lokal(alt(key), h); }
+    try { hausBauen(h, x1, z1, x2, z2, f, stil); } finally { E = E0; }
+  }
+  function hausBauen(h, x1, z1, x2, z2, f, stil) {
     const y1 = h.typ === 'einzel' ? EG + 0.2 : h.h, yE = Math.min(EG, y1);
     const art = h.typ === 'speicher' || stil === 'halle' ? 'tor' : h.laden ? 'laden' : 'wohn';
     const og = E('og_' + stil), eg = E(`eg_${stil}_${art}`);
@@ -250,7 +321,7 @@ export function baueStadt() {
       }
     }
     if (h.turm) {         // Turm mit spitzem Dach (Rathaus, Kirche, Bahnhof)
-      const [tx, tz, tb, th] = h.turm, a = tb / 2, n = Math.max(1, Math.round(tb / FELD)) / 4, st = Math.round(th / STOCK) / 4;
+      const tx = h.turm[0] - h.x, tz = h.turm[1] - h.z, tb = h.turm[2], th = h.turm[3], a = tb / 2, n = Math.max(1, Math.round(tb / FELD)) / 4, st = Math.round(th / STOCK) / 4;
       const tw = (ax, az, bx, bz) => og.quad([ax, 0, az], [bx, 0, bz], [bx, th, bz], [ax, th, az], f, 0, 0, n, st);
       tw(tx - a, tz + a, tx + a, tz + a); tw(tx + a, tz - a, tx - a, tz - a); tw(tx + a, tz + a, tx + a, tz - a); tw(tx - a, tz - a, tx - a, tz + a);
       const sp = [tx, th + tb * 1.5, tz], e = [[tx - a - 0.4, th, tz + a + 0.4], [tx + a + 0.4, th, tz + a + 0.4], [tx + a + 0.4, th, tz - a - 0.4], [tx - a - 0.4, th, tz - a - 0.4]];
@@ -277,9 +348,10 @@ export function baueStadt() {
     } else if (d.art === 'waggons') {
       for (let k = 0; k < d.n; k++) { const z = d.z + k * 15, f = farbe(['#8a3b2e', '#4a5a66', '#6b7a4a', '#a8742e'][Math.floor(w() * 4)]);
         e.kiste(d.x - 1.45, 1, z - 6.8, d.x + 1.45, 4, z + 6.8, f); e.kiste(d.x - 1.3, 0.3, z - 6.2, d.x + 1.3, 1, z + 6.2, farbe('#2a2a2a')); }
-    } else if (d.art === 'bussteig') {
-      e.kiste(d.x - 22, 3.4, d.z - 2.4, d.x + 22, 3.7, d.z + 2.4, farbe('#e9edf0')); E('farbe').kiste(d.x - 22, 0, d.z - 2, d.x + 22, 0.16, d.z + 2, farbe('#c9c6bd'));
-      for (let x = -18; x <= 18; x += 9) e.kiste(d.x + x - 0.12, 0, d.z - 0.12, d.x + x + 0.12, 3.4, d.z + 0.12, farbe('#59626a'));
+    } else if (d.art === 'bussteig') {       // ein langes Dach auf Stützen, von Norden nach Süden
+      const l = d.lang / 2;
+      e.kiste(d.x - 2.4, 3.4, d.z - l, d.x + 2.4, 3.7, d.z + l, farbe('#e9edf0')); e.kiste(d.x - 2, 0, d.z - l, d.x + 2, 0.16, d.z + l, farbe('#c9c6bd'));
+      for (let z = -l + 3; z <= l - 3; z += 7) e.kiste(d.x - 0.12, 0, d.z + z - 0.12, d.x + 0.12, 3.4, d.z + z + 0.12, farbe('#59626a'));
     }
   }
   // Kutter an den Stegen (aus Kisten; echte Modelle stehen auf der Wunschliste)

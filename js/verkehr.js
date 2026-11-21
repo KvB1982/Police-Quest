@@ -6,15 +6,15 @@
 // Fußgänger laufen auf dem Gehweg um ihren Häuserblock. Autos und Fußgänger gibt es nur in deiner Nähe –
 // wer zu weit weg ist, wird woanders in der Nähe neu hingestellt. Alle Zahlen sind geschätzt.
 
-import { PLAN, STRASSEN_X, STRASSEN_Z, wuerfel } from './stadtplan.js';
+import { PLAN, ortAuf, wuerfel } from './stadtplan.js';
 
-export const AUTOS = 46, LEUTE = 40;
-const TEMPO = 10.5;            // Meter pro Sekunde (etwa 38 km/h)
+export const AUTOS = 46, LEUTE = 44;
+const TEMPO = 10.5;            // Meter pro Sekunde (etwa 38 km/h) – auf dem Ring etwas mehr, auf der Autobahn gut doppelt so viel
 const WEG_AUTO = 340, NEU_AUTO = [110, 290];     // so weit weg wird ein Auto versetzt · in diesem Abstand taucht es neu auf
 const WEG_MENSCH = 175, NEU_MENSCH = [28, 150];
 const GASSE = 55;              // mit Blaulicht halten Autos in diesem Umkreis an
-const NX = STRASSEN_X.length, NZ = STRASSEN_Z.length;
-const spur = s => s.b / 4 - 0.5;                 // so weit rechts von der Straßenmitte fährt ein Auto
+const spur = W => W.art === 'autobahn' ? 3.9 : W.b / 4 - 0.5;                 // so weit rechts von der Straßenmitte fährt ein Auto
+const schnell = W => W.art === 'autobahn' ? 2.3 : W.art === 'ring' || W.b >= 14 ? 1.25 : W.art === 'rampe' ? 1.2 : 1;
 
 const KLEIDER = ['#c0392b', '#2f6fb0', '#3d8a55', '#e0a030', '#7a4fa0', '#e8e4da', '#34495e', '#d2691e', '#5aa7c9', '#e86a8a'];
 const HOSEN = ['#2a3a5a', '#333333', '#5a4a3a', '#3b5a7a', '#6a6a6a', '#1f2a33'];
@@ -22,59 +22,55 @@ const HAUT = ['#f0c8a0', '#e8b890', '#d8a878', '#b98560', '#8a5a3c'], HAAR = ['#
 
 export function neuerVerkehr(saat = 5) {
   const w = wuerfel(saat), zw = (a, b) => a + w() * (b - a);
-  const autos = [], leute = [], belegt = new Array(NX * NZ).fill(null);
-  const knoten = (i, j) => [STRASSEN_X[i].p, STRASSEN_Z[j].p];
-  const nachbarn = (i, j) => [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < NX && b < NZ);
-  const bloecke = PLAN.bloecke.filter(b => b.typ !== 'kanal' && b.typ !== 'bahn');
+  const K = PLAN.knoten, autos = [], leute = [], belegt = new Array(K.length).fill(null);
+  // Das Netz für Autos: alle Kanten außer den Gassen. fahr[k] = die Kanten, die von Kreuzung k abgehen.
+  const kanten = PLAN.kanten.filter(e => e.weg.art !== 'gasse'), fahr = K.map(() => []);
+  for (const e of kanten) { fahr[e.a].push(e); fahr[e.b].push(e); }
+  const gehwege = PLAN.wege.filter(W => W.art !== 'autobahn' && W.art !== 'rampe');
 
-  // Ein Stück Straße von Kreuzung a nach Kreuzung b einrichten
-  function strecke(c, a, b) {
-    const [ax, az] = knoten(...a), [bx, bz] = knoten(...b), l = Math.hypot(bx - ax, bz - az);
-    c.a = a; c.b = b; c.dx = (bx - ax) / l; c.dz = (bz - az) / l; c.l = l;
-    const str = a[0] === b[0] ? STRASSEN_X[a[0]] : STRASSEN_Z[a[1]];
-    c.ab = spur(str);
-    c.s0 = (a[0] === b[0] ? STRASSEN_Z[a[1]] : STRASSEN_X[a[0]]).b / 2 + 2.5;        // hier beginnt das gerade Stück hinter der Kreuzung
-    c.s1 = l - (a[0] === b[0] ? STRASSEN_Z[b[1]] : STRASSEN_X[b[0]]).b / 2 - 7.5;    // hier ist die Haltelinie vor der nächsten Kreuzung
+  // Ein Stück Straße befahren: Kante e, richtung +1 = von Kreuzung a nach b, −1 = von b nach a
+  function strecke(c, e, richtung) {
+    const von = richtung > 0 ? e.a : e.b, nach = richtung > 0 ? e.b : e.a;
+    c.e = e; c.richtung = richtung; c.von = von; c.nach = nach; c.ab = spur(e.weg); c.max = TEMPO * schnell(e.weg);
+    c.s0 = fahr[von].length > 1 ? K[von].rf : 0;                                        // hier beginnt das Stück hinter der Kreuzung
+    c.s1 = e.l - K[nach].rf - (fahr[nach].length >= 3 ? 5 : fahr[nach].length === 1 ? 6 : 0.5);      // hier ist die Haltelinie vor der nächsten Kreuzung
+    if (c.s1 < c.s0 + 2) { c.s0 = e.l * 0.35; c.s1 = e.l * 0.65; }                        // sehr kurzes Stück
     c.kurve = null;
   }
-  // Ort auf der Spur: s Meter hinter Kreuzung a, "rand" Meter weiter rechts
-  function ortAuf(c, s, rand = 0) {
-    const [ax, az] = knoten(...c.a), ab = c.ab + rand;
-    return [ax + c.dx * s - c.dz * ab, az + c.dz * s + c.dx * ab];       // rechts von der Fahrtrichtung (dx, dz) ist (−dz, dx)
+  // Ort auf der Spur: s Meter hinter der Start-Kreuzung, "rand" Meter weiter rechts. Zurück: [x, z, Richtung x, Richtung z]
+  function ortAufSpur(c, s, rand = 0) {
+    const o = ortAuf(c.e.weg, c.richtung > 0 ? c.e.s0 + s : c.e.s1 - s), dx = o[2] * c.richtung, dz = o[3] * c.richtung, ab = c.ab + rand;
+    return [o[0] - dz * ab, o[1] + dx * ab, dx, dz];       // rechts von der Fahrtrichtung (dx, dz) ist (−dz, dx)
   }
   function setzeAuto(c, mx, mz, anfang) {
-    for (let versuch = 0; versuch < 12; versuch++) {
-      const i = Math.floor(w() * NX), j = Math.floor(w() * NZ), [x, z] = knoten(i, j), d = Math.hypot(x - mx, z - mz);
-      if (!anfang && (d < NEU_AUTO[0] || d > NEU_AUTO[1])) continue;
-      if (anfang && d > NEU_AUTO[1]) continue;
-      const n = nachbarn(i, j), b = n[Math.floor(w() * n.length)];
-      strecke(c, [i, j], b);
-      c.s = zw(c.s0, c.s1); [c.x, c.z] = ortAuf(c, c.s);
-      if (Math.hypot(c.x - mx, c.z - mz) < (anfang ? 30 : NEU_AUTO[0] * 0.8) || autos.some(o => o !== c && o.x !== undefined && Math.hypot(o.x - c.x, o.z - c.z) < 14)) continue;
-      c.h = Math.atan2(c.dx, c.dz); c.v = TEMPO; c.rand = 0; c.da = true;
+    for (let versuch = 0; versuch < 14; versuch++) {
+      const e = kanten[Math.floor(w() * kanten.length)], d = Math.hypot(K[e.a].x - mx, K[e.a].z - mz);
+      if (d > NEU_AUTO[1] + 60 || (!anfang && d < NEU_AUTO[0] - 60)) continue;
+      strecke(c, e, w() < 0.5 ? 1 : -1);
+      c.s = zw(c.s0, c.s1); const o = ortAufSpur(c, c.s); c.x = o[0]; c.z = o[1];
+      const ab = Math.hypot(c.x - mx, c.z - mz);
+      if (ab > NEU_AUTO[1] || ab < (anfang ? 30 : NEU_AUTO[0]) || autos.some(o2 => o2 !== c && o2.da && Math.hypot(o2.x - c.x, o2.z - c.z) < 16)) continue;
+      c.h = Math.atan2(o[2], o[3]); c.v = c.max; c.rand = 0; c.da = true;
       return;
     }
     c.da = false;
   }
+  // Fußgänger gehen auf dem Gehweg an einer Straße entlang (rechts oder links davon).
+  const gehAb = W => W.art === 'gasse' ? W.b / 2 + 0.9 : W.b / 2 + 2.1;
+  function menschZiel(m) {
+    const o = ortAuf(m.W, m.s), ab = gehAb(m.W) * m.seite;
+    m.zx = o[0] - o[3] * ab; m.zz = o[1] + o[2] * ab;
+  }
   function setzeMensch(m, mx, mz, anfang) {
-    for (let versuch = 0; versuch < 10; versuch++) {
-      const B = bloecke[Math.floor(w() * bloecke.length)], r = B.zelle;
-      if (r[2] < mx - 190 || r[0] > mx + 190 || r[3] < mz - 190 || r[1] > mz + 190) continue;
-      const eng = B.typ === 'speicher' ? 0.45 : 2;        // die Speicher stehen fast bis an die Straße
-      m.r = [r[0] + 2, r[1] + eng, r[2] - 2, r[3] - eng]; m.kante = Math.floor(w() * 4); m.richtung = w() < 0.5 ? 1 : -1;
-      m.s = w() * kantenLang(m); menschOrt(m);
-      const d = Math.hypot(m.x - mx, m.z - mz);
-      if (d > NEU_MENSCH[1] || (!anfang && d < NEU_MENSCH[0]) || (anfang && d < 6)) continue;
-      m.da = true; m.pause = 0; return;
+    for (let versuch = 0; versuch < 12; versuch++) {
+      const W = gehwege[Math.floor(w() * gehwege.length)];
+      m.W = W; m.s = zw(2, W.l - 2); m.seite = W.art === 'kai' || w() < 0.5 ? 1 : -1; m.richtung = w() < 0.5 ? 1 : -1;
+      menschZiel(m);
+      const d = Math.hypot(m.zx - mx, m.zz - mz);
+      if (d > NEU_MENSCH[1] || (!anfang && d < NEU_MENSCH[0]) || (anfang && d < 6) || m.zz < -108) continue;
+      m.x = m.zx; m.z = m.zz; m.h = 0; m.da = true; m.pause = 0; m.ecke = null; return;
     }
     m.da = false;
-  }
-  const kantenLang = m => m.kante % 2 ? m.r[3] - m.r[1] : m.r[2] - m.r[0];
-  // Kanten im Uhrzeigersinn (von oben gesehen): 0 = Nordseite nach Osten, 1 = Ostseite nach Süden, 2 = Südseite nach Westen, 3 = Westseite nach Norden
-  function menschOrt(m) {
-    const [x1, z1, x2, z2] = m.r, s = m.s;
-    [m.x, m.z, m.h] = m.kante === 0 ? [x1 + s, z1, Math.PI / 2] : m.kante === 1 ? [x2, z1 + s, 0] : m.kante === 2 ? [x2 - s, z2, -Math.PI / 2] : [x1, z2 - s, Math.PI];
-    if (m.richtung < 0) m.h += Math.PI;
   }
 
   for (let i = 0; i < AUTOS; i++) autos.push({ art: Math.floor(w() * 4), farbe: Math.floor(w() * 8), da: false });
@@ -91,61 +87,84 @@ export function neuerVerkehr(saat = 5) {
         const fx = Math.sin(c.h), fz = Math.cos(c.h);
         // Steht jemand vor mir? (ein anderes Auto oder du)
         let frei = 99;
-        const pruefe = (x, z, breit) => { const ex = x - c.x, ez = z - c.z, vor = ex * fx + ez * fz, seite = Math.abs(ex * fz - ez * fx); if (vor > 0.5 && vor < 16 && seite < breit) frei = Math.min(frei, vor); };
-        for (const o of autos) if (o !== c && o.da) pruefe(o.x, o.z, 1.7);
+        const pruefe = (x, z, breit) => { const ex = x - c.x, ez = z - c.z, vor = ex * fx + ez * fz, seite = Math.abs(ex * fz - ez * fx); if (vor > 0.5 && vor < 22 && seite < breit) frei = Math.min(frei, vor); };
+        // Mitten in der Kreuzung zählen nur die Autos, die schon auf der neuen Straße vor mir fahren – sonst blockieren sich alle gegenseitig.
+        for (const o of autos) if (o !== c && o.da && (!c.kurve || (o.e === c.e && o.richtung === c.richtung && !o.kurve))) pruefe(o.x, o.z, 1.7);
         pruefe(sp.x, sp.z, 1.2 + sp.r);
-        let ziel = frei < 7.5 ? 0 : frei < 14 ? TEMPO * 0.45 : TEMPO;
+        let ziel = frei < 7.5 ? 0 : frei < 14 ? TEMPO * 0.45 : frei < 22 ? Math.min(c.max, TEMPO) : c.max;
         const gasse = blaulicht && !c.kurve && Math.hypot(c.x - sp.x, c.z - sp.z) < GASSE;
         if (gasse) ziel = 0;
         c.rand += ((gasse ? 0.6 : 0) - c.rand) * Math.min(1, dt * 2);
         if (c.kurve) {
-          c.v += Math.max(-9 * dt, Math.min(3 * dt, Math.min(ziel, TEMPO * 0.6) - c.v)); c.v = Math.max(0, c.v);
+          c.v += Math.max(-9 * dt, Math.min(3 * dt, Math.min(ziel, Math.max(TEMPO * 0.6, c.max * k0(c.kurve))) - c.v)); c.v = Math.max(0, c.v);
           const k = c.kurve; k.u = Math.min(1, k.u + c.v * dt / k.lang);
           const u = k.u, q = 1 - u;
           c.x = q * q * k.p0[0] + 2 * q * u * k.p1[0] + u * u * k.p2[0]; c.z = q * q * k.p0[1] + 2 * q * u * k.p1[1] + u * u * k.p2[1];
           const tx = 2 * q * (k.p1[0] - k.p0[0]) + 2 * u * (k.p2[0] - k.p1[0]), tz = 2 * q * (k.p1[1] - k.p0[1]) + 2 * u * (k.p2[1] - k.p1[1]);
           if (Math.hypot(tx, tz) > 0.01) c.h = Math.atan2(tx, tz);
-          if (u >= 1) { belegt[k.k] = null; c.s = k.s; c.kurve = null; c.h = Math.atan2(c.dx, c.dz); }
+          if (u >= 1) { belegt[k.k] = null; c.s = c.s0; c.kurve = null; }
           continue;
         }
-        // Vor der Haltelinie abbremsen, wenn die Kreuzung besetzt ist
-        const k = c.b[1] * NX + c.b[0], bisLinie = c.s1 - c.s;
+        // Vor der Haltelinie abbremsen, wenn die Kreuzung besetzt ist (oder wenn es dort um die Ecke geht)
+        const k = c.nach, bisLinie = c.s1 - c.s, echte = fahr[k].length >= 3 || fahr[k].length === 1;
         const kreuzungFrei = !belegt[k] || belegt[k] === c;
         if (!kreuzungFrei && bisLinie < 14) ziel = Math.min(ziel, bisLinie < 1 ? 0 : TEMPO * 0.4);
-        if (bisLinie < 12) ziel = Math.min(ziel, TEMPO * 0.6);
+        if (echte && bisLinie < 12 + c.v) ziel = Math.min(ziel, TEMPO * 0.6);
         c.v += Math.max(-9 * dt, Math.min(3 * dt, ziel - c.v)); c.v = Math.max(0, c.v);
         c.s += c.v * dt;
         if (c.s >= c.s1) {
-          if (kreuzungFrei && !gasse) {       // in die Kreuzung einfahren: nächste Straße würfeln (nicht zurück, wenn es anders geht)
-            let n = nachbarn(...c.b).filter(([a, b]) => a !== c.a[0] || b !== c.a[1]);
-            if (!n.length) n = [c.a];
-            const gerade = n.find(([a, b]) => a - c.b[0] === c.b[0] - c.a[0] && b - c.b[1] === c.b[1] - c.a[1]);
-            const nach = gerade && w() < 0.55 ? gerade : n[Math.floor(w() * n.length)];
-            const p0 = ortAuf(c, c.s1), alt = { dx: c.dx, dz: c.dz, ab: c.ab, b: c.b };
-            strecke(c, alt.b, nach);
-            const p2 = ortAuf(c, c.s0), [bx, bz] = knoten(...alt.b);
-            const istGerade = Math.abs(alt.dx * c.dx + alt.dz * c.dz) > 0.9;
-            const p1 = istGerade ? [(p0[0] + p2[0]) / 2, (p0[1] + p2[1]) / 2] : [bx - alt.dz * alt.ab - c.dz * c.ab, bz + alt.dx * alt.ab + c.dx * c.ab];
-            c.kurve = { p0, p1, p2, u: 0, k, s: c.s0, lang: Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) };
+          if (kreuzungFrei && !gasse) {       // in die Kreuzung einfahren: nächste Straße würfeln (nicht zurück und nicht in eine Sackgasse, wenn es anders geht)
+            let n = fahr[k].filter(e => e !== c.e), gut = n.filter(e => fahr[e.a === k ? e.b : e.a].length > 1);
+            if (gut.length) n = gut;
+            if (!n.length) n = [c.e];
+            const alt = ortAufSpur(c, c.s1);
+            // am liebsten geradeaus weiter
+            const gerade = n.map(e => { const o = ortAuf(e.weg, e.a === k ? e.s0 + Math.min(8, e.l / 2) : e.s1 - Math.min(8, e.l / 2)), d = Math.hypot(o[0] - K[k].x, o[1] - K[k].z) || 1; return [(o[0] - K[k].x) / d * alt[2] + (o[1] - K[k].z) / d * alt[3], e]; }).sort((a, b) => b[0] - a[0])[0];
+            const nach = gerade[0] > 0.8 && w() < 0.6 ? gerade[1] : n[Math.floor(w() * n.length)];
+            strecke(c, nach, nach.a === k ? 1 : -1);
+            const neu = ortAufSpur(c, c.s0), p0 = [alt[0], alt[1]], p2 = [neu[0], neu[1]];
+            // Der Bogen durch die Kreuzung: Er beginnt in der alten Richtung und endet in der neuen.
+            const n2 = alt[2] * neu[3] - alt[3] * neu[2];
+            let p1 = [(p0[0] + p2[0]) / 2, (p0[1] + p2[1]) / 2];
+            if (Math.abs(n2) > 0.2) { const t = ((p2[0] - p0[0]) * neu[3] - (p2[1] - p0[1]) * neu[2]) / n2; if (t > 0 && t < 60) p1 = [p0[0] + alt[2] * t, p0[1] + alt[3] * t]; }
+            c.kurve = { p0, p1, p2, u: 0, k, gerade: Math.abs(n2) < 0.35 && alt[2] * neu[2] + alt[3] * neu[3] > 0, lang: Math.max(1, Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1])) };
             belegt[k] = c;
           } else { c.s = c.s1; c.v = 0; }
         }
-        if (!c.kurve) [c.x, c.z] = ortAuf(c, c.s, c.rand);
+        if (!c.kurve) { const o = ortAufSpur(c, c.s, c.rand); c.x = o[0]; c.z = o[1]; c.h = Math.atan2(o[2], o[3]); }
       }
       for (const m of leute) {
         if (!m.da || Math.hypot(m.x - sp.x, m.z - sp.z) > WEG_MENSCH) { setzeMensch(m, sp.x, sp.z, erstes); if (!m.da) continue; }
         if (m.pause > 0) { m.pause -= dt; m.geht = 0; continue; }
         m.geht = m.tempo; m.schritt += dt * m.tempo * 4.2;
-        m.s += m.tempo * dt;
-        if (m.s >= kantenLang(m)) {       // an der Ecke: meistens um die Ecke weiter, manchmal umdrehen, manchmal kurz stehen bleiben
-          if (w() < 0.25) { m.richtung = -m.richtung; m.s = 0; }
-          else { m.kante = (m.kante + (m.richtung > 0 ? 1 : 3)) % 4; m.s = 0; }
+        // Erst zur Ziel-Stelle auf dem Gehweg laufen; ist man dort, rückt die Ziel-Stelle ein Stück weiter.
+        const weg = m.tempo * dt;
+        if (m.ecke) { const ex = m.ecke[0] - m.x, ez = m.ecke[1] - m.z, ed = Math.hypot(ex, ez); if (ed < 0.3) m.ecke = null; else { const f = Math.min(1, weg / ed); m.x += ex * f; m.z += ez * f; m.h = Math.atan2(ex, ez); continue; } }
+        const dx = m.zx - m.x, dz = m.zz - m.z, d = Math.hypot(dx, dz);
+        if (d > 0.02) { const f = Math.min(1, weg / d); m.x += dx * f; m.z += dz * f; m.h = Math.atan2(dx, dz); }
+        if (d > 1.2) continue;
+        const alt = m.s; m.s += m.richtung * weg;
+        const q = m.W.kreuz.find(q => (q.s - alt) * (q.s - m.s) <= 0 && q.grad > 1), ende = m.s < 1.5 || m.s > m.W.l - 1.5;
+        if (ende || (q && w() < 0.35)) {       // an einer Kreuzung oder am Ende der Straße: abbiegen, umdrehen oder kurz stehen bleiben
+          const hier = q || m.W.kreuz.find(q => Math.abs(q.s - m.s) < 3);
+          const andere = hier ? PLAN.knoten[hier.k].kanten.filter(e => e.weg !== m.W && e.weg.art !== 'autobahn' && e.weg.art !== 'rampe') : [];
+          if (andere.length && w() < 0.8) {
+            const e = andere[Math.floor(w() * andere.length)], k = hier.k;
+            const o1 = ortAuf(m.W, hier.s), ab1 = gehAb(m.W) * m.seite, alteSeite = [-o1[3] * ab1, o1[2] * ab1];
+            m.W = e.weg; m.richtung = e.a === k ? 1 : -1; m.s = (e.a === k ? e.s0 : e.s1) + m.richtung * (PLAN.knoten[k].r + 2);
+            m.seite = m.W.art === 'kai' || w() < 0.5 ? 1 : -1;
+            // Erst um die Hausecke herum: die Ecke, an der sich der alte und der neue Gehweg treffen
+            const o2 = ortAuf(m.W, e.a === k ? e.s0 : e.s1), ab2 = gehAb(m.W) * m.seite;
+            m.ecke = [PLAN.knoten[k].x + alteSeite[0] - o2[3] * ab2, PLAN.knoten[k].z + alteSeite[1] + o2[2] * ab2];
+          } else if (ende) { m.richtung = -m.richtung; m.s = Math.max(1.6, Math.min(m.W.l - 1.6, m.s)); if (w() < 0.5) m.seite = m.W.art === 'kai' ? 1 : -m.seite; }
           if (w() < 0.3) m.pause = zw(1.5, 5);
         }
-        const s = m.s; if (m.richtung < 0) m.s = kantenLang(m) - s;
-        menschOrt(m); m.s = s;
+        m.s = Math.max(0.5, Math.min(m.W.l - 0.5, m.s));
+        menschZiel(m);
       }
       erstes = false;
     },
   };
 }
+// In einer Kurve fährt ein Auto langsamer als geradeaus.
+const k0 = kurve => kurve.gerade ? 1 : 0;

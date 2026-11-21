@@ -236,7 +236,7 @@ export function baueOrt(def) {
     // Die große Stadt: Straßen, Häuser, Hafen … kommen fertig aus stadtbau.js
     stadt = baueStadt(); gruppe.add(stadt.gruppe);
     for (const r of def.plan.fest) fest.push(r);
-    for (const h of def.plan.haeuser) if (h.schild) { const s = schild(h.schild, 6); s.position.set((h.r[0] + h.r[2]) / 2, h.h + (h.dach.h || 0) + 3.5, (h.r[1] + h.r[3]) / 2); gruppe.add(s); hausSchilder.push(s); }
+    for (const h of def.plan.haeuser) if (h.schild) { const s = schild(h.schild, 6); s.position.set(h.x, h.h + (h.dach.h || 0) + 3.5, h.z); gruppe.add(s); hausSchilder.push(s); }
   } else {
     gruppe.add(flaeche([G[0] - 200, G[1] - 200, G[2] + 200, G[3] + 200], '#111', -0.02));
     for (const b of def.boden) gruppe.add(flaeche(b.r, b.farbe));
