@@ -8,8 +8,9 @@ import { ORTE } from './daten.js';
 import * as STORY from './story.js';
 import * as UI from './oberflaeche.js';
 import * as KLANG from './klang.js';
-import { baueOrt, figur, figurBewegen, figurLeben, autoModell, spiegelBild } from './welt.js';
-import { ladePolizist, polizistSpiele } from './polizist.js';
+import { Neigung } from './neigung.js';
+import { baueOrt, figur, figurBewegen, figurLeben, autoModell, autoRaeder, spiegelBild } from './welt.js';
+import { ladePolizist, polizistSpiele, polizistBewegen } from './polizist.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as BILD from './bilder.js';
 import * as KARTE from './karte.js';
@@ -28,7 +29,7 @@ const LAMPE_WINKEL = 0.8;        // halbe Breite des Lichtkegels (Bogenmaß)
 const GAS = 7, BREMSE = 14, ROLLEN = 1.6;      // Auto: schneller werden, bremsen, ausrollen (m/s²)
 const V_MAX = 19, V_MAX_BLAU = 26;             // Höchsttempo ohne und mit Blaulicht (m/s)
 // Das Blaulicht hat drei Stufen: 0 = aus, 1 = nur Blaulicht (leise, z. B. zum Absichern), 2 = Blaulicht mit Sirene.
-// Schnell fahren darf man mit Stufe 1 und 2. Platz machen die anderen Autos aber nur, wenn sie die Sirene hören (Stufe 2).
+// Schnell fahren darf man mit Stufe 1 und 2. Platz machen Autos und Fußgänger bei Stufe 1 und 2; für eine Verfolgung verlangt Otto die Sirene (Stufe 2).
 const AUS = 0, BLAU = 1, SIRENE = 2;
 const TREFF_MAUS = 46, TREFF_FINGER = 64;      // so nah (in Bildpunkten) muss ein Klick oder Fingertipp an einem Ding sein, damit es gemeint ist
 const MARKEN_ZEIT = 4;                         // so lange zeigt die Lupe 🔍 die Namen aller Dinge (Sekunden)
@@ -196,6 +197,14 @@ const S = {
   uhr(t) { Z.uhr = t; anzeigen(); },
   blaulicht: () => Z.blaulicht,                    // 0 = aus, 1 = nur Blaulicht, 2 = Blaulicht mit Sirene
   blaulichtAn: stufe => blaulichtSetzen(stufe),
+  // Streife fahren: Nach etwa so vielen Sekunden Fahrt meldet sich die Leitstelle, dann kommt die Stelle akt der Geschichte.
+  streife(akt, sek = 30) { Z.streife = { akt, rest: sek, ruf: false }; Z.ziel = { text: 'Fahre Streife durch die Stadt, bis sich die Leitstelle meldet', wo: null }; anzeigen(); },
+  // Ein Einsatzwagen kommt angefahren: art = 'rtw' (Rettungswagen mit Ärztin und Sanitäter) oder 'streife' (die Kollegen von Möwe 12).
+  // ziel = [x, z] wo er hält. wie = { aus: aus welcher Richtung er kommt, zu: [[x, z], [x, z]] wohin die zwei Leute dann gehen, bis: Merker, ab dem er wieder weg ist }
+  // Zurück kommt ein Versprechen, das erfüllt ist, sobald der Wagen steht (man muss nicht darauf warten).
+  kommt: (art, ziel, wie) => gastRufen(art, ziel, wie),
+  // Verfolgung zu Fuß: Die Person id rennt den Weg [[x, z], …] entlang, du läufst hinterher. Zurück kommt true (gefangen) oder false (entwischt).
+  verfolge: (id, weg, wie) => laufStart(id, weg, wie),
   jagd: () => JAGD.bilanz(jagd),                   // wie lief die Verfolgung? { rumms, sirene }
   speichern() { Z.sp = { x: spieler.x, z: spieler.z }; try { localStorage.setItem(SPEICHER, JSON.stringify(Z)); } catch (e) { /* kein Speicher: dann eben nicht */ } },
   ende: (titel, text) => UI.ende(titel, text, Z.punkte, STORY.MAX_PUNKTE, Z.notizen),
@@ -283,7 +292,7 @@ function aussteigen() {
   for (const o of welt.objekte) if (o.def.folgt) { o.x = a.x - Math.cos(a.h) * 2; o.z = a.z + Math.sin(a.h) * 2; }
   sichtbarkeit();
 }
-function einsteigen() { Z.imAuto = true; spieler.tap = null; sichtbarkeit(); tu('eingestiegen'); }
+function einsteigen() { neigung.kalibrieren(); Z.imAuto = true; spieler.tap = null; sichtbarkeit(); tu('eingestiegen'); }
 
 function blaulichtSetzen(stufe) {
   Z.blaulicht = stufe === true ? SIRENE : stufe || AUS;
@@ -332,13 +341,45 @@ function nahe(x, z, r) {
   }
   return l;
 }
-function schieben(x, z, r) {
+// wagen = true: Dein Streifenwagen fährt. Dann gibt ein anderes Auto nach und lässt sich wegschieben, statt dich festzuhalten.
+const SCHUB = 0.78, SCHUB_WEIT = 6;      // so viel vom Stoß bekommt das andere Auto ab · so weit lässt es sich höchstens verschieben (Meter)
+function parkSchub(q, dx, dz) {
+  const p = q.park; p.x += dx; p.z += dz; p.weg = (p.weg || 0) + Math.hypot(dx, dz);
+  q[0] += dx; q[2] += dx; q[1] += dz; q[3] += dz; if (q.o) { q.o.x += dx; q.o.z += dz; }
+  welt.stadt.parkBewegt(p);
+}
+// Der Streifenwagen ist auch lang und schmal: zwei Kreise von je 1 m, einer vorn, einer hinten. So bleibt er seitlich nicht so leicht hängen.
+function schiebWagen(x, z, h) {
+  for (const k of [1.25, -1.25]) {
+    const cx = x + Math.sin(h) * k, cz = z + Math.cos(h) * k, [nx, nz] = schieben(cx, cz, 1.0, true);
+    x += nx - cx; z += nz - cz;
+  }
+  return [x, z];
+}
+function schieben(x, z, r, wagen = false) {
   const imWeg = nahe(x, z, r + 2);
   // Die fahrenden Autos sind auch im Weg (als Kreise).
   if (verkehr && welt.stadt) for (const c of verkehr.autos) {
     if (!c.da) continue;
-    const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), min = r + 1.1;
-    if (d < min && d > 0.001) { x = c.x + dx / d * min; z = c.z + dz / d * min; }
+    if (Math.abs(x - c.x) > 5 || Math.abs(z - c.z) > 5) continue;
+    // Ein Auto ist lang und schmal: Wir rechnen es als zwei Kreise hintereinander (vorn und hinten).
+    for (const k of [1.2, -1.2]) {
+      const dx = x - (c.x + Math.sin(c.h) * k), dz = z - (c.z + Math.cos(c.h) * k), d = Math.hypot(dx, dz), min = r + 0.95;
+      if (d >= min || d < 0.001) continue;
+      const tief = min - d, nx = dx / d, nz = dz / d, s = wagen && Math.hypot(c.ox || 0, c.oz || 0) < SCHUB_WEIT ? SCHUB : 0;
+      c.ox = (c.ox || 0) - nx * tief * s; c.oz = (c.oz || 0) - nz * tief * s; c.x -= nx * tief * s; c.z -= nz * tief * s;
+      x += nx * tief * (1 - s); z += nz * tief * (1 - s);
+    }
+  }
+  // Fußgänger: Durch Menschen fährt man nicht hindurch – der Wagen bleibt vor ihnen stehen.
+  if (wagen && verkehr && welt.stadt) for (const m of verkehr.leute) {
+    if (!m.da) continue;
+    const dx = x - m.x, dz = z - m.z, d = Math.hypot(dx, dz), min = r + 0.35;
+    if (d < min && d > 0.001) { x = m.x + dx / d * min; z = m.z + dz / d * min; }
+  }
+  for (const G of gaeste) {       // Rettungswagen und die zweite Streife stehen auch im Weg
+    const dx = x - G.x, dz = z - G.z, d = Math.hypot(dx, dz), min = r + 1.4;
+    if (d < min && d > 0.001) { x = G.x + dx / d * min; z = G.z + dz / d * min; }
   }
   if (fluchtwagen.visible && welt.stadt) {       // der Fluchtwagen auch
     const dx = x - fluchtwagen.position.x, dz = z - fluchtwagen.position.z, d = Math.hypot(dx, dz), min = r + 1.3;
@@ -357,7 +398,9 @@ function schieben(x, z, r) {
       const l = px - R[0], re = R[2] - px, ob = pz - R[1], u = R[3] - pz, m = Math.min(l, re, ob, u);
       if (m === l) px = R[0] - r; else if (m === re) px = R[2] + r; else if (m === ob) pz = R[1] - r; else pz = R[3] + r;
     }
-    if (o) { x = o.x + px * o.c + pz * o.s; z = o.z - px * o.s + pz * o.c; } else { x = px; z = pz; }
+    let wx = px, wz = pz; if (o) { wx = o.x + px * o.c + pz * o.s; wz = o.z - px * o.s + pz * o.c; }
+    if (wagen && q.park && (q.park.weg || 0) < SCHUB_WEIT) { parkSchub(q, (x - wx) * SCHUB, (z - wz) * SCHUB); x += (wx - x) * (1 - SCHUB); z += (wz - z) * (1 - SCHUB); }
+    else { x = wx; z = wz; }
   }
   const G = ORTE[Z.ort].gross;
   return [Math.max(G[0] + r, Math.min(G[2] - r, x)), Math.max(G[1] + r, Math.min(G[3] - r, z))];
@@ -429,8 +472,10 @@ let schimpfZeit = 0, zuSchnellZeit = 0, rummsZeit = 0, zeit = 0;
 
 function zuFuss(dt) {
   let vx = (tasten.rechts ? 1 : 0) - (tasten.links ? 1 : 0), vz = (tasten.runter ? 1 : 0) - (tasten.hoch ? 1 : 0);
-  if (vx || vz) spieler.tap = null;
-  else if (spieler.tap) {
+  if (vx || vz) {       // mit den Tasten läuft man in Bildschirm-Richtung: "hoch" ist von der Kamera weg, auch wenn sie gedreht ist
+    spieler.tap = null;
+    const c = Math.cos(kam.w), si = Math.sin(kam.w); [vx, vz] = [vx * c + vz * si, -vx * si + vz * c];
+  } else if (spieler.tap) {
     const t = spieler.tap;
     if (t.obj && nahGenug(t.obj)) { spieler.tap = null; benutze(t.obj); return; }
     while (t.weg.length && abstand(spieler.x, spieler.z, t.weg[0][0], t.weg[0][1]) < 0.3) t.weg.shift();
@@ -452,18 +497,21 @@ function fahren(dt) {
   if (tasten.hoch) a.v += GAS * dt; else if (tasten.runter) a.v -= (a.v > 0 ? BREMSE : GAS * 0.6) * dt;
   else a.v -= Math.sign(a.v) * Math.min(Math.abs(a.v), ROLLEN * dt);
   a.v = Math.max(-5, Math.min(max, a.v));
-  const lenk = (tasten.links ? 1 : 0) - (tasten.rechts ? 1 : 0);
+  // Lenken: mit den Tasten ganz oder gar nicht – oder das iPad wie ein Lenkrad drehen (dann geht es auch fein)
+  const lenk = neigung.an && neigung.signal ? neigung.lenk : (tasten.links ? 1 : 0) - (tasten.rechts ? 1 : 0);
   a.h += lenk * dt * Math.max(-1.6, Math.min(1.6, a.v * 0.16));
-  const vorher = a.v;
-  const zx = a.x + Math.sin(a.h) * a.v * dt, zz = a.z + Math.cos(a.h) * a.v * dt;
-  [a.x, a.z] = schieben(zx, zz, 1.5);
-  if (abstand(zx, zz, a.x, a.z) > 0.02) {       // angestoßen
-    a.v *= -0.25;
-    if (Math.abs(vorher) > 5 && zeit > rummsZeit) { rummsZeit = zeit + 4; KLANG.spiel('rumms'); 
+  const vorher = a.v, sh = Math.sin(a.h), ch = Math.cos(a.h);
+  const zx = a.x + sh * a.v * dt, zz = a.z + ch * a.v * dt;
+  const [nx, nz] = schiebWagen(zx, zz, a.h);
+  if (abstand(zx, zz, nx, nz) > 0.02 && dt > 0) {       // angestoßen: Der Wagen prallt nicht zurück, er rutscht am Hindernis entlang und dreht sich ein Stück mit
+    const vor = ((nx - a.x) * sh + (nz - a.z) * ch) / dt, quer = ((nx - a.x) * ch - (nz - a.z) * sh) / dt;
+    a.v += (vor - a.v) * 0.5; a.h += Math.max(-1, Math.min(1, quer * 0.3)) * dt * Math.sign(vorher || 1);
+    if (Math.abs(vorher) > 5 && Math.abs(vorher) - Math.abs(vor) > 2.5 && zeit > rummsZeit) { rummsZeit = zeit + 4; KLANG.spiel('rumms');
       // Bei einer Verfolgung kostet ein Rumms keinen Punkt – aber den Bonus für sauberes Fahren gibt es dann nicht mehr.
       if (jagd && !jagd.fertig && Z.flags.jagdLos) { jagd.rumms++; UI.toast('Rumms! Otto: „Ruhig bleiben, Kim!“'); } else S.punkte(-1, 'Rumms! Vorsichtig fahren');
     }
   }
+  a.x = nx; a.z = nz; a.weg = (a.weg || 0) + a.v * dt; a.lenk = lenk;
   const kmh = Math.abs(a.v) * 3.6;
   zuSchnellZeit = (!Z.blaulicht && kmh > ZU_SCHNELL) ? zuSchnellZeit + dt : 0;
   if (zuSchnellZeit > 1.5 && zeit > schimpfZeit) { schimpfZeit = zeit + 15; S.punkte(-1, 'Otto: „In der Stadt gilt 50!“'); }
@@ -504,16 +552,61 @@ function leuteLeben(dt) {
     if (o.typ !== 'leut' || o.def.hund || !o.da) continue;
     const x = o.x ?? o.def.x, z = o.z ?? o.def.z, weit = abstand(spieler.x, spieler.z, x, z);
     const spricht = !!sprecher && (o.def.name.startsWith(sprecher) || (o.def === aktiv && sprecher !== 'Kim' && !sprecher.startsWith('Otto') && !sprecher.startsWith('Leitstelle')));
+    if (o.rennt) continue;                     // rennt gerade weg: bewegt sich schon selbst
     if (o.def.folgt && o.geht) continue;       // Otto läuft gerade: Dann schwingen Arme und Beine schon
     figurLeben(o.mesh, dt, zeit, spricht, weit < 5 && !Z.imAuto ? Math.atan2(spieler.x - x, spieler.z - z) : o.def.folgt ? o.mesh.rotation.y : null);
   }
 }
 
-function zonen() {
+// Stellen, an denen von selbst etwas passiert. Im Auto fährt das Spiel dort einfach weiter – erst wenn man anhält, geht der Einsatz los.
+const STEHT = 0.8;       // langsamer als so (m/s) gilt als angehalten
+let haltHinweis = '', funkPiep = 0;
+function zonen(dt) {
+  const steht = !Z.imAuto || Math.abs(Z.auto.v) < STEHT;
   for (const zo of STORY.ZONEN) {
     if (zo.ort !== Z.ort || Z.flags['zone_' + zo.id] || (zo.wenn && !Z.flags[zo.wenn]) || (zo.bis && Z.flags[zo.bis])) continue;
-    if (abstand(spieler.x, spieler.z, zo.x, zo.z) < zo.r) { Z.flags['zone_' + zo.id] = true; tu(zo.akt); return; }
+    if (abstand(spieler.x, spieler.z, zo.x, zo.z) >= zo.r) continue;
+    if (steht) { Z.flags['zone_' + zo.id] = true; haltHinweis = ''; tu(zo.akt); return; }
+    if (haltHinweis !== zo.id) { haltHinweis = zo.id; UI.toast('Du bist da. Halt an – dann geht es los.'); }
+    return;
   }
+  // Streife: Die Zeit läuft nur, solange man wirklich fährt. Dann piept der Funk; angenommen wird der Spruch, sobald man anhält.
+  const st = Z.streife;
+  if (!st || Z.ort !== 'stadt') return;
+  if (!st.ruf) {
+    if (Z.imAuto && Math.abs(Z.auto.v) > 3) st.rest -= dt;
+    if (st.rest <= 0) { st.ruf = true; funkPiep = 0; Z.ziel = { text: '📻 Die Leitstelle ruft! Halt an und hör zu', wo: null }; anzeigen(); }
+  } else if (steht && Z.imAuto) { Z.streife = null; tu(st.akt); }
+  else if (zeit > funkPiep) { funkPiep = zeit + 6; KLANG.spiel('funk'); UI.toast(Z.imAuto ? '📻 Funkspruch von der Leitstelle! Halt an und hör zu.' : '📻 Im Wagen piept der Funk. Steig ein!'); }
+}
+
+// ---- Die Kamera drehen, neigen und zoomen (wie auf dem Pferdehof im Reitturnier)
+// Maus: rechte Taste ziehen = drehen und neigen, Mausrad = zoomen. Finger: mit zwei Fingern drehen, neigen und kneifen.
+// Dazu die Knöpfe ⟲ ⟳ ＋ － am rechten Rand und die Tasten Q, R (drehen), + und − (zoomen), Pos1 = wieder wie am Anfang.
+// w = Drehung um die Figur (0 = Blick nach Norden), neig = steiler (+) oder flacher (−) als normal, mal = Abstand (1 = normal).
+// Die Werte mit z davor sind das Ziel, die anderen laufen weich hinterher. wAuto = Drehung um den Wagen (geht beim Fahren von selbst zurück).
+const kam = { w: 0, neig: 0, mal: 1, zw: 0, zneig: 0, zmal: 1, wAuto: 0, zwAuto: 0, taste: null, zeiger: new Map(), rechts: null, zog: 0, tipp: null };
+const KAM_MAL = [0.4, 3.2], KAM_NEIG = [-0.75, 0.9];       // so nah und so weit, so flach und so steil geht es
+function kamGrenzen() {
+  kam.zmal = Math.max(KAM_MAL[0], Math.min(KAM_MAL[1], kam.zmal)); kam.zneig = Math.max(KAM_NEIG[0], Math.min(KAM_NEIG[1], kam.zneig));
+}
+function kamNormal() { kam.zw = Math.round(kam.zw / (Math.PI * 2)) * Math.PI * 2; kam.zneig = 0; kam.zmal = 1; kam.zwAuto = 0; }
+function kamDrehen(dw, dn) { if (Z.imAuto) kam.zwAuto += dw; else kam.zw += dw; kam.zneig += dn; kamGrenzen(); }
+function kamSchritt(dt) {
+  const t = kam.taste;
+  if (t === 'links') kamDrehen(dt * 1.6, 0); else if (t === 'rechts') kamDrehen(-dt * 1.6, 0);
+  else if (t === 'nah') kam.zmal *= Math.exp(-dt * 1.4); else if (t === 'fern') kam.zmal *= Math.exp(dt * 1.4);
+  kamGrenzen();
+  // Im Auto dreht sich die Kamera von selbst wieder hinter den Wagen, sobald man fährt und nicht gerade an ihr zieht.
+  if (Z.imAuto && !kam.zeiger.size && !t && Math.abs(Z.auto.v) > 2) kam.zwAuto *= Math.exp(-dt * 1.5);
+  const k = Math.min(1, dt * 8);
+  kam.w += (kam.zw - kam.w) * k; kam.neig += (kam.zneig - kam.neig) * k; kam.mal += (kam.zmal - kam.mal) * k; kam.wAuto += (kam.zwAuto - kam.wAuto) * k;
+}
+// Wie steil schaut die Kamera gerade (Winkel über dem Boden) und wie weit ist sie weg?
+function kamLage() {
+  const [hoch, weg] = Z.imAuto ? [KAMERA_AUTO[1], KAMERA_AUTO[0]] : ORTE[Z.ort].kamera;
+  const e = Math.max(0.12, Math.min(1.5, Math.atan2(hoch - 1, weg) + kam.neig));
+  return { e, d: Math.hypot(hoch - 1, weg) * kam.mal };
 }
 
 function kameraSetzen(staerke) {
@@ -523,14 +616,18 @@ function kameraSetzen(staerke) {
   if (Z.imAuto) {
     const a = Z.auto;
     // Die Kamera fährt hinter dem Wagen her. Gerät sie dabei in ein Haus, rückt sie näher heran und höher.
-    let weg = KAMERA_AUTO[0]; py = KAMERA_AUTO[1];
+    const L = kamLage(), h = a.h + kam.wAuto, sh = Math.sin(h), ch = Math.cos(h);
+    let weg = Math.cos(L.e) * L.d; py = 1 + Math.sin(L.e) * L.d;
     const imHaus = (x, z) => nahe(x, z, 1).some(q => q[2] - q[0] > 3 && q[3] - q[1] > 3 && imHindernis(x, z, q, 0.8));
-    while (weg > 2.5 && imHaus(a.x - Math.sin(a.h) * weg, a.z - Math.cos(a.h) * weg)) { weg -= 1.5; py += 0.9; }
-    px = a.x - Math.sin(a.h) * weg; pz = a.z - Math.cos(a.h) * weg;
-    bx = a.x + Math.sin(a.h) * 4; bz = a.z + Math.cos(a.h) * 4;
+    while (weg > 2.5 && py < 30 && imHaus(a.x - sh * weg, a.z - ch * weg)) { weg -= 1.5; py += 0.9; }
+    px = a.x - sh * weg; pz = a.z - ch * weg;
+    const vor = 4 * Math.max(0, 1 - Math.abs(kam.wAuto));       // von hinten schaut die Kamera ein Stück voraus, von der Seite auf den Wagen
+    bx = a.x + Math.sin(a.h) * vor; bz = a.z + Math.cos(a.h) * vor;
   } else {
-    const [hoch, weg] = ORTE[Z.ort].kamera;
-    px = spieler.x; py = hoch; pz = spieler.z + weg; bx = spieler.x; bz = spieler.z - 0.5;
+    // Zu Fuß kreist die Kamera um die Figur: w = von wo, e = wie steil, d = wie weit weg.
+    const L = kamLage(), c = Math.cos(L.e);
+    px = spieler.x + Math.sin(kam.w) * c * L.d; py = 1 + Math.sin(L.e) * L.d; pz = spieler.z + Math.cos(kam.w) * c * L.d;
+    bx = spieler.x - Math.sin(kam.w) * 0.5; bz = spieler.z - Math.cos(kam.w) * 0.5;
   }
   kamera.position.lerp(new THREE.Vector3(px, py, pz), staerke);
   blick.lerp(new THREE.Vector3(bx, 1, bz), staerke);
@@ -541,7 +638,10 @@ function kameraSetzen(staerke) {
 let bildNr = 0;
 function stadtSchritt(dt) {
   const S = welt.stadt;
-  S.schnitt.constant = Z.imAuto || window.__polizei.frei ? 1e9 : spieler.z + SCHNITT_VOR;
+  // Die Schnitt-Ebene steht immer quer vor der Kamera – dreht man die Kamera, dreht sie sich mit. Von steil oben braucht man sie nicht.
+  const sw = Math.sin(kam.w), cw = Math.cos(kam.w);
+  S.schnitt.normal.set(-sw, 0, -cw);
+  S.schnitt.constant = Z.imAuto || window.__polizei.frei || kamLage().e > 1.2 ? 1e9 : spieler.x * sw + spieler.z * cw + SCHNITT_VOR;
   S.schritt(dt, spieler.x, spieler.z);
   // Die Sonne (nachts der Mond) steht immer gleich weit von dir weg, damit ihr Schatten dich begleitet.
   sonne.position.set(spieler.x + himmel.sonneRichtung.x * 300, Math.max(60, himmel.sonneRichtung.y * 300), spieler.z + himmel.sonneRichtung.z * 300);
@@ -550,9 +650,10 @@ function stadtSchritt(dt) {
   // Platz machen die anderen nur bei Blaulicht MIT Sirene. Vor einer Unfallstelle und hinter dem Fluchtwagen bremsen sie.
   const imWeg = welt.objekte.filter(o => o.da && o.def.verkehr).map(o => ({ x: o.def.x, z: o.def.z, r: 1.3 }));
   if (fluchtwagen.visible) imWeg.push({ x: fluchtwagen.position.x, z: fluchtwagen.position.z, r: 1.3 });
+  for (const G of gaeste) imWeg.push({ x: G.x, z: G.z, r: 1.4 });
   if (!Z.imAuto) imWeg.push({ x: Z.auto.x, z: Z.auto.z, r: 1.3 });       // dein abgestellter Streifenwagen
-  verkehr.schritt(dt, { x: spieler.x, z: spieler.z, r: Z.imAuto ? 1.2 : 0.4 }, Z.imAuto && Z.blaulicht === SIRENE, imWeg);
-  verkehrBild.schritt();
+  verkehr.schritt(dt, { x: spieler.x, z: spieler.z, r: Z.imAuto ? 1.2 : 0.4, h: Z.imAuto ? Z.auto.h : undefined, v: Z.imAuto ? Z.auto.v : 0 }, Z.imAuto && Z.blaulicht > AUS, imWeg);
+  verkehrBild.schritt(dt, spieler.x, spieler.z);
   for (const s of welt.hausSchilder) s.visible = abstand(s.position.x, s.position.z, spieler.x, spieler.z) < 150;
   if (++bildNr % 2 === 0) KARTE.radar(kartenStand());
   if (bildNr % 30 === 0) anzeigen();
@@ -580,15 +681,16 @@ function wegweiser() {
 
 function schritt(dt) {
   zeit += dt;
-  const frei = !beschaeftigt && !UI.offen() && !KARTE.kartOffen();
+  const frei = (!beschaeftigt || !!lauf) && !UI.offen() && !KARTE.kartOffen();       // bei einer Verfolgung zu Fuß läuft man weiter, obwohl die Geschichte gerade „dran“ ist
   if (frei) { if (Z.imAuto) fahren(dt); else { zuFuss(dt); UI.tacho(null); } }
   else spieler.tempo = 0;
-  if (frei) zonen();
+  if (frei && !lauf) zonen(dt);
+  laufSchritt(dt);
   ottoFolgt(dt);
 
   // Figuren und Wagen an ihre Plätze setzen
   kim.visible = !Z.imAuto; kim.position.set(spieler.x, 0, spieler.z); kim.rotation.y = spieler.h; figurBewegen(kim, dt, spieler.tempo);
-  wagen.position.set(Z.auto.x, 0, Z.auto.z); wagen.rotation.y = Z.auto.h;
+  wagen.position.set(Z.auto.x, 0, Z.auto.z); wagen.rotation.y = Z.auto.h; autoRaeder(wagen, Z.auto.weg || 0, Z.imAuto ? Z.auto.lenk || 0 : 0);
   const u = wagen.userData, blink = Z.blaulicht && Math.floor(zeit * 5) % 2;
   u.blau[0].material.emissiveIntensity = Z.blaulicht && blink ? 3 : 0; u.blau[1].material.emissiveIntensity = Z.blaulicht && !blink ? 3 : 0;
   u.blitz.intensity = Z.blaulicht ? (blink ? 70 : 28) : 0;
@@ -601,18 +703,20 @@ function schritt(dt) {
     if (o.mesh.userData.ring) o.mesh.userData.ring.scale.setScalar(1 + Math.sin(zeit * 4) * 0.15);
     if (o.mesh.userData.schwanz) o.mesh.userData.schwanz.rotation.y = Math.sin(zeit * 9) * 0.6;
   }
+  kamSchritt(dt);
   kameraSetzen(1 - Math.exp(-dt * (Z.imAuto ? 4 : 7)));
   if (welt.stadt) stadtSchritt(dt);
   if (wetter) { if (welt.stadt) wetter.fahnen(welt.stadt.schnitt); wetter.schritt(dt, { x: blick.x, z: blick.z, flags: Z.flags, imAuto: Z.imAuto, sparsam, stadt: welt.stadt }); }
-  jagdLauf(dt, frei);
+  jagdLauf(dt, frei); gastSchritt(dt);
   klappenSchritt(dt); leuteLeben(dt);
   wegweiser();
-  UI.knoepfe(moeglich(), k => k.tun());
+  UI.knoepfe(lauf ? [] : moeglich(), k => k.tun());
   UI.fahrKnoepfe(Z.imAuto);
   markenZeigen();
 }
 
 // ------------------------------------------------------------------ Steuerung
+const KAM_TASTE = { q: 'links', r: 'rechts', '+': 'nah', '-': 'fern' };
 const TASTE = { ArrowUp: 'hoch', w: 'hoch', ArrowDown: 'runter', s: 'runter', ArrowLeft: 'links', a: 'links', ArrowRight: 'rechts', d: 'rechts' };
 addEventListener('keydown', e => {
   KLANG.an();
@@ -621,15 +725,17 @@ addEventListener('keydown', e => {
   if (UI.taste(k)) { e.preventDefault(); return; }
   if (TASTE[k]) { tasten[TASTE[k]] = true; e.preventDefault(); return; }
   if (k === 'u') { musikWeiter(); return; }          // Musik geht immer, auch mitten im Gespräch
+  if (KAM_TASTE[k]) { kam.taste = KAM_TASTE[k]; e.preventDefault(); return; }
   if (beschaeftigt) return;
   if (k === 'e' || k === 'Enter') { const m = moeglich(); if (m.length) m[0].tun(); }
   else if (k === 'f') funkAuf(); else if (k === 'n') notizbuchAuf(); else if (k === 't') tascheAuf();
   else if (k === 'b' && Z.imAuto) blaulichtWeiter();
   else if (k === 'm') karteAuf();
+  else if (k === 'Home') kamNormal();
   else if (k === 'h') markenBis = zeit + MARKEN_ZEIT;
   else if (!Z.imAuto && VERB_TASTE[k]) verbSetzen(VERB_TASTE[k]);
 });
-addEventListener('keyup', e => { const k = e.key.length === 1 ? e.key.toLowerCase() : e.key; if (TASTE[k]) tasten[TASTE[k]] = false; });
+addEventListener('keyup', e => { const k = e.key.length === 1 ? e.key.toLowerCase() : e.key; if (TASTE[k]) tasten[TASTE[k]] = false; if (KAM_TASTE[k]) kam.taste = null; });
 
 // ------------------------------------------------------------------ Point and Click (wie in einem klassischen Adventure)
 // Unten links stehen vier Tätigkeiten: Gehen, Ansehen, Reden, Benutzen. Man wählt eine aus und tippt dann auf ein Ding,
@@ -698,20 +804,58 @@ function klickAuf(o) {
 }
 
 const strahl = new THREE.Raycaster(), ebene = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), treffer = new THREE.Vector3();
-canvas.addEventListener('pointerdown', e => {
-  KLANG.an();
-  if (Z.imAuto || beschaeftigt || UI.offen() || KARTE.kartOffen()) return;
-  if (e.button === 2) {       // rechte Maustaste: nächste Tätigkeit (wie in den alten Adventures)
-    const v = Object.keys(VERBEN); return verbSetzen(v[(v.indexOf(verb) + 1) % v.length]);
-  }
-  const o = unterZeiger(e.clientX, e.clientY, e.pointerType === 'mouse' ? TREFF_MAUS : TREFF_FINGER);
+// Ein Klick oder Fingertipp auf die Welt: ein Ding antippen oder zu einer Stelle am Boden laufen.
+function weltTipp(x, y, maus) {
+  if (Z.imAuto || (beschaeftigt && !lauf) || UI.offen() || KARTE.kartOffen()) return;
+  const o = lauf ? null : unterZeiger(x, y, maus ? TREFF_MAUS : TREFF_FINGER);       // bei einer Verfolgung wird nur gelaufen
   if (o) return klickAuf(o);
   // Auf den Boden getippt: Die Figur läuft dorthin – egal, welche Tätigkeit gerade gewählt ist.
-  strahl.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), kamera);
+  strahl.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), kamera);
   if (!strahl.ray.intersectPlane(ebene, treffer)) return;
   const weg = wegSuchen(spieler.x, spieler.z, treffer.x, treffer.z);
   spieler.tap = weg ? { weg, obj: null, zeit: 0 } : null;
+}
+// Die Maus tippt sofort beim Drücken. Ein Finger tippt erst beim Loslassen – so stört es nicht, wenn ein zweiter Finger dazukommt
+// (zwei Finger drehen und zoomen die Kamera). Die rechte Maustaste: kurz drücken = nächste Tätigkeit, ziehen = Kamera drehen.
+const ZUG_AB = 10;       // ab so vielen Bildpunkten ist es kein Tipp mehr, sondern ein Ziehen
+canvas.addEventListener('pointerdown', e => {
+  KLANG.an();
+  if (KARTE.kartOffen()) return;
+  kam.zeiger.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+  try { canvas.setPointerCapture(e.pointerId); } catch (f) { /* geht nicht überall */ }
+  if (e.pointerType === 'mouse') {
+    if (e.button === 2) { kam.rechts = e.pointerId; kam.zog = 0; }
+    else if (e.button === 0) weltTipp(e.clientX, e.clientY, true);
+    return;
+  }
+  kam.tipp = kam.zeiger.size === 1 ? e.pointerId : null;       // ein zweiter Finger: kein Tipp mehr, sondern Kamera
+  if (kam.zeiger.size >= 2) spieler.tap = spieler.tap && spieler.tap.obj ? spieler.tap : null;
 });
+canvas.addEventListener('pointermove', e => {
+  const p = kam.zeiger.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  if (kam.rechts === e.pointerId) { kam.zog += Math.abs(dx) + Math.abs(dy); if (kam.zog > ZUG_AB) { kamDrehen(-dx * 0.008, dy * 0.006); kam.w = kam.zw; kam.wAuto = kam.zwAuto; kam.neig = kam.zneig; } }
+  else if (kam.zeiger.size >= 2) {
+    let o = null; for (const [id, q] of kam.zeiger) if (id !== e.pointerId) { o = q; break; }
+    const alt = Math.hypot(p.x - o.x, p.y - o.y), neu = Math.hypot(e.clientX - o.x, e.clientY - o.y);
+    if (alt > 8 && neu > 8) kam.zmal *= alt / neu;
+    kamDrehen(-dx * 0.004, dy * 0.003);
+    kam.w = kam.zw; kam.wAuto = kam.zwAuto; kam.neig = kam.zneig; kam.mal = kam.zmal;
+  }
+  p.x = e.clientX; p.y = e.clientY;
+});
+function zeigerEnde(e, abbruch) {
+  const p = kam.zeiger.get(e.pointerId); if (!p) return;
+  kam.zeiger.delete(e.pointerId);
+  if (kam.rechts === e.pointerId) {
+    kam.rechts = null;
+    if (kam.zog <= ZUG_AB && !abbruch && !Z.imAuto && !beschaeftigt && !UI.offen()) { const v = Object.keys(VERBEN); verbSetzen(v[(v.indexOf(verb) + 1) % v.length]); }
+  } else if (kam.tipp === e.pointerId && !abbruch && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < ZUG_AB * 1.6) weltTipp(e.clientX, e.clientY, false);
+  if (kam.tipp === e.pointerId) kam.tipp = null;
+}
+canvas.addEventListener('pointerup', e => zeigerEnde(e, false));
+canvas.addEventListener('pointercancel', e => zeigerEnde(e, true));
+canvas.addEventListener('wheel', e => { e.preventDefault(); if (UI.offen() || KARTE.kartOffen()) return; kam.zmal *= Math.exp(Math.sign(e.deltaY) * Math.min(0.3, Math.abs(e.deltaY) * 0.0015)); kamGrenzen(); }, { passive: false });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 // Mit der Maus: Schwebt der Zeiger über etwas, steht unten der Satz dazu ("Ansehen: Dein Spind").
 canvas.addEventListener('pointermove', e => {
@@ -746,8 +890,90 @@ function jagdLauf(dt, frei) {
   }
   if (Z.ziel && !Z.flags.jagdFertig) Z.ziel.wo = ['stadt', jagd.x, jagd.z];       // der Wegweiser zeigt immer auf den Fluchtwagen
   // Am Ende steht der Wagen quer am Bordstein. Kommt man nah heran, geht die Geschichte weiter.
-  fluchtwagen.position.set(jagd.x, 0, jagd.z); fluchtwagen.rotation.y = jagd.h + (jagd.fertig ? 0.7 : 0);
-  if (frei && jagd.fertig && !Z.flags.jagdFertig && jagd.abstand < 26) { Z.auto.v = 0; tu('jagd_ende'); }
+  fluchtwagen.position.set(jagd.x, 0, jagd.z); fluchtwagen.rotation.y = jagd.h + (jagd.fertig ? 0.7 : 0); autoRaeder(fluchtwagen, jagd.s);
+  // Am Ziel geht es erst weiter, wenn man in der Nähe angehalten hat.
+  if (frei && jagd.fertig && !Z.flags.jagdFertig && jagd.abstand < 26) {
+    if (!Z.imAuto || Math.abs(Z.auto.v) < STEHT) tu('jagd_ende');
+    else if (haltHinweis !== 'jagd') { haltHinweis = 'jagd'; UI.toast('Da steht er! Halt mit Abstand an.'); }
+  }
+}
+
+// ------------------------------------------------------------------ Verfolgung zu Fuß
+// Jemand rennt weg – und zwar wirklich: Die Figur läuft ihren Weg entlang, du rennst hinterher (Tasten oder Tippen).
+// Kommst du auf Armlänge heran, hast du sie. Kommt sie am Ende ihres Wegs an oder ist sie zu weit weg, ist sie entwischt.
+const LAUF_FLUCHT = 4.0, LAUF_FANG = 1.4, LAUF_WEIT = 42;       // Tempo des Flüchtenden (du: 4,6 m/s), so nah = gefangen, so weit = entwischt
+let lauf = null;
+function laufStart(id, weg, { tempo = LAUF_FLUCHT } = {}) {
+  const o = welt.objekte.find(o => o.def.id === id && o.da);
+  if (!o) return Promise.resolve(true);
+  const x0 = o.x ?? o.def.x, z0 = o.z ?? o.def.z;
+  o.x = x0; o.z = z0; spieler.tap = null;
+  return new Promise(fertig => { lauf = { o, weg: weg.map(p => [...p]), tempo, x0, z0, h0: o.mesh.rotation.y, fertig, zeit: 0 }; });
+}
+function laufSchritt(dt) {
+  const L = lauf; if (!L) return;
+  const o = L.o, ziel = L.weg[0]; L.zeit += dt;
+  if (ziel) {
+    const dx = ziel[0] - o.x, dz = ziel[1] - o.z, d = Math.hypot(dx, dz), v = Math.min(L.tempo, 1.5 + L.zeit * 6);       // er kommt erst in Schwung
+    if (d < 0.5) L.weg.shift(); else { o.x += dx / d * v * dt; o.z += dz / d * v * dt; o.mesh.rotation.y = Math.atan2(dx, dz); }
+  }
+  o.mesh.position.set(o.x, 0, o.z); o.mesh.userData.selbst = true; o.rennt = true; figurBewegen(o.mesh, dt, ziel ? L.tempo : 0);
+  const ab = abstand(spieler.x, spieler.z, o.x, o.z), gefangen = ab < LAUF_FANG;
+  if (!gefangen && ziel && ab < LAUF_WEIT) return;
+  lauf = null; o.rennt = false; o.mesh.userData.selbst = false; spieler.tap = null;
+  if (!gefangen) { o.x = L.x0; o.z = L.z0; o.mesh.position.set(o.x, 0, o.z); o.mesh.rotation.y = L.h0; }       // entwischt: Er steht wieder am Anfang, für den nächsten Versuch
+  L.fertig(gefangen);
+}
+
+// ------------------------------------------------------------------ Einsatzwagen, die zu Hilfe kommen
+// Der Rettungswagen ist der weiße Kastenwagen mit rotem Streifen und Blaulicht, die zweite Streife ein Wagen wie deiner.
+// Sie fahren über das Straßennetz an (Strecke: anfahrt in jagd.js), halten, und zwei Leute steigen aus und gehen zu ihrer Stelle.
+const GAST_LEUTE = { rtw: [['aerztin', 'frau'], ['sani', 'mann']], streife: [['polizist', 'polizei'], ['polizist', 'polizei']] };
+const GAST_TEMPO = 15, GAST_GEHT = 2.0;       // so schnell fährt der Wagen (m/s) und so schnell gehen die Leute
+const gaeste = [];
+function gastBauen(art) {
+  if (art === 'streife') return autoModell('#f4f4f4', true);
+  const g = autoModell('#ffffff', false, 'auto_van'), rot = new THREE.MeshStandardMaterial({ color: '#d8261c', roughness: 0.6 });
+  for (const x of [-1.12, 1.12]) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 4.3), rot); s.position.set(x, 0.95, -0.1); g.add(s); }
+  const blau = [-0.5, 0.5].map(x => { const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.3), new THREE.MeshStandardMaterial({ color: '#1747c9', roughness: 0.2, emissive: '#1e66ff', emissiveIntensity: 0 })); b.position.set(x, 1.97, 1.1); g.add(b); return b; });
+  const blitz = new THREE.PointLight('#2a6bff', 0, 30, 1.4); blitz.position.set(0, 2.6, 0); g.add(blitz);
+  g.userData.blau = blau; g.userData.blitz = blitz;
+  return g;
+}
+function gastRufen(art, ziel, { aus = [0, 1], zu = null, bis = null } = {}) {
+  if (!welt || !welt.stadt || !GAST_LEUTE[art]) return Promise.resolve();
+  const T = JAGD.anfahrt(ziel, aus); if (!T) return Promise.resolve();
+  const mesh = gastBauen(art); mesh.traverse(o => { if (o.isMesh) o.castShadow = true; }); szene.add(mesh);
+  const leute = GAST_LEUTE[art].map(([datei, gerüst], i) => { const g = new THREE.Group(); g.visible = false; szene.add(g); ladePolizist(g, datei, gerüst); return { g, x: 0, z: 0, h: 0, ziel: zu && zu[i] || null, tempo: 0 }; });
+  return new Promise(da => { gaeste.push({ art, T, s: 0, v: 0, weg: 0, x: T.pts[0][0], z: T.pts[0][1], h: 0, mesh, leute, bis, da, steht: false }); });
+}
+function gaesteWeg() { for (const G of gaeste) { szene.remove(G.mesh); for (const c of G.leute) szene.remove(c.g); if (G.da) G.da(); } gaeste.length = 0; }
+function gastSchritt(dt) {
+  if (gaeste.length && (!welt || !welt.stadt)) gaesteWeg();
+  for (let i = gaeste.length - 1; i >= 0; i--) {
+    const G = gaeste[i];
+    // Ist der Einsatz vorbei und du bist weit weg, verschwindet der Wagen wieder.
+    if (G.bis && Z.flags[G.bis] && abstand(spieler.x, spieler.z, G.x, G.z) > 90) { szene.remove(G.mesh); for (const c of G.leute) szene.remove(c.g); gaeste.splice(i, 1); continue; }
+    if (!G.steht) {
+      const rest = G.T.l - G.s, soll = Math.min(GAST_TEMPO, Math.max(1.5, rest * 0.45));
+      G.v += Math.max(-9 * dt, Math.min(5 * dt, soll - G.v)); G.s = Math.min(G.T.l, G.s + G.v * dt); G.weg += G.v * dt;
+      [G.x, G.z, G.h] = JAGD.ortAufStrecke(G.T, G.s);
+      if (rest < 0.1) {       // angekommen: Die beiden steigen links und rechts aus
+        G.steht = true; G.v = 0; KLANG.spiel('tuer', 0.5);
+        G.leute.forEach((c, k) => { const seite = k ? 1.7 : -1.7; c.x = G.x + Math.cos(G.h) * seite + Math.sin(G.h) * 0.6; c.z = G.z - Math.sin(G.h) * seite + Math.cos(G.h) * 0.6; c.h = G.h; c.g.visible = true; });
+        if (G.da) { G.da(); G.da = null; }
+      }
+    } else for (const c of G.leute) {
+      c.tempo = 0;
+      if (c.ziel) { const dx = c.ziel[0] - c.x, dz = c.ziel[1] - c.z, d = Math.hypot(dx, dz);
+        if (d > 0.3) { const f = Math.min(1, GAST_GEHT * dt / d); c.x += dx * f; c.z += dz * f; c.h = Math.atan2(dx, dz); c.tempo = GAST_GEHT; } else c.ziel = null; }
+      c.g.position.set(c.x, 0, c.z); c.g.rotation.y = c.h; polizistBewegen(c.g, dt, c.tempo);
+    }
+    G.mesh.position.set(G.x, 0, G.z); G.mesh.rotation.y = G.h; autoRaeder(G.mesh, G.weg);
+    const u = G.mesh.userData, blink = Math.floor(zeit * 5) % 2;
+    if (u.blau) { u.blau[0].material.emissiveIntensity = blink ? 3 : 0; u.blau[1].material.emissiveIntensity = blink ? 0 : 3; }
+    if (u.blitz) u.blitz.intensity = blink ? 60 : 24;
+  }
 }
 
 // Knöpfe zum Fahren auf dem Bildschirm (für das iPad)
@@ -755,6 +981,36 @@ for (const b of document.querySelectorAll('#fahren button')) {
   const t = b.dataset.t;
   b.addEventListener('pointerdown', e => { tasten[t] = true; e.preventDefault(); });
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => { tasten[t] = false; });
+}
+// ---- Lenken durch Neigen (iPad): Knopf "📱 Neigen" im Auto. Auf einem Gerät mit Finger-Bildschirm geht es beim Start von selbst an.
+const neigung = new Neigung();
+const NEIG_MERKER = 'blaulicht.neigen.v1';
+const mitFingern = () => navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches;
+function neigZeigen() {
+  const k = document.getElementById('neigKnopf'), an = neigung.an;
+  k.textContent = `📱 Neigen: ${an ? 'an' : 'aus'}`; k.classList.toggle('an', an);
+  document.getElementById('neigMitte').hidden = !an; document.body.classList.toggle('neigen', an);
+}
+async function neigSchalten(an, laut = true) {
+  if (an) { const ok = await neigung.start(); if (!ok && laut) UI.toast('Der Bewegungs-Sensor ist hier nicht erlaubt oder nicht da.'); if (ok && laut) UI.toast('Dreh das iPad wie ein Lenkrad. „↕ Mitte“ stellt geradeaus neu ein.'); }
+  else neigung.stop();
+  try { localStorage.setItem(NEIG_MERKER, neigung.an ? 'an' : 'aus'); } catch (e) { /* dann eben nicht merken */ }
+  neigZeigen();
+}
+document.getElementById('neigKnopf').addEventListener('click', () => neigSchalten(!neigung.an));
+document.getElementById('neigMitte').addEventListener('click', () => { neigung.kalibrieren(); UI.toast('Geradeaus ist jetzt so, wie du das iPad gerade hältst.'); });
+// Das iPad fragt nur nach einem Fingertipp um Erlaubnis – deshalb gleich beim Tipp auf "Neues Spiel" oder "Weiter spielen".
+for (const id of ['neuesSpiel', 'weiterSpielen']) document.getElementById(id).addEventListener('click', () => {
+  let wunsch = null; try { wunsch = localStorage.getItem(NEIG_MERKER); } catch (e) { wunsch = null; }
+  if (mitFingern() && wunsch !== 'aus' && !neigung.an) neigSchalten(true, false);
+});
+
+// Die vier Kamera-Knöpfe am rechten Rand (gedrückt halten)
+for (const b of document.querySelectorAll('#kamKnoepfe button')) {
+  if (b.dataset.k === 'normal') { b.addEventListener('click', kamNormal); continue; }
+  b.addEventListener('pointerdown', e => { e.preventDefault(); kam.taste = b.dataset.k; });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => { kam.taste = null; });
+  b.addEventListener('contextmenu', e => e.preventDefault());
 }
 document.getElementById('radar').addEventListener('click', karteAuf);
 UI.verbinde({ notizbuch: notizbuchAuf, tasche: tascheAuf, funk: funkAuf, blaulicht: blaulichtWeiter, verb: verbSetzen, lupe: () => { markenBis = zeit + MARKEN_ZEIT; } });
@@ -770,7 +1026,7 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, get wetter() { return wetter; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, frei: null,
+window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal,
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {

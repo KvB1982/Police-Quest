@@ -52,6 +52,34 @@ L['petersen'].update(haare='toigo_inverted_bob'); L['petersen']['toenen'] = {'el
 L['opfer']['toenen']['elegantsuit']['ohne'] = [0, 0, 0.78, 0.53]
 L['zeugin'].update(kleidung=['female_casualsuit01', 'shoes05'], toenen={'casualsuit': dict(farbe=[0.88, 0.69, 0.19], hell=2.6, ohne=JEANS_F)})
 L['petersen'].update(haare='rehmanpolanski_hair_bun_brown'); L['petersen']['toenen']['hair_bun'] = dict(farbe=[0.8, 0.8, 0.82], hell=1.7); del L['petersen']['toenen']['bob']
+# Passanten für die Straßen (p1 … p8), dazu Notärztin und Sanitäter für den Rettungswagen. Alle ausgedacht.
+ROT = [0.86, 0.2, 0.12]
+L.update({
+ 'p1': dict(F, gender=0.0, age=0.45, weight=0.45, muscle=0.5, height=0.55, haut='young_african_female', haare='afro01', augenfarbe='brown',
+            kleidung=['female_casualsuit01', 'shoes05'], toenen={'casualsuit': dict(farbe=[0.15, 0.55, 0.55], hell=2.6, ohne=JEANS_F)}),
+ 'p2': dict(M, gender=1.0, age=0.62, weight=0.6, muscle=0.5, height=0.55, haut='middleage_african_male', haare='short01', augenfarbe='brown',
+            kleidung=['male_casualsuit02', 'shoes02']),
+ 'p3': dict(F, gender=0.0, age=0.6, weight=0.45, muscle=0.4, height=0.42, haut='middleage_asian_female', haare='toigo_blunt_bob_with_bangs', augenfarbe='brown',
+            kleidung=['toigo_female_suit_2', 'toigo_ankle_boots_female'], toenen={'suit_2': dict(farbe=[0.6, 0.25, 0.3], hell=1.6, ohne=[0.55, 0, 1, 0.55])}),
+ 'p4': dict(M, gender=1.0, age=0.45, weight=0.4, muscle=0.5, height=0.5, haut='young_asian_male', haare='short03', augenfarbe='brown',
+            kleidung=['male_casualsuit03', 'shoes06']),
+ 'p5': dict(F, gender=0.0, age=0.88, weight=0.6, muscle=0.3, height=0.38, haut='old_caucasian_female', haare='bob02', augenfarbe='blue',
+            kleidung=['female_elegantsuit01', 'toigo_ballet_flats'], toenen={'elegantsuit': dict(farbe=[0.75, 0.68, 0.52], hell=3.2, ohne=[0, 0, 0.78, 0.53]), 'bob02': dict(farbe=[0.82, 0.82, 0.84], hell=2.2)}),
+ 'p6': dict(M, gender=1.0, age=0.85, weight=0.65, muscle=0.35, height=0.48, haut='old_caucasian_male', haare='short02', augenfarbe='grey',
+            kleidung=['male_casualsuit04', 'shoes04'], toenen={'short02': dict(farbe=[0.7, 0.7, 0.7], hell=2.6)}),
+ 'p7': dict(F, gender=0.0, age=0.42, weight=0.4, muscle=0.6, height=0.52, haut='toigo_light_skin_female_freckles', haare='ponytail01', augenfarbe='green',
+            kleidung=['female_sportsuit01', 'shoes05']),
+ 'p8': dict(M, gender=1.0, age=0.5, weight=0.5, muscle=0.6, height=0.6, haut='toigo_light_skin_male_bronze', haare='cortu_short_messy_hair', augenfarbe='brown',
+            kleidung=['male_casualsuit06', 'shoes01']),
+ 'aerztin': dict(F, gender=0.0, age=0.55, weight=0.45, muscle=0.5, height=0.5, haut='middleage_caucasian_female', haare='ponytail01', augenfarbe='brown',
+            kleidung=['male_worksuit01', 'shoes04'], toenen={'worksuit': dict(farbe=ROT, hell=2.2)}),
+ 'sani': dict(M, gender=1.0, age=0.48, weight=0.55, muscle=0.6, height=0.55, haut='young_caucasian_male2', haare='short04', augenfarbe='blue',
+            kleidung=['male_worksuit01', 'shoes04'], toenen={'worksuit': dict(farbe=ROT, hell=2.2)}),
+})
+L['p4'].update(haare='short04'); L['p4']['farbe'] = {'short04': [0.3, 0.27, 0.27]}
+L['p5'].update(haare='toigo_curled_under_bob'); L['p5']['toenen'] = {'elegantsuit': dict(farbe=[0.75, 0.68, 0.52], hell=3.2, ohne=[0, 0, 0.78, 0.53]), 'bob': dict(farbe=[0.84, 0.84, 0.86], hell=2.2)}
+L['p7'].update(kleidung=['female_casualsuit01', 'shoes05'], toenen={'casualsuit': dict(farbe=[0.5, 0.68, 0.92], hell=2.6, ohne=JEANS_F)})
+L['p8'].update(haare='short02'); L['p8']['farbe'] = {'short02': [1.1, 0.8, 0.55]}
 import glob, os
 D = os.path.expanduser('~/.config/blender/5.3/extensions/.user/user_default/mpfb/data/clothes/')
 p = [x for x in glob.glob(D + 'male_elegantsuit01/toigo_male_elegant_suit_olive/*.png') if 'norm' not in x.lower()][0]; L['brinkmann']['stoff']['elegantsuit01'] = p[len(D):]

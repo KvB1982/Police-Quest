@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { polizistBewegen, ladePolizist } from './polizist.js';
 import * as MOD from './modelle.js';
-import { baueStadt } from './stadtbau.js';
+import { baueStadt, radForm, RAD_BREIT } from './stadtbau.js';
 
 const mat = (farbe, extra = {}) => new THREE.MeshLambertMaterial({ color: farbe, ...extra });
 const kiste = (b, h, t, farbe, extra) => new THREE.Mesh(new THREE.BoxGeometry(b, h, t), mat(farbe, extra));
@@ -161,7 +161,11 @@ function folieKleben(material, gr) {
   };
 }
 
-export function autoModell(farbe = '#f4f4f4', polizei = false) {
+// Die Räder eines Wagens drehen: weg = wie weit er schon gerollt ist (Meter), lenk = Einschlag der Vorderräder (−1 … 1)
+export function autoRaeder(g, weg, lenk = 0) {
+  for (const r of g.userData.raeder || []) { r.rad.rotation.x = weg / r.r; if (r.vorn) r.lenk.rotation.y += (lenk * 0.45 - r.lenk.rotation.y) * 0.2; }
+}
+export function autoModell(farbe = '#f4f4f4', polizei = false, sorte = 'auto_kombi') {
   const g = new THREE.Group(), kisten = new THREE.Group();
   g.add(kisten);
   const unten = kiste(1.9, 0.6, 4.4, farbe); unten.position.y = 0.62;
@@ -196,11 +200,18 @@ export function autoModell(farbe = '#f4f4f4', polizei = false) {
   }
   // Das fertige Modell ersetzt die Kisten, sobald es geladen ist.
   // Der Streifenwagen bekommt die Vorlage in voller Qualität (19.000 Dreiecke, scharfes Bild, Glanz), die anderen Autos die kleine Datei.
-  MOD.lade(polizei ? 'streifenwagen' : 'auto_kombi').then(m => {
+  MOD.lade(polizei ? 'streifenwagen' : sorte).then(m => {
     if (!m) return;
     const material = m.mat.clone(); if (!polizei) material.color.set(farbe);
+    g.userData.hoch = m.geo.boundingBox ? m.geo.boundingBox.max.y : 1.6;
     const netz = new THREE.Mesh(m.geo, material); netz.castShadow = true;
     kisten.visible = false; g.add(netz);
+    // Vier eigene Räder vor den gemalten Rädern des Modells: Sie drehen sich beim Fahren, die vorderen lenken mit (autoRaeder).
+    if (m.raeder) { const R = m.raeder, radMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), form = radForm();
+      g.userData.raeder = [[1, R.vorn], [-1, R.vorn], [1, R.hinten], [-1, R.hinten]].map(([seite, z]) => {
+        const lenk = new THREE.Group(), rad = new THREE.Mesh(form, radMat); rad.scale.set(RAD_BREIT, R.r * 1.03, R.r * 1.03); rad.castShadow = true;
+        lenk.position.set(seite * (R.x - RAD_BREIT / 2 - 0.02), R.r * 1.03, z); lenk.add(rad); g.add(lenk); return { lenk, rad, vorn: z > 0, r: R.r };
+      }); }
     if (polizei) {
       netz.receiveShadow = true;
       for (const s of streifen) s.visible = false;
@@ -328,7 +339,8 @@ export function baueOrt(def) {
     for (const h of def.plan.haeuser) if (h.schild) { const s = schild(h.schild, 6); s.position.set(h.x, h.h + (h.dach.h || 0) + 3.5, h.z); gruppe.add(s); hausSchilder.push(s); }
   } else {
     gruppe.add(flaeche([G[0] - 200, G[1] - 200, G[2] + 200, G[3] + 200], '#111', -0.02));
-    for (const b of def.boden) gruppe.add(flaeche(b.r, b.farbe));
+    // Jeder Boden liegt ein kleines Stück höher als der davor – lägen zwei genau gleich hoch, würden ihre Farben flackern.
+    def.boden.forEach((b, i) => gruppe.add(flaeche(b.r, b.farbe, 0.01 + i * 0.012)));
   }
 
   // Wände: drinnen niedrig, damit man von oben in die Räume schauen kann

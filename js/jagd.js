@@ -73,6 +73,20 @@ export function strecke(def) {
   return { pts, L, l: L.at(-1) };
 }
 
+// Die Anfahrt eines Einsatzwagens (Rettungswagen, zweite Streife): Er startet an einer Kreuzung, die etwa 100 bis 220 m
+// vom Ziel weg liegt – möglichst in der Richtung aus = [x, z] vom Ziel aus gesehen – und fährt über das Straßennetz zum Ziel.
+export function anfahrt(ziel, aus = [0, 1]) {
+  const n = Math.hypot(aus[0], aus[1]) || 1; let best = null, bw = -1e9;
+  for (const k of PLAN.knoten) {
+    const dx = k.x - ziel[0], dz = k.z - ziel[1], d = Math.hypot(dx, dz);
+    if (d < 100 || d > 220 || !k.kanten.some(e => e.weg.art !== 'gasse')) continue;
+    const w = (dx * aus[0] + dz * aus[1]) / n / d;       // 1 = genau in der gewünschten Richtung
+    if (w > bw) { bw = w; best = k; }
+  }
+  if (!best) return null;
+  return strecke({ start: [best.x, best.z], erst: [best.x, best.z], ziel });
+}
+
 // Wo ist man nach s Metern auf der Strecke? Zurück kommt [x, z, Richtung als Winkel].
 export function ortAufStrecke(T, s) {
   s = Math.max(0, Math.min(T.l - 0.01, s));

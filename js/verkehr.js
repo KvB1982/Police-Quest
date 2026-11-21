@@ -6,12 +6,15 @@
 // Fußgänger laufen auf dem Gehweg um ihren Häuserblock. Autos und Fußgänger gibt es nur in deiner Nähe –
 // wer zu weit weg ist, wird woanders in der Nähe neu hingestellt. Alle Zahlen sind geschätzt.
 
-import { PLAN, ortAuf, wuerfel } from './stadtplan.js';
+import { PLAN, ortAuf, wuerfel, imHindernis } from './stadtplan.js';
 
 export const AUTOS = 46, LEUTE = 44;
 const TEMPO = 10.5;            // Meter pro Sekunde (etwa 38 km/h) – auf dem Ring etwas mehr, auf der Autobahn gut doppelt so viel
 const WEG_AUTO = 340, NEU_AUTO = [110, 290];     // so weit weg wird ein Auto versetzt · in diesem Abstand taucht es neu auf
 const WEG_MENSCH = 175, NEU_MENSCH = [28, 150];
+const RAND = 1.5;               // so weit fahren sie dabei an den rechten Rand (Meter)
+const ZURUECK = 1.2;           // so schnell rollt ein weggeschobenes Auto zurück an seinen Platz (Meter pro Sekunde)
+const WEICHT_VOR = 16, WEICHT_BREIT = 3.2, WEICHT_TEMPO = 3.4;      // Fußgänger weichen aus: so weit vor dir, so breit, so schnell
 const GASSE = 55;              // mit Blaulicht halten Autos in diesem Umkreis an
 const spur = W => W.art === 'autobahn' ? 3.9 : W.b / 4 - 0.5;                 // so weit rechts von der Straßenmitte fährt ein Auto
 const schnell = W => W.art === 'autobahn' ? 2.3 : W.art === 'ring' || W.b >= 14 ? 1.25 : W.art === 'rampe' ? 1.2 : 1;
@@ -75,7 +78,7 @@ export function neuerVerkehr(saat = 5) {
 
   for (let i = 0; i < AUTOS; i++) autos.push({ art: Math.floor(w() * 4), farbe: Math.floor(w() * 8), da: false });
   for (let i = 0; i < LEUTE; i++) leute.push({ hemd: KLEIDER[Math.floor(w() * KLEIDER.length)], hose: HOSEN[Math.floor(w() * HOSEN.length)], haut: HAUT[Math.floor(w() * HAUT.length)], haar: HAAR[Math.floor(w() * HAAR.length)],
-    gross: w() < 0.2 ? zw(0.62, 0.8) : zw(0.94, 1.06), tempo: zw(1.1, 1.6), schritt: w() * 6, geht: 0, da: false });
+    gross: zw(0.94, 1.06), tempo: zw(1.1, 1.6), schritt: w() * 6, geht: 0, da: false });
 
   let erstes = true;
   return {
@@ -84,6 +87,8 @@ export function neuerVerkehr(saat = 5) {
     // imWeg = Liste von { x, z, r }: Dinge, die auf der Straße stehen (Unfallwagen, dein abgestellter Streifenwagen …)
     schritt(dt, sp, blaulicht, imWeg = []) {
       for (const c of autos) {
+        // Hat dein Wagen dieses Auto zur Seite geschoben? Dann rollt es langsam an seinen Platz zurück, sobald du weg bist.
+        if (c.ox || c.oz) { const weit = Math.hypot(c.ox, c.oz), fern = Math.hypot(c.x - sp.x, c.z - sp.z) > 5.5; if (fern) { const f = Math.max(0, 1 - ZURUECK * dt / Math.max(weit, 0.001)); c.ox *= f; c.oz *= f; if (weit < 0.02) c.ox = c.oz = 0; } }
         if (!c.da || Math.hypot(c.x - sp.x, c.z - sp.z) > WEG_AUTO) { if (c.kurve) belegt[c.kurve.k] = null; setzeAuto(c, sp.x, sp.z, erstes); if (!c.da) continue; }
         const fx = Math.sin(c.h), fz = Math.cos(c.h);
         // Steht jemand vor mir? (ein anderes Auto oder du)
@@ -93,15 +98,17 @@ export function neuerVerkehr(saat = 5) {
         for (const o of autos) if (o !== c && o.da && (!c.kurve || (o.e === c.e && o.richtung === c.richtung && !o.kurve))) pruefe(o.x, o.z, 1.7);
         pruefe(sp.x, sp.z, 1.2 + sp.r);
         for (const h of imWeg) pruefe(h.x, h.z, 1.2 + h.r);
+        // Auch für Fußgänger wird gebremst – aber nur, wenn sie wirklich vor dem Auto auf der Fahrbahn sind (nicht in der Kreuzung, sonst stockt alles).
+        if (!c.kurve) for (const m of leute) if (m.da && Math.abs(m.x - c.x) < 12 && Math.abs(m.z - c.z) < 12) { const ex = m.x - c.x, ez = m.z - c.z, vor = ex * fx + ez * fz; if (vor > 0.5 && vor < 10 && Math.abs(ex * fz - ez * fx) < 1.0) frei = Math.min(frei, vor); }
         let ziel = frei < 7.5 ? 0 : frei < 14 ? TEMPO * 0.45 : frei < 22 ? Math.min(c.max, TEMPO) : c.max;
         const gasse = blaulicht && !c.kurve && Math.hypot(c.x - sp.x, c.z - sp.z) < GASSE;
         if (gasse) ziel = 0;
-        c.rand += ((gasse ? 0.6 : 0) - c.rand) * Math.min(1, dt * 2);
+        c.rand += ((gasse ? RAND : 0) - c.rand) * Math.min(1, dt * 2);
         if (c.kurve) {
           c.v += Math.max(-9 * dt, Math.min(3 * dt, Math.min(ziel, Math.max(TEMPO * 0.6, c.max * k0(c.kurve))) - c.v)); c.v = Math.max(0, c.v);
           const k = c.kurve; k.u = Math.min(1, k.u + c.v * dt / k.lang);
           const u = k.u, q = 1 - u;
-          c.x = q * q * k.p0[0] + 2 * q * u * k.p1[0] + u * u * k.p2[0]; c.z = q * q * k.p0[1] + 2 * q * u * k.p1[1] + u * u * k.p2[1];
+          c.x = q * q * k.p0[0] + 2 * q * u * k.p1[0] + u * u * k.p2[0] + (c.ox || 0); c.z = q * q * k.p0[1] + 2 * q * u * k.p1[1] + u * u * k.p2[1] + (c.oz || 0);
           const tx = 2 * q * (k.p1[0] - k.p0[0]) + 2 * u * (k.p2[0] - k.p1[0]), tz = 2 * q * (k.p1[1] - k.p0[1]) + 2 * u * (k.p2[1] - k.p1[1]);
           if (Math.hypot(tx, tz) > 0.01) c.h = Math.atan2(tx, tz);
           if (u >= 1) { belegt[k.k] = null; c.s = c.s0; c.kurve = null; }
@@ -133,10 +140,13 @@ export function neuerVerkehr(saat = 5) {
             belegt[k] = c;
           } else { c.s = c.s1; c.v = 0; }
         }
-        if (!c.kurve) { const o = ortAufSpur(c, c.s, c.rand); c.x = o[0]; c.z = o[1]; c.h = Math.atan2(o[2], o[3]); }
+        if (!c.kurve) { const o = ortAufSpur(c, c.s, c.rand); c.x = o[0] + (c.ox || 0); c.z = o[1] + (c.oz || 0); c.h = Math.atan2(o[2], o[3]); }
       }
       for (const m of leute) {
         if (!m.da || Math.hypot(m.x - sp.x, m.z - sp.z) > WEG_MENSCH) { setzeMensch(m, sp.x, sp.z, erstes); if (!m.da) continue; }
+        // Wer vor deinem fahrenden Wagen steht oder geht, springt zur Seite – weg von der Linie, auf der du fährst. Mit Blaulicht schon von Weitem.
+        if (sp.h !== undefined && (blaulicht || Math.abs(sp.v || 0) > 1)) { const ex = m.x - sp.x, ez = m.z - sp.z, fx = Math.sin(sp.h), fz = Math.cos(sp.h), vor = ex * fx + ez * fz, seite = ex * fz - ez * fx;
+          if (vor > -3 && vor < (blaulicht ? WEICHT_VOR : 9) && Math.abs(seite) < (blaulicht ? WEICHT_BREIT : 1.9)) { const r = seite >= 0 ? 1 : -1, weg = WEICHT_TEMPO * dt; m.x += fz * r * weg; m.z -= fx * r * weg; m.h = Math.atan2(fz * r, -fx * r); m.geht = WEICHT_TEMPO; m.schritt += dt * WEICHT_TEMPO * 4.2; continue; } }
         if (m.pause > 0) { m.pause -= dt; m.geht = 0; continue; }
         m.geht = m.tempo; m.schritt += dt * m.tempo * 4.2;
         // Erst zur Ziel-Stelle auf dem Gehweg laufen; ist man dort, rückt die Ziel-Stelle ein Stück weiter.
@@ -152,12 +162,16 @@ export function neuerVerkehr(saat = 5) {
           const andere = hier ? PLAN.knoten[hier.k].kanten.filter(e => e.weg !== m.W && e.weg.art !== 'autobahn' && e.weg.art !== 'rampe') : [];
           if (andere.length && w() < 0.8) {
             const e = andere[Math.floor(w() * andere.length)], k = hier.k;
+            const vorher = { W: m.W, richtung: m.richtung, s: m.s, seite: m.seite };
             const o1 = ortAuf(m.W, hier.s), ab1 = gehAb(m.W) * m.seite, alteSeite = [-o1[3] * ab1, o1[2] * ab1];
             m.W = e.weg; m.richtung = e.a === k ? 1 : -1; m.s = (e.a === k ? e.s0 : e.s1) + m.richtung * (PLAN.knoten[k].r + 2);
             m.seite = m.W.art === 'kai' || w() < 0.5 ? 1 : -1;
             // Erst um die Hausecke herum: die Ecke, an der sich der alte und der neue Gehweg treffen
             const o2 = ortAuf(m.W, e.a === k ? e.s0 : e.s1), ab2 = gehAb(m.W) * m.seite;
             m.ecke = [PLAN.knoten[k].x + alteSeite[0] - o2[3] * ab2, PLAN.knoten[k].z + alteSeite[1] + o2[2] * ab2];
+            // Führt der Weg um die Ecke durch ein Haus oder einen Baum? Dann lieber umdrehen und auf der alten Straße bleiben.
+            let zu = false; for (let t = 0.2; t <= 1 && !zu; t += 0.2) { const px = m.x + (m.ecke[0] - m.x) * t, pz = m.z + (m.ecke[1] - m.z) * t; zu = PLAN.fest.some(q => Math.abs(q[0] - px) < 40 && imHindernis(px, pz, q, 0.1)); }
+            if (zu) { Object.assign(m, vorher); m.ecke = null; m.richtung = -m.richtung; m.s = Math.max(1.6, Math.min(m.W.l - 1.6, m.s)); }
           } else if (ende) { m.richtung = -m.richtung; m.s = Math.max(1.6, Math.min(m.W.l - 1.6, m.s)); if (w() < 0.5) m.seite = m.W.art === 'kai' ? 1 : -m.seite; }
           if (w() < 0.3) m.pause = zw(1.5, 5);
         }

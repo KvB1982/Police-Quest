@@ -24,6 +24,22 @@ export const MODELLE = {
   mal_brunnen: { l: 6.5 }, mal_yacht: { l: 14, dreh: V }, betonsperre: { l: 1.6 }, reifen: { h: 0.6 }, gully: { l: 0.7 },
 };
 
+// Wo sitzen bei einem Auto-Modell die vier Räder, und wie groß sind sie? Das Modell ist aus einem Stück, also suchen wir die Stellen,
+// an denen es den Boden berührt: vorn und hinten, links und rechts. Aus der Breite des Reifens in 20 cm Höhe ergibt sich sein Halbmesser.
+// Zurück kommt { r, x, vorn, hinten } – das Spiel setzt dort eigene Räder davor, die sich drehen können.
+export function raederVon(geo) {
+  const p = geo.attributes.position, b = geo.boundingBox, H = 0.2, stellen = [];
+  for (const vorn of [1, -1]) {
+    let zMin = 1e9, zMax = -1e9, mitteSumme = 0, n = 0, xMax = 0;
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i), z = p.getZ(i) * vorn; if (y < 0.04 && z > 0.4) { mitteSumme += z; n++; } }
+    const mitte = n ? mitteSumme / n : b.max.z * 0.62;
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i), z = p.getZ(i) * vorn, x = Math.abs(p.getX(i)); if (y < H && Math.abs(z - mitte) < 0.55) { zMin = Math.min(zMin, z); zMax = Math.max(zMax, z); if (y < 0.1) xMax = Math.max(xMax, x); } }
+    const sehne = zMax - zMin;
+    stellen.push({ z: mitte * vorn, r: Math.max(0.29, Math.min(0.4, (sehne * sehne / 4 + H * H) / (2 * H))), x: xMax });
+  }
+  return { r: (stellen[0].r + stellen[1].r) / 2, x: Math.max(stellen[0].x, stellen[1].x), vorn: stellen[0].z, hinten: stellen[1].z };
+}
+
 const fertig = new Map(), wartet = new Map();
 const lader = new GLTFLoader();
 
@@ -55,6 +71,7 @@ export function lade(name) {
       geo.computeBoundingBox(); geo.computeBoundingSphere();
       const mat = netz.material; if (!T.echt) { mat.metalness = 0; mat.roughness = Math.max(0.6, mat.roughness ?? 0.8); }
       const e = { geo, mat, gr: gr.multiplyScalar(mal) };
+      if (/^(auto_|streifenwagen)/.test(name)) e.raeder = raederVon(geo);
       fertig.set(name, e); ok(e);
     }, undefined, f => { console.warn('Modell fehlt: ' + name, f && f.message); fertig.set(name, null); ok(null); });
   });
