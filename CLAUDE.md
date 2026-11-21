@@ -70,6 +70,10 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
   Klötzchen-Figur aus (`ladePolizist(gruppe, datei)`). Eine neue Figur braucht keine Bewegungs-Aufnahmen mehr: `tools/figur/nach.js` (gestartet mit `nachbacken.mjs`) legt
   eine T-Pose-Figur aus 3D AI Studio auf Kims Gerüst und übernimmt ihre drei Bewegungen. Otto ist nur als Standbilder angesehen; beim Reden hebt er keine Hand
   und er läuft mit Kims Sprint (zu sportlich für ihn).
+- Menschen aus MakeHuman / MPFB (seit 21.11.2026, Wunsch des Nutzers; erste Person: Dr. Thomsen, `assets/modelle/thomsen.glb`, 37.000 Dreiecke, 2,3 MB, Bilder als WebP):
+  echtes Gesicht, Haut, Haare und Kleidung aus den CC0-Paketen von MakeHuman, gebaut ohne Fenster mit `tools/figur/mensch.py`, Bewegungen von Kim mit `uebertragen.js`.
+  Größe je Figur steht in `FIGUREN` in `js/polizist.js`. Ablauf: `tools/figur/LIESMICH.md`. Eine Polizei-Uniform gibt es in den Paketen nicht.
+  Nur als Standbilder angesehen; der Rock knickt hinten zwischen den Beinen etwas ein, vom Augenweiß sieht man wenig.
 - Stehen (Wunsch des Nutzers: natürlich, nicht „wie ein Stock“): `tools/figur/haltung.js` baut „stehen“ für Kim und Otto neu – Gewicht auf einem Bein, Arme neben dem
   Körper, Ellbogen gebeugt, atmen, Gewicht verlagern, umsehen. Von Hand gebaut, keine Aufnahme; nur als Standbilder von sechs Seiten und im Spiel angesehen.
   Neue Figuren und Bewegungen immer von allen Seiten in Nahaufnahme prüfen, bevor sie ins Spiel kommen.

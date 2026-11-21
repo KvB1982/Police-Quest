@@ -174,7 +174,7 @@ const museum = {
   ],
   leute: [
     { id: 'otto', x: -2.5, z: 5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, look: OTTO_LOOK },
-    { id: 'thomsen', x: 3.5, z: 5.5, name: 'Dr. Thomsen (Museumsleiterin)', akt: 'thomsen', look: { hemd: '#6a2f5a', hose: '#222', haut: '#f0c8a0', haar: '#8a3a1a' }, sieh: 'Dr. Thomsen, die Leiterin des Museums. Mantel über dem Schlafanzug, Schlüsselbund in der Faust. Sie zählt mit den Augen die Vitrinen.' },
+    { id: 'thomsen', x: 3.5, z: 5.5, name: 'Dr. Thomsen (Museumsleiterin)', akt: 'thomsen', look: { hemd: '#6a2f5a', hose: '#222', haut: '#f0c8a0', haar: '#8a3a1a', modell: 'thomsen' }, sieh: 'Dr. Thomsen, die Leiterin des Museums. Mantel über dem Schlafanzug, Schlüsselbund in der Faust. Sie zählt mit den Augen die Vitrinen.' },
     { id: 'brinkmann', x: 11.3, z: 5.2, h: -Math.PI / 2, name: 'Herr Brinkmann (Wärter)', akt: 'brinkmann', nah: 2.4, look: { hemd: '#5a5a3a', hose: '#3a3a2a', haut: '#e8b890', haar: '#777', sitzt: true }, sieh: 'Der Wärter. Er sitzt an der Wand und presst ein Taschentuch an den Hinterkopf. Seine Uniformjacke ist an der Schulter schmutzig.' },
   ],
 };

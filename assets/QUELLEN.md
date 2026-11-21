@@ -95,3 +95,5 @@ Selbst gemalt (in `js/bilder.js`, keine Datei): alle Hausfassaden mit Fenstern, 
 - `modelle/polizist.glb`: Figur aus 3D AI Studio (Bild und Modell selbst erzeugt, 21.11.2026; erfundene Person, kein Wappen; seit dem zweiten Modell vom selben Tag mit Dienstpistole im Holster). Bewegungen „gehen“ und „laufen“ aus zwei Aufnahmen von DeepMotion SayMotion, die Kristian erzeugt hat; „stehen“ ist selbst gebaut. Zusammengesetzt mit `tools/figur/`.
 
 - `otto.glb` – Otto Brandl: Figur aus 3D AI Studio (eigene Erzeugung, 21.11.2026), Knochen und Bewegungen aus `polizist.glb` übertragen (`tools/figur/nach.js`).
+
+- `thomsen.glb` – Dr. Thomsen: Körper, Haut, Augen, Haare, Kostüm und Stiefel aus MakeHuman / MPFB (Pakete makehuman_system_assets, hair01, suits01, shoes01 von files.makehumancommunity.org, alle CC0), zusammengebaut mit `tools/figur/mensch.py`, Bewegungen von Kim übertragen.

@@ -33,3 +33,29 @@ Schultern gegengleich, Arme neben dem Körper mit gebeugten Ellbogen, dazu atmen
 
 Nur einmal auf eine Datei anwenden (das Skript prüft das). Probebilder landen in `bilder/`. Besser wäre eine echte Aufnahme (zum Beispiel von Mixamo): Dann die Aufnahme
 in `bake.js` als weitere Bewegung einlesen statt `steh`.
+
+## Menschen aus MakeHuman / MPFB (in Arbeit)
+
+Für alle Personen außer Kim und Otto: frei verfügbare Menschen aus MakeHuman (CC0) statt Klötzchen.
+
+1. Einmal einrichten: `pip install bpy` (Blender als Python-Modul), `git clone --depth 1 https://github.com/makehumancommunity/mpfb2.git`,
+   den Ordner `mpfb2/src/mpfb` nach `~/.config/blender/<Version>/extensions/user_default/mpfb` kopieren.
+2. `python3 mensch.py person.glb '{"gender":1,"age":0.6,"weight":0.7}'` baut einen Körper mit dem Gerüst „mixamo“ (saubere Gewichte, einzelne Finger).
+3. `node uebertragen.mjs <Ordner von three> person.glb fertig.glb` überträgt stehen, gehen und laufen von `polizist.glb` (Drehungen im Raum, weil die Ruhe-Haltung anders ist).
+
+Noch offen: Haut, Kleidung, Haare und Augen. Die stecken im Paket `makehuman_system_assets_cc0.zip` von files.makehumancommunity.org – der Host war aus der
+Cloud-Umgebung nicht erreichbar. Ohne das Paket entstehen nur nackte, einfarbige Körper.
+
+### Angezogene Menschen (seit 21.11.2026, erste Person: Dr. Thomsen)
+
+Die CC0-Pakete von MakeHuman (Haut, Haare, Kleidung …) liegen als zip in den Projektdateien (`police-quest/makehuman/`, mit `liste.txt`), nicht im Repository.
+Sie werden in den Daten-Ordner von MPFB ausgepackt (`~/.config/blender/5.3/extensions/.user/user_default/mpfb/data`).
+
+```bash
+python3 mensch.py thomsen_roh.glb '{"gender":0.0,"age":0.62,"weight":0.32,"muscle":0.4,"height":0.5,"haut":"middleage_caucasian_female","brauen":"eyebrow001","wimpern":"eyelashes01","haare":"toigo_curled_under_bob","augenfarbe":"green","sparen":0.45,"kleidung":["toigo_female_suit","toigo_ankle_boots_female"],"farbe":{"boots":[0.12,0.1,0.1]}}'
+node uebertragen.mjs <Ordner von three> thomsen_roh.glb thomsen.glb      # Bewegungen von Kim, Finger locker gekrümmt, Probebilder
+npx gltf-transform resize thomsen.glb k.glb --width 1024 --height 1024 && npx gltf-transform webp k.glb assets/modelle/thomsen.glb --quality 82
+```
+
+Danach in `js/polizist.js` bei `FIGUREN` eintragen (Größe in der Datei, Größe im Spiel) und in `daten.js` `look.modell: 'thomsen'` setzen.
+Nicht `gltf-transform simplify` benutzen – das zerstört die kleinen Augen. Dreiecke spart `"sparen"` (nur an der Kleidung).
