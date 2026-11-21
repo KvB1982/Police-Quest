@@ -3,6 +3,7 @@
 // Fertige Modelle (assets/modelle/) ersetzen die Kisten, sobald sie geladen sind.
 
 import * as THREE from 'three';
+import { polizistBewegen } from './polizist.js';
 import * as MOD from './modelle.js';
 import { baueStadt } from './stadtbau.js';
 
@@ -41,6 +42,7 @@ export function figur(look = {}) {
 // Beine und Arme schwingen lassen. tempo = wie schnell die Figur gerade läuft (0 = steht).
 export function figurBewegen(g, dt, tempo) {
   const u = g.userData;
+  if (u.mixer) return polizistBewegen(g, dt, tempo);        // das fertige Modell hat eigene Bewegungen (polizist.js)
   if (!u.bl) return;
   u.schritt += dt * tempo * 2.6;
   const w = tempo > 0.1 ? Math.sin(u.schritt) * 0.7 : 0;

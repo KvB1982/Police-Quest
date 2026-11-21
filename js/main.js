@@ -9,6 +9,7 @@ import * as STORY from './story.js';
 import * as UI from './oberflaeche.js';
 import * as KLANG from './klang.js';
 import { baueOrt, figur, figurBewegen, autoModell, spiegelBild } from './welt.js';
+import { ladePolizist } from './polizist.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as BILD from './bilder.js';
 import * as KARTE from './karte.js';
@@ -88,7 +89,7 @@ const wagen = autoModell('#f4f4f4', true);
 { const pm = new THREE.PMREMGenerator(renderer); spiegelBild(pm.fromScene(new RoomEnvironment(), 0.04).texture); pm.dispose(); }
 const zielSaeule = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 120, 20, 1, true),
   new THREE.MeshBasicMaterial({ color: '#ffd23a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
-kim.traverse(o => { if (o.isMesh) o.castShadow = true; }); wagen.traverse(o => { if (o.isMesh) o.castShadow = true; });
+kim.traverse(o => { if (o.isMesh) o.castShadow = true; }); ladePolizist(kim); wagen.traverse(o => { if (o.isMesh) o.castShadow = true; });
 szene.add(kim, wagen, zielSaeule);
 
 function groesse() {

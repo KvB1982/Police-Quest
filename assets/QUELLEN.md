@@ -89,3 +89,7 @@ Kopiert aus `Powershot/assets/gelaende/` (die Bank aus `Powershot/assets/`). Dor
 | `boden/boden_asphalt.jpg`, `boden/boden_gras.jpg` | Poly Haven (CC0), Vorlagen siehe Powershot | Fahrbahn, Wiesen, Umland |
 
 Selbst gemalt (in `js/bilder.js`, keine Datei): alle Hausfassaden mit Fenstern, Dachziegel, Wellen, Wolken, Lichtflecken, die Stadtkarte.
+
+## Spielfigur
+
+- `modelle/polizist.glb`: Figur aus 3D AI Studio (Bild und Modell selbst erzeugt, 21.11.2026; erfundene Person, kein Wappen, keine Waffe). Bewegungen „gehen“ und „laufen“ aus zwei Aufnahmen von DeepMotion SayMotion, die Kristian erzeugt hat; „stehen“ ist selbst gebaut. Zusammengesetzt mit `tools/figur/`.
