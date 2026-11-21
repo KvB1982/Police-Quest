@@ -14,3 +14,11 @@
    - je Hand drei Gelenke für alle vier Finger zusammen und eins für den Daumen dazubauen und die Finger krümmen (`KRUMM`), weil die Aufnahmen die Finger nicht bewegen
 
 Die FBX-Dateien liegen nicht im Repository (je 10 MB, mit der Vorführ-Figur von DeepMotion). Die Pfade in `backen.mjs` muss man an den eigenen Ordner anpassen.
+
+## Weitere Figuren (Otto und andere)
+
+Für eine weitere Figur braucht man die Aufnahmen nicht mehr: `nach.js` nimmt Gerüst und Bewegungen aus der fertigen `polizist.glb` und rechnet nur die Gewichte neu.
+
+1. Figur in 3D AI Studio erzeugen, am besten aus Kims Vorlage-Bild abgeleitet (gleiche T-Pose, gleiche Maße), dann mit `klein.mjs` verkleinern → `klein.glb`.
+2. `klein.glb`, `polizist.glb`, `schau.html`, `nach.js` in einen Ordner, dort `python3 -m http.server 8777`.
+3. `node nachbacken.mjs <Ordner von three> otto` schreibt `otto.glb` und Probebilder nach `bilder/`.
