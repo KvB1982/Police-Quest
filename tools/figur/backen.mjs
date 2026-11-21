@@ -1,0 +1,12 @@
+import { createRequire } from 'module'; import fs from 'fs'; const { chromium } = createRequire('/')('playwright');
+const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const p = await b.newPage({ viewport: { width: 1600, height: 800 } });
+p.on('console', m => m.type() === 'error' && console.log('!', m.text().slice(0, 300))); p.on('pageerror', e => console.log('!!', e.message.slice(0, 600)));
+await p.goto('http://localhost:8777/schau.html'); await p.waitForFunction('window.fertig');
+const r = await p.evaluate(async () => { const B = await backe(); window.B = B; s.add(B.wurzel); B.mx = new THREE.AnimationMixer(B.wurzel); const g = await alsGlb(B.wurzel, B.clips); return { mess: B.mess, glb: g }; });
+console.log(r.mess); fs.writeFileSync('polizist.glb', Buffer.from(r.glb, 'base64')); console.log('glb', fs.statSync('polizist.glb').size);
+const strip = async (name, clip, n, von) => { await p.evaluate(([clip, n, von]) => { const c = B.clips.find(c => c.name === clip); B.mx.stopAllAction(); const a = B.mx.clipAction(c); a.play(); const L = []; for (let i = 0; i < n; i++) L.push({ vor: () => { B.mx.setTime(c.duration * i / n); }, von, nach: [0, 0.95, 0] }); reihe(L, 2.1); }, [clip, n, von]); await p.screenshot({ path: `bilder/${name}.png` }); };
+await strip('p_stehen', 'stehen', 4, [0, 1, 5]); await p.evaluate(() => reihe([{ von: [0, 1, 5], nach: [0, 0.95, 0] }, { von: [5, 1, 0], nach: [0, 0.95, 0] }, { von: [0, 1, -5], nach: [0, 0.95, 0] }, { von: [3, 2.5, 3], nach: [0, 0.95, 0] }], 2.1)); await p.screenshot({ path: 'bilder/p_stehen_rund.png' });
+await strip('p_gehen_seite', 'gehen', 8, [5, 1, 0]); await strip('p_gehen_vorn', 'gehen', 8, [1.5, 1.2, 5]);
+await strip('p_laufen_seite', 'laufen', 8, [5, 1, 0]); await strip('p_laufen_vorn', 'laufen', 8, [1.5, 1.2, 5]);
+await b.close();
