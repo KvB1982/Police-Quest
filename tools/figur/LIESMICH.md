@@ -10,6 +10,7 @@
    - aus den Aufnahmen je einen Doppelschritt herausschneiden (Gehen: Bilder 5 bis 44 von `lauf.fbx`, Laufen: Bilder 129 bis 153 von `sprint.fbx`),
      auf der Stelle laufen lassen, gerade drehen und das Ende in den Anfang überblenden
    - „stehen“ selbst bauen (Arme hängen, Atmen)
-   - alles als eine GLB-Datei speichern (25 Knochen, drei Bewegungen)
+   - alles als eine GLB-Datei speichern (33 Knochen, drei Bewegungen)
+   - je Hand drei Gelenke für alle vier Finger zusammen und eins für den Daumen dazubauen und die Finger krümmen (`KRUMM`), weil die Aufnahmen die Finger nicht bewegen
 
 Die FBX-Dateien liegen nicht im Repository (je 10 MB, mit der Vorführ-Figur von DeepMotion). Die Pfade in `backen.mjs` muss man an den eigenen Ordner anpassen.
