@@ -13,7 +13,10 @@ Das ganze Konzept (vier große Fälle, Hintergrundgeschichte, Rätsel je Tag, Ta
 - Antworten, Code-Kommentare und Texte im Spiel auf **Deutsch**. Kommentare so schreiben, dass ein Kind mitlesen kann.
 - Kein Build-Schritt: reines HTML/CSS/JavaScript (ES-Module), three.js r160 über eine Import-Map von jsDelivr.
 - Commits als `KvB1982 <KvB1982@users.noreply.github.com>`.
-- Kinderfreundlich: keine Gewalt, keine Waffen im Einsatz, niemand stirbt. Fehler beenden nie das Spiel – Otto erklärt, man versucht es nochmal.
+- Ton (seit 21.11.2026, Wunsch des Nutzers): ein ernsthafter Krimi für 10- bis 12-Jährige, nicht kindlich. Milde Gewalt kommt vor (Stoß, Schlag, Rangelei,
+  Festnahme mit Handschellen, Brand, Verfolgung), die Polizei trägt Dienstwaffe. Grenzen: niemand stirbt, kein Blut im Bild, kein Schuss auf einen Menschen,
+  keine Drogen. „Waffe ziehen“ ist nur richtig, wenn jemand bewaffnet ist oder ein Leben in Gefahr ist; geschossen wird nur auf dem Schießstand.
+  Genau steht das im Konzept unter „Ton, Gewalt und Dienstwaffe“. Fehler beenden nie das Spiel – Otto sagt, was falsch war, man versucht es nochmal.
 - Nach Änderungen im Browser prüfen, nicht nur mit den Testwerkzeugen. Ehrlich sagen, was nur als Standbild geprüft wurde.
 
 ## Starten und testen
@@ -47,7 +50,7 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
 | `js/umland.js` | Alles rund um die Stadt, nur zum Ansehen: Felder, Deich, Strand, Landstraßen mit Alleen, Wälder, sechs Dörfer mit Kirche, Bauernhöfe, elf Windräder (drehen sich), Hügel am Horizont, Molen, Leuchtturminsel (`INSEL`, nachts mit kreisendem Lichtstrahl), Frachter, Fähre, Segelboote |
 | `js/verkehr.js`, `js/verkehrbau.js` | Verkehr und Fußgänger. Regeln ohne three.js: 46 Autos fahren rechts auf dem Straßennetz von Kreuzung zu Kreuzung (nicht durch Gassen, auf der Autobahn schneller), fahren im Bogen durch die Kreuzung, halten Abstand, immer nur ein Auto in der Kreuzung, bremsen für den Spieler, bilden mit Blaulicht eine Rettungsgasse (`GASSE`); 44 Fußgänger laufen auf dem Gehweg an den Straßen entlang und biegen an Kreuzungen ab (erst um die Hausecke: `m.ecke`). Beide gibt es nur in der Nähe des Spielers (werden sonst versetzt). `verkehrbau.js` zeichnet sie als Instanzen |
 | `js/karte.js` | Radar (rund, oben rechts; zu Fuß Norden oben, im Auto Fahrtrichtung oben; Ziel gelb, Streifenwagen weiß, am Rand festgehalten) und große Stadtkarte (Taste M oder Radar antippen; verschieben, zoomen, Straßennamen). Beide aus `PLAN` gemalt, Vorbild Reitturnier |
-| `js/story.js` | Die Geschichte (ohne three.js): `beginn`, `AKT` (eine Funktion je Aktion), `funk` (was man gerade funken kann), `ZONEN` (Stellen, an denen von selbst etwas passiert), `SACHEN`, `DURCHLAUF` (zum Prüfen), `MAX_PUNKTE`. Spricht nur über das Werkzeug `S` mit dem Spiel |
+| `js/story.js` | Die Geschichte (ohne three.js): `beginn`, `AKT` (eine Funktion je Aktion), `funk` (was man gerade funken kann), `ZONEN` (Stellen, an denen von selbst etwas passiert), `SACHEN`, `DURCHLAUF` (zum Prüfen, mit Fehlversuchen), `BESTE` (die richtigen Antworten), `MAX_PUNKTE`. Spricht nur über das Werkzeug `S` mit dem Spiel |
 | `js/welt.js` | Baut einen Ort in 3D: drinnen aus einfachen Formen, die Stadt über `baueStadt`. `baueOrt`, `figur`, `autoModell` (Kombi-Modell mit Blaulicht, bis es geladen ist Kisten), `schild` |
 | `js/oberflaeche.js` | Sprechblase, Auswahl, Zahlenschloss, Notizbuch/Tasche/Funk, Anzeige, Knöpfe, Startbild, Tagesende |
 | `js/klang.js`, `sounds/` | Alle Geräusche (`KLAENGE`: Datei, Lautstärke, Schleife, `mal` = zufällig etwas höher/tiefer). Lädt die Dateien aus `sounds/liste.json`, sonst Ersatz-Töne. 12 Aufnahmen von Freesound, alle CC0, Quellen in `LIZENZEN.md` (Pixabay sperrt Programme). Dauer-Geräusche sind Schleifen mit weich überblendetem Ende |
@@ -57,6 +60,9 @@ Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `a
 
 ## Bekannte Grenzen (Stand 21.11.2026)
 
+- Dienstwaffe, Handschellen und Pfefferspray gibt es bisher nur in der Tasche und in Auswahl-Fragen (Waffenkammer, Taschendieb, Einbrecher im Museum).
+  Einen eigenen Knopf „Ausrüstung“ oder „Waffe ziehen“ gibt es noch nicht, Verfolgung und Festnahme sind Text mit Auswahl, kein Mini-Spiel.
+  Der Einbrecher im Museum und der verletzte Wärter werden nur beschrieben: Brinkmann steht als Figur an der Wand, den Flüchtenden sieht man nicht.
 - Nur Fall 1, Tag 1. Geprüft mit `tools/story.mjs`, `tools/stadt.mjs` und in einem Test-Browser ohne Grafikkarte: Ein Test-Programm hat den Tag in der großen Stadt
   über die echte Oberfläche bis zum Ende gespielt (zu den Stellen wurde dabei gesprungen, nicht gefahren), dazu ein Stück gelaufen (Tippen) und gefahren.
   Nicht von Hand gespielt, nicht auf dem iPad, Töne nicht angehört.
