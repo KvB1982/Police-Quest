@@ -13,7 +13,7 @@ const KIND = { Spine: 'Spine1', Spine1: 'Spine2', Spine2: 'Neck', Neck: 'Head' }
 for (const S of ['Left', 'Right']) { Object.assign(KIND, { [S + 'Shoulder']: S + 'Arm', [S + 'Arm']: S + 'ForeArm', [S + 'ForeArm']: S + 'Hand', [S + 'UpLeg']: S + 'Leg', [S + 'Leg']: S + 'Foot', [S + 'Foot']: S + 'ToeBase' });
   for (const F of ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']) for (let g = 1; g <= 3; g++) KIND[S + 'Hand' + F + g] = S + 'Hand' + F + (g + 1); }
 // Kim und Otto haben statt einzelner Finger drei Sammel-Gelenke und einen Daumen. Die werden fest gekrümmt: locker oder ("faust": true) zur Faust.
-const KRUMM = { locker: [0.32, 0.5, 0.36, 0.35], faust: [0.85, 1.15, 0.7, 0.55] };      // Winkel für die drei Sammel-Gelenke und den Daumen (wie in bake.js)
+const KRUMM = { locker: [0.32, 0.5, 0.36, 0.35], faust: [0.85, 1.15, 0.7, 0.55], griff: [1.25, 1.45, 1.0, 0.75] };      // Winkel für die drei Sammel-Gelenke und den Daumen (wie in bake.js)
 const kreuz = (d, n) => { const x = d.clone().normalize(), z = x.clone().cross(n).normalize(), y = z.clone().cross(x); return Q().setFromRotationMatrix(new T.Matrix4().makeBasis(x, y, z)); };
 
 // ---- Eine Quelle lesen: Gerüst, Ruhe-Haltung und alle Bilder der Bewegung (Drehung jedes Knochens im Raum, Ort der Hüfte in Zentimetern)
@@ -82,7 +82,7 @@ window.uebertrage = async (figur, liste) => {
     let B = A.bilder(w.clip); if (w.von != null || w.bis != null) B = B.slice(Math.round((w.von || 0) * BPS), w.bis != null ? Math.round(w.bis * BPS) + 1 : undefined);
     if (B.length < 2) B = [B[0], B[0]];
     const h0 = B[0].h, h1 = B[B.length - 1].h, werte = Object.fromEntries(ordnung.map(n => [n, []])), huefte = [], zeiten = B.map((_, i) => i / BPS);
-    const hatFinger = !!A.ruhe.LeftHandMiddle1, fest = sammel ? sammelQ(w.faust ? 'faust' : 'locker') : {};
+    const hatFinger = !!A.ruhe.LeftHandMiddle1, fest = sammel ? sammelQ(w.griff ? 'griff' : w.faust ? 'faust' : 'locker') : {};
     B.forEach((P, i) => { const WB = {};
       for (const n of ordnung) { const von = WIE(n), e = eb(n);
         if (von) WB[n] = P.W[von].clone().multiply(ruheA[von].clone().invert()).multiply(aus[n]).multiply(ruheB[n]);
