@@ -33,3 +33,15 @@ Schultern gegengleich, Arme neben dem Körper mit gebeugten Ellbogen, dazu atmen
 
 Nur einmal auf eine Datei anwenden (das Skript prüft das). Probebilder landen in `bilder/`. Besser wäre eine echte Aufnahme (zum Beispiel von Mixamo): Dann die Aufnahme
 in `bake.js` als weitere Bewegung einlesen statt `steh`.
+
+## Menschen aus MakeHuman / MPFB (in Arbeit)
+
+Für alle Personen außer Kim und Otto: frei verfügbare Menschen aus MakeHuman (CC0) statt Klötzchen.
+
+1. Einmal einrichten: `pip install bpy` (Blender als Python-Modul), `git clone --depth 1 https://github.com/makehumancommunity/mpfb2.git`,
+   den Ordner `mpfb2/src/mpfb` nach `~/.config/blender/<Version>/extensions/user_default/mpfb` kopieren.
+2. `python3 mensch.py person.glb '{"gender":1,"age":0.6,"weight":0.7}'` baut einen Körper mit dem Gerüst „mixamo“ (saubere Gewichte, einzelne Finger).
+3. `node uebertragen.mjs <Ordner von three> person.glb fertig.glb` überträgt stehen, gehen und laufen von `polizist.glb` (Drehungen im Raum, weil die Ruhe-Haltung anders ist).
+
+Noch offen: Haut, Kleidung, Haare und Augen. Die stecken im Paket `makehuman_system_assets_cc0.zip` von files.makehumancommunity.org – der Host war aus der
+Cloud-Umgebung nicht erreichbar. Ohne das Paket entstehen nur nackte, einfarbige Körper.
