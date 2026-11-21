@@ -24,6 +24,8 @@ import { PLAN, GROSS } from './stadtplan.js';
 
 const OTTO_SIEH = 'Otto Brandl, dein Ausbilder. Grauer Bart, breite Schultern, die Mütze gerade. Seine Stiefel sind die saubersten der ganzen Wache.';
 const POLIZEI = { hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#5a3b22', muetze: '#f4f4f4' };
+// Otto hat ein fertiges Modell mit Knochen (assets/modelle/otto.glb). Bis es geladen ist, steht dort die Klötzchen-Figur.
+const OTTO_LOOK = { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15, modell: 'otto' };
 
 // Eine dünne Wand von (x1, z1) nach (x2, z2) – entweder waagerecht oder senkrecht.
 function wand(x1, z1, x2, z2) {
@@ -86,8 +88,8 @@ const wache = {
     { id: 'einsteigen', x: 4.2, z: 13.6, name: 'In den Streifenwagen einsteigen', art: 'punkt', akt: 'einsteigen_hof', wenn: 'briefing', nah: 1.6, farbe: '#3fa7ff', sieh: 'Die Fahrertür von Möwe 14.' },
   ],
   leute: [
-    { id: 'otto', x: 2, z: 3.5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, bis: 'briefing', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
-    { id: 'otto', x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'briefing', look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
+    { id: 'otto', x: 2, z: 3.5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, bis: 'briefing', look: OTTO_LOOK },
+    { id: 'otto', x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'briefing', look: OTTO_LOOK },
     { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', look: { ...POLIZEI, haar: '#1e1a17', muetze: null }, sieh: 'Selin Aydin leitet die Wache. Kerzengerade, die Uniform wie gebügelt. Sie sieht von ihren Unterlagen auf, bevor du etwas sagst.' },
     { id: 'petersen', x: 9, z: -7, name: 'Frau Petersen (Leitstelle)', akt: 'petersen', look: { hemd: '#7a4fa0', hose: '#333', haut: '#f0c8a0', haar: '#d8d2c4' }, sieh: 'Frau Petersen sitzt mit Kopfhörer am Funkpult. Vor ihr drei Bildschirme und eine Tasse mit einer Möwe darauf.' },
     { id: 'hanne', x: 11.2, z: -2.5, name: 'Hanne (Kantine)', akt: 'hanne', look: { hemd: '#ffffff', hose: '#444', haut: '#e8b890', haar: '#a03a2a' }, sieh: 'Hanne steht hinter der Theke der Kantine und wischt, obwohl alles sauber ist. Ihr entgeht hier nichts.' },
@@ -123,7 +125,7 @@ const stadt = {
     { id: 'museumstuer', x: 74, z: 30, name: 'Tür zum Stadtmuseum', art: 'tuer', akt: 'museumstuer', nah: 2.4, sieh: 'Eine schwere Holztür mit Messinggriff. Daneben ein Schild: Stadtmuseum Möwenbrück, geöffnet 10 bis 17 Uhr.' },
   ],
   leute: [
-    { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
+    { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, look: OTTO_LOOK },
     { id: 'erzieherin', x: -44, z: 53.4, name: 'Erzieherin der Kita', akt: 'erzieherin', wenn: 'angemeldet', look: { hemd: '#e86a8a', hose: '#3b5a7a', haut: '#e8b890', haar: '#2a1a12' }, sieh: 'Eine Erzieherin der Kita Sonnenhang. Sie sieht alle paar Sekunden auf die Uhr und dann die Straße hinunter.' },
     { id: 'baecker', x: -21, z: 53.6, name: 'Bäcker vor der Bäckerei', akt: 'baecker', look: { hemd: '#ffffff', hose: '#f0f0f0', haut: '#f0c8a0', haar: '#7a5a3a', muetze: '#ffffff', bauch: 1.2 }, sieh: 'Ein Bäcker in weißer Jacke, Mehl bis zu den Ellbogen. Auf dem Schild über der Tür steht: Bäckerei Kruse.' },
     { id: 'verletzte', x: -90.3, z: 107.6, name: 'Fahrerin im roten Wagen', akt: 'verletzte', wenn: 'unfall', bis: 'flucht', nah: 2.6, sieh: 'Eine Frau um die fünfzig hinter dem Steuer. Blass, eine Hand im Nacken. Der Sicherheitsgurt ist noch angelegt.', look: { hemd: '#3f7f8a', hose: '#444', haut: '#f0c8a0', haar: '#6a4a3a' } },
@@ -171,7 +173,7 @@ const museum = {
     { id: 'ausgang', x: 0, z: 7.6, name: 'Hinausgehen', art: 'tuer', akt: 'ausgang', nah: 1.6, sieh: 'Die Tür nach draußen. Durch den Spalt fällt blaues Flackern herein: euer Streifenwagen.' },
   ],
   leute: [
-    { id: 'otto', x: -2.5, z: 5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, look: { ...POLIZEI, haar: '#b9b9b9', bart: '#b9b9b9', bauch: 1.15 } },
+    { id: 'otto', x: -2.5, z: 5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, look: OTTO_LOOK },
     { id: 'thomsen', x: 3.5, z: 5.5, name: 'Dr. Thomsen (Museumsleiterin)', akt: 'thomsen', look: { hemd: '#6a2f5a', hose: '#222', haut: '#f0c8a0', haar: '#8a3a1a' }, sieh: 'Dr. Thomsen, die Leiterin des Museums. Mantel über dem Schlafanzug, Schlüsselbund in der Faust. Sie zählt mit den Augen die Vitrinen.' },
     { id: 'brinkmann', x: 11.3, z: 5.2, h: -Math.PI / 2, name: 'Herr Brinkmann (Wärter)', akt: 'brinkmann', nah: 2.4, look: { hemd: '#5a5a3a', hose: '#3a3a2a', haut: '#e8b890', haar: '#777', sitzt: true }, sieh: 'Der Wärter. Er sitzt an der Wand und presst ein Taschentuch an den Hinterkopf. Seine Uniformjacke ist an der Schulter schmutzig.' },
   ],

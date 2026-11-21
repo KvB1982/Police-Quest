@@ -444,7 +444,7 @@ function ottoFolgt(dt) {
     const tempo = d > 12 ? 40 : d > 1.2 ? LAUF_TEMPO * 1.05 : 0;      // zu weit weg: hinterherspringen
     if (tempo) { o.x += dx / d * Math.min(d, tempo * dt); o.z += dz / d * Math.min(d, tempo * dt); o.mesh.rotation.y = Math.atan2(dx, dz); }
     o.mesh.position.set(o.x, 0, o.z);
-    figurBewegen(o.mesh, dt, tempo ? 4 : 0); o.geht = !!tempo;
+    o.mesh.userData.selbst = true; figurBewegen(o.mesh, dt, tempo ? 4 : 0); o.geht = !!tempo;
   }
 }
 

@@ -17,8 +17,9 @@ const WECHSEL = 7;                  // so schnell wird zwischen zwei Bewegungen 
 const HELLER = 1.5;                 // die dunkelblaue Uniform wäre im Spiel fast schwarz – so viel heller wird die Figur gemalt
 
 // Tauscht die Kisten-Figur in "gruppe" gegen das Modell aus, sobald es geladen ist. Klappt das Laden nicht, bleibt die Kisten-Figur.
-export function ladePolizist(gruppe) {
-  new GLTFLoader().load('assets/modelle/polizist.glb', gltf => {
+// datei = welche Figur: 'polizist' (Kim) oder 'otto'. Alle Figuren haben dasselbe Knochen-Gerüst und dieselben drei Bewegungen.
+export function ladePolizist(gruppe, datei = 'polizist') {
+  new GLTFLoader().load(`assets/modelle/${datei}.glb`, gltf => {
     const modell = gltf.scene;
     modell.scale.multiplyScalar(GROSS / MODELL_HOCH);
     modell.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material.color.setScalar(HELLER); } });      // die Figur ist immer im Bild, also nie wegrechnen
@@ -29,7 +30,7 @@ export function ladePolizist(gruppe) {
       const a = mixer.clipAction(THREE.AnimationClip.findByName(gltf.animations, name));
       a.play(); a.setEffectiveWeight(name === 'stehen' ? 1 : 0); teile[name] = { a, stark: name === 'stehen' ? 1 : 0 };
     }
-    gruppe.userData = { mixer, teile };
+    gruppe.userData = { ...gruppe.userData, mixer, teile, al: null, bl: null };
   }, undefined, () => {});
 }
 
