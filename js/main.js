@@ -15,6 +15,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as BILD from './bilder.js';
 import * as KARTE from './karte.js';
 import { baueHimmel } from './himmel.js';
+import { baueWetter } from './wetter.js';
 import { baueUmland } from './umland.js';
 import { neuerVerkehr } from './verkehr.js';
 import { baueVerkehr } from './verkehrbau.js';
@@ -85,6 +86,7 @@ function tempoMessen(dt) {
 }
 // Himmel, Umland und Verkehr gibt es nur draußen in der Stadt. Sie werden beim Start einmal gebaut.
 let himmel = null, umland = null, verkehr = null, verkehrBild = null;
+let wetter = null;               // Regen, Wind, Nebel, Gewitter (wetter.js) – legt sich über das Licht von Tag, Abend und Nacht
 
 const kim = figur({ hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#7a4a22', muetze: '#f4f4f4' });
 // Kamera im Auto: so viele Meter hinter dem Wagen und so hoch. Kleiner = der Wagen ist größer im Bild.
@@ -118,7 +120,8 @@ function lichtSetzen(name) {
   sonne.castShadow = draussen && name !== 'dunkel' && !sparsam;
   if (draussen && himmel) {
     // In der Stadt: echter Himmel mit Wolken, Dunst in der Ferne, Fenster und Laternen an oder aus
-    himmel.setze(name); umland.licht(name); verkehrBild.licht(name); welt.stadt.licht(name);
+    const lampen = wetter ? wetter.lampen(name) : name;         // bei Gewitter gehen auch am Tag die Lichter an
+    himmel.setze(name); umland.licht(lampen); verkehrBild.licht(lampen); welt.stadt.licht(lampen);
     szene.background = new THREE.Color(himmel.dunst);
     szene.fog = new THREE.Fog(himmel.dunst, name === 'tag' ? 260 : 160, name === 'tag' ? SICHT : SICHT * 0.75);
     oben.color.set(name === 'nacht' ? '#8fa4d8' : name === 'abend' ? '#ffd9c0' : '#ffffff'); oben.groundColor.set(name === 'nacht' ? '#1a2238' : '#8a8a7a');
@@ -127,6 +130,7 @@ function lichtSetzen(name) {
     szene.fog = new THREE.Fog(l.himmel, name === 'dunkel' ? 30 : 120, name === 'dunkel' ? 60 : 420);
     oben.color.set('#ffffff'); oben.groundColor.set('#8a8a7a'); sonne.position.set(30, 60, 40); sonne.target.position.set(0, 0, 0);
   }
+  if (wetter) wetter.basis(name, draussen);       // das Wetter merkt sich diese Einstellung und legt sich darüber
 }
 
 // ------------------------------------------------------------------ Orte wechseln
@@ -188,6 +192,8 @@ const S = {
   auto(an) { Z.imAuto = an; if (an) Z.auto = { x: spieler.x, z: spieler.z, h: -Math.PI / 2, v: 0 }; sichtbarkeit(); kameraSetzen(1); },
   imWagen: () => Z.imAuto,
   licht: lichtSetzen,
+  wetter: name => wetter.setze(name),              // ein Wetter festlegen (Namen in wetterplan.js), ohne Namen wieder nach Plan
+  blitz: weit => wetter.blitz(weit),               // ein Blitz in der Nähe
   uhr(t) { Z.uhr = t; anzeigen(); },
   blaulicht: () => Z.blaulicht,                    // 0 = aus, 1 = nur Blaulicht, 2 = Blaulicht mit Sirene
   blaulichtAn: stufe => blaulichtSetzen(stufe),
@@ -214,7 +220,7 @@ async function tu(akt, def) {
 function anzeigen() {
   // In der Stadt steht oben links, in welcher Straße oder in welchem Viertel du gerade bist.
   const ort = welt && welt.stadt ? `${woBinIch(spieler.x, spieler.z)} · Möwenbrück` : ORTE[Z.ort].name;
-  UI.anzeige({ ziel: Z.ziel && Z.ziel.text, punkte: Z.punkte, uhr: Z.uhr, ort });
+  UI.anzeige({ ziel: Z.ziel && Z.ziel.text, punkte: Z.punkte, uhr: Z.uhr + (wetter ? ' · ' + wetter.bild : ''), ort });
 }
 
 // ------------------------------------------------------------------ Dauer-Geräusche (alles andere steht in klang.js)
@@ -227,7 +233,31 @@ function geraeusche(dt) {
   KLANG.schleife('moewen', stadt && Z.licht !== 'nacht' ? 0.25 + Math.max(0, 1 - (spieler.z - UFER) / 160) * 0.75 : 0);      // am Wasser lauter
   KLANG.schleife('alarm', stadt && Z.flags.alarm && !Z.flags.tagEnde ? nah(74, 30, 70) : 0);
   if (!Z.imAuto && spieler.tempo > 0 && (schrittZeit -= dt) <= 0) { schrittZeit = 0.34; KLANG.spiel('schritt'); }
+  KLANG.musik(musikWahl());
 }
+
+// Welche Hintergrundmusik passt gerade? (Die Stücke und der Schalter stehen in klang.js.)
+const HAFEN_NAH = 90;            // so viele Meter vom Ufer weg hört man zu Fuß noch die Hafen-Musik
+function musikWahl() {
+  if (UI.menueOffen()) return 'titel';
+  if (UI.schlossOffen()) return 'raetsel';
+  const stadt = Z.ort === 'stadt';
+  if (stadt && Z.flags.flucht && !Z.flags.jagdFertig) return 'jagd';
+  if (Z.ort === 'museum') return 'museum';
+  if (Z.ort === 'wache') return 'wache';
+  if (Z.licht === 'nacht' || Z.licht === 'dunkel' || (Z.flags.alarm && !Z.flags.tagEnde)) return 'spannung';
+  if (!Z.imAuto && spieler.z - UFER < HAFEN_NAH) return 'hafen';
+  return 'streife';
+}
+const MUSIK_KNOPF = [['🎵', 'Musik: laut'], ['🎵', 'Musik: leise'], ['🔇', 'Musik: aus']];
+function musikKnopf(stufe) {
+  const b = document.getElementById('kMusik'); if (!b) return;
+  b.textContent = MUSIK_KNOPF[stufe][0]; b.title = MUSIK_KNOPF[stufe][1] + ' (Taste U)'; b.classList.toggle('leise', stufe === 1);
+}
+function musikWeiter() { KLANG.an(); const s = KLANG.musikSchalter(); musikKnopf(s); UI.toast(MUSIK_KNOPF[s][0] + ' ' + MUSIK_KNOPF[s][1]); }
+musikKnopf(KLANG.musikStand().stufe);
+document.getElementById('kMusik').onclick = musikWeiter;
+addEventListener('pointerdown', () => KLANG.an(), { capture: true });      // schon auf dem Startbild: Ton an, sobald man irgendwo tippt
 
 // ------------------------------------------------------------------ Was kann man gerade tun?
 function abstand(ax, az, bx, bz) { return Math.hypot(ax - bx, az - bz); }
@@ -676,6 +706,7 @@ function schritt(dt) {
   kamSchritt(dt);
   kameraSetzen(1 - Math.exp(-dt * (Z.imAuto ? 4 : 7)));
   if (welt.stadt) stadtSchritt(dt);
+  if (wetter) { if (welt.stadt) wetter.fahnen(welt.stadt.schnitt); wetter.schritt(dt, { x: blick.x, z: blick.z, flags: Z.flags, imAuto: Z.imAuto, sparsam, stadt: welt.stadt }); }
   jagdLauf(dt, frei); gastSchritt(dt);
   klappenSchritt(dt); leuteLeben(dt);
   wegweiser();
@@ -693,6 +724,7 @@ addEventListener('keydown', e => {
   if (KARTE.kartOffen()) { if (k === 'm' || k === 'Escape' || k === 'Enter') KARTE.karteZu(); e.preventDefault(); return; }
   if (UI.taste(k)) { e.preventDefault(); return; }
   if (TASTE[k]) { tasten[TASTE[k]] = true; e.preventDefault(); return; }
+  if (k === 'u') { musikWeiter(); return; }          // Musik geht immer, auch mitten im Gespräch
   if (KAM_TASTE[k]) { kam.taste = KAM_TASTE[k]; e.preventDefault(); return; }
   if (beschaeftigt) return;
   if (k === 'e' || k === 'Enter') { const m = moeglich(); if (m.length) m[0].tun(); }
@@ -994,7 +1026,7 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal,
+window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal,
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {
@@ -1002,6 +1034,8 @@ async function start() {
   try { alt = JSON.parse(localStorage.getItem(SPEICHER)); } catch (e) { alt = null; }
   await BILD.ladeBilder();           // Bodenbilder (Asphalt, Pflaster, Gras …) zuerst laden
   himmel = baueHimmel(); umland = baueUmland(); verkehr = neuerVerkehr(); verkehrBild = baueVerkehr(verkehr);
+  wetter = baueWetter({ szene, kamera, oben, sonne, himmel, melde: UI.toast, neuesLicht: () => lichtSetzen(Z.licht) });
+  if (WUNSCH.get('wetter')) wetter.setze(WUNSCH.get('wetter'), true);       // zum Ausprobieren: ?wetter=gewitter
   lichtSetzen('tag'); ortLaden('wache', 0, 3.5); anzeigen();
   requestAnimationFrame(schleife);
   const was = await UI.menue(!!alt);

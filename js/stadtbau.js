@@ -6,6 +6,8 @@
 // eine Form, viele Male hingestellt. Nur die nächsten bekommen das schöne geladene Modell (siehe NahTausch).
 
 import * as THREE from 'three';
+import { WIND } from './wetterplan.js';
+import { imWind } from './wetter.js';
 import * as BILD from './bilder.js';
 import * as MOD from './modelle.js';
 import { PLAN, UFER, FLEET, STADT_RAND, viertel, ortAuf, wuerfel } from './stadtplan.js';
@@ -126,6 +128,7 @@ class NahTausch {
     MOD.lade(modellName).then(m => {
       if (!m) return;
       if (schnitt) { m.mat.clippingPlanes = [schnitt]; m.mat.side = THREE.DoubleSide; }
+      if (modellName.startsWith('baum')) imWind(m.mat);           // Bäume wiegen sich im Wind
       this.modell = new THREE.InstancedMesh(m.geo, m.mat, platz);
       this.modell.count = 0; this.modell.castShadow = true; this.modell.frustumCulled = false;
       gruppe.add(this.modell);
@@ -381,7 +384,8 @@ export function baueStadt() {
   }
 
   // ---- Materialien und fertige Formen
-  const bodenMat = (name, extra = {}) => new THREE.MeshStandardMaterial({ map: BILD.boden(name), vertexColors: true, roughness: 0.95, ...extra });
+  const boeden = [];        // alle Boden-Materialien: Bei Regen werden sie dunkel und glänzend (siehe nass)
+  const bodenMat = (name, extra = {}) => { const m = new THREE.MeshStandardMaterial({ map: BILD.boden(name), vertexColors: true, roughness: 0.95, ...extra }); m.userData.gras = name === 'boden_gras'; boeden.push(m); return m; };
   const MAT = {
     gehweg: () => bodenMat('boden_gehweg'), asphalt: () => bodenMat('boden_asphalt'), kopfstein: () => bodenMat('boden_kopfstein'), gras: () => bodenMat('boden_gras'),
     steg: () => bodenMat('boden_steg'), stein: () => bodenMat('boden_kopfstein', { side: THREE.DoubleSide }),
@@ -415,8 +419,8 @@ export function baueStadt() {
   const GRUEN = ['#4f8040', '#5a8c46', '#44763a', '#648f48', '#4c7c42'];
   const laub = P.baeume.filter(b => b.art !== 'fichte'), fichten = P.baeume.filter(b => b.art === 'fichte');
   const setzBaum = (o, b, i, modell) => { o.position.set(b.x, 0, b.z); o.rotation.y = i * 2.4; o.scale.setScalar(modell ? b.h / 8 : b.h); return modell ? null : GRUEN[i % GRUEN.length]; };
-  const laubIM = instanzenGeteilt(baumForm(), schnittMat(), laub, setzBaum); gruppe.add(laubIM.gruppe);
-  gruppe.add(instanzenGeteilt(tanneForm(), schnittMat(), fichten, (o, b, i) => { o.position.set(b.x, 0, b.z); o.scale.setScalar(b.h * 1.2); return ['#3f6f4a', '#4a7a52', '#37634a'][i % 3]; }).gruppe);
+  const laubIM = instanzenGeteilt(baumForm(), imWind(schnittMat()), laub, setzBaum); gruppe.add(laubIM.gruppe);
+  gruppe.add(instanzenGeteilt(tanneForm(), imWind(schnittMat()), fichten, (o, b, i) => { o.position.set(b.x, 0, b.z); o.scale.setScalar(b.h * 1.2); return ['#3f6f4a', '#4a7a52', '#37634a'][i % 3]; }).gruppe);
   tausch.push(new NahTausch(gruppe, laub, laubIM, setzBaum, 'baum_laub', 12, 60, schnitt));
   for (const alt of [true, false]) {
     const liste = P.laternen.filter(l => !!l.alt === alt);
@@ -451,15 +455,21 @@ export function baueStadt() {
   const bojen = [[-300, -230], [-60, -260], [150, -240], [420, -250], [272, -170]].map(([x, z]) => ({ x, z }));
   MOD.lade('boje').then(m => { if (m) { m.geo.translate(0, -1.6, 0); gruppe.add(instanzen(m.geo, m.mat, bojen, (o, d) => { o.position.set(d.x, 0, d.z); })); } });
 
-  let uhr = 0, tauschZeit = 0;
+  let uhr = 0, tauschZeit = 0, welle = 0;
   return {
     gruppe, schnitt, tausch,
     parkBewegt(p) { parkTausch[p.art].versetzt(p); },
     // dt = vergangene Zeit, x/z = wo der Spieler ist
     schritt(dt, x, z) {
       uhr += dt;
-      if (wasserMat) wasserMat.map.offset.set(uhr * 0.006, uhr * 0.011);
+      welle += dt * (0.6 + WIND.uWind.value * 1.6);            // bei Wind laufen die Wellen schneller
+      if (wasserMat) wasserMat.map.offset.set(welle * 0.006, welle * 0.011);
       if ((tauschZeit -= dt) <= 0) { tauschZeit = 0.5; for (const t of tausch) t.neu(x, z); }
+    },
+    // Regen: k = 0 trocken … 1 klatschnass. Nasse Straßen sind dunkler und spiegeln das Licht von Laternen, Scheinwerfern und Blaulicht.
+    nass(k) {
+      fleck.material.opacity = 0.5 + 0.4 * k;                  // die Lichtflecken der Laternen spiegeln sich im nassen Pflaster
+      for (const m of boeden) { m.roughness = m.userData.gras ? 0.95 - 0.25 * k : 0.95 - 0.67 * k; m.color.setScalar(1 - (m.userData.gras ? 0.22 : 0.42) * k); }
     },
     // abends und nachts leuchten Fenster und Laternen
     licht(name) {
