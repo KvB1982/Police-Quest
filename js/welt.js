@@ -43,7 +43,7 @@ export function figur(look = {}) {
     const tief = new THREE.Group(); tief.position.y = -0.68; tief.add(...g.children); g.add(tief); g.userData.sitzt = true;
   }
   // Gibt es für diese Person ein fertiges Modell mit Knochen (assets/modelle/<modell>.glb)? Dann ersetzt es die Klötzchen, sobald es geladen ist.
-  if (look.modell) ladePolizist(g, look.modell);
+  if (look.modell) ladePolizist(g, look.modell, look.art || 'polizei', look.sitzt ? 'sitzen' : null, look.rucksack || null);
   return g;
 }
 
@@ -55,7 +55,7 @@ export function figurLeben(g, dt, zeit, spricht, zu) {
   if (u.grund === undefined) { u.grund = g.rotation.y; u.takt = Math.abs(Math.sin(g.position.x * 12.9 + g.position.z * 78.2)) * 6; u.rede = 0; }
   // langsam drehen: zu dir, wenn du nah bist – sonst zurück in die Grundstellung
   let d = (zu ?? u.grund) - g.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-  if (u.sitzt) return;
+  if (u.sitzt) { if (u.mixer) polizistBewegen(g, dt, 0); return; }
   g.rotation.y += d * Math.min(1, dt * 4);
   // Ein fertiges Modell atmet mit seiner eigenen Bewegung "stehen" (läuft es gerade jemandem hinterher, bewegt es sich schon selbst)
   if (u.mixer) { if (!u.selbst) polizistBewegen(g, dt, 0); return; }

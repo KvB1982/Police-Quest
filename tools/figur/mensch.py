@@ -51,6 +51,9 @@ for o in [h] + teile:
         elif m.type != 'ARMATURE': o.modifiers.remove(m)
     if o.get('teil') == 'Clothes' and wahl.get('sparen', 1) < 1 and len(o.data.polygons) > 3000:      # Kleidung hat sehr viele Dreiecke – hier reicht ein Teil davon
         m = o.modifiers.new('sparen', 'DECIMATE'); m.ratio = wahl['sparen']; bpy.ops.object.modifier_apply(modifier=m.name)
+    if o.get('teil') in ('Hair', 'Eyebrows', 'Eyelashes', 'Eyes'):      # hängt alles fest am Kopf – sonst bleiben einzelne Haar-Spitzen in der Luft stehen
+        for g in list(o.vertex_groups): o.vertex_groups.remove(g)
+        o.vertex_groups.new(name='mixamorig:Head').add(list(range(len(o.data.vertices))), 1.0, 'REPLACE')
     for g in list(o.vertex_groups):
         if not g.name.startswith('mixamorig'): o.vertex_groups.remove(g)
     print('TEIL', o.name, 'Punkte', len(o.data.vertices), 'Dreiecke', sum(len(p.vertices) - 2 for p in o.data.polygons), [s.material.name if s.material else None for s in o.material_slots])
@@ -73,6 +76,37 @@ for wort, f in wahl.get('farbe', {}).items():
             for n in s.material.node_tree.nodes:
                 if n.type == 'TEX_IMAGE' and n.image and any(l.to_socket.name == 'Base Color' for l in n.outputs['Color'].links):
                     b = n.image; px = np.array(b.pixels[:]).reshape(-1, 4); px[:, :3] *= np.array(f); b.pixels[:] = px.ravel(); b.update(); print('gefärbt', o.name, b.name)
+
+# Anderer Stoff: "stoff": {"casualsuit01": "male_casualsuit01/toigo_male_casual_suit_01_khaki/male_casualsuit01_Khaki.png"} tauscht das Farbbild aus (Pfad ab dem Ordner clothes)
+# Umfärben: "toenen": {"casualsuit05": {"farbe": [0.2, 0.6, 0.25], "ohne": [0, 0.55, 0.6, 1]}} macht das Bild erst grau und dann farbig –
+#   so wird aus einer grauen Jacke eine grüne. "ohne" = ein Feld im Bild (links, oben, rechts, unten von 0 bis 1), das bleibt, wie es ist (zum Beispiel die Hose).
+def farbbilder(o):
+    for s in o.material_slots:
+        for n in s.material.node_tree.nodes:
+            if n.type == 'TEX_IMAGE' and n.image and any(l.to_socket.name == 'Base Color' for l in n.outputs['Color'].links): yield n
+for wort, pfad in wahl.get('stoff', {}).items():
+    for o in teile:
+        if wort in o.name:
+            for n in farbbilder(o): n.image = bpy.data.images.load(os.path.join(DATEN, 'clothes', pfad)); print('Stoff', o.name, pfad)
+for wort, t in wahl.get('toenen', {}).items():
+    for o in [h] + teile:
+        if wort not in o.name: continue
+        for n in farbbilder(o):
+            b = n.image; br, ho = b.size; px = np.array(b.pixels[:]).reshape(ho, br, 4)
+            grau = px[:, :, :3].mean(axis=2, keepdims=True); neu = np.clip(grau * t.get('hell', 2.0), 0, 1) * np.array(t['farbe'])
+            if 'ohne' in t:
+                x0, y0, x1, y1 = t['ohne']; z0, z1 = int((1 - y1) * ho), int((1 - y0) * ho); alt = px[z0:z1, int(x0 * br):int(x1 * br), :3].copy()
+                px[:, :, :3] = neu; px[z0:z1, int(x0 * br):int(x1 * br), :3] = alt
+            else: px[:, :, :3] = neu
+            b.pixels[:] = px.ravel(); b.update(); print('getönt', o.name, b.name)
+
+# Stoff glänzt nicht wie Lack: Kleidung und Haare matt machen
+for o in teile:
+    for sl in o.material_slots:
+        for n in sl.material.node_tree.nodes:
+            if n.type == 'BSDF_PRINCIPLED':
+                for l in list(n.inputs['Roughness'].links): sl.material.node_tree.links.remove(l)
+                n.inputs['Roughness'].default_value = max(0.85, n.inputs['Roughness'].default_value)
 
 # Farbbilder verkleinern
 for b in bpy.data.images:

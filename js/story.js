@@ -227,7 +227,7 @@ export const AKT = {
       ]);
       if (a === 2) break;
       if (a === 0) await S.sag(OTTO, 'Weg da! Niemand stellt sich vor ein Auto, das flieht. Blech hält man nicht mit dem Körper auf. Was macht man stattdessen?');
-      else { S.flag('waffeFalsch3'); await S.sag(OTTO, 'Nein! Mitten in der Stadt, mit Leuten auf dem Gehweg? Hier wird nicht geschossen. Was macht man stattdessen?'); }
+      else { S.flag('waffeFalsch3'); S.zeig('ziehen', true); await S.sag(OTTO, 'Nein! Mitten in der Stadt, mit Leuten auf dem Gehweg? Hier wird nicht geschossen. Was macht man stattdessen?'); S.zeig('wegstecken'); }
     }
     await S.sag('', 'Der Kombi schrammt am roten Wagen entlang und jagt die Marktstraße hinunter nach Süden. Glassplitter rieseln auf den Asphalt.');
     await S.sag(KIM, 'Möwe 14 an alle: Fahrerflucht nach Unfall! Gestohlener dunkelblauer Kombi, MÖ-TR 388, Marktstraße Richtung Süden. Wir nehmen die Verfolgung auf.');
@@ -447,7 +447,7 @@ export const AKT = {
       ]);
       if (a === 2) break;
       if (a === 0) await S.sag(OTTO, 'Nein. Erst ansprechen. Noch ist er für uns nur ein Mann mit grüner Jacke. Nochmal.');
-      else { S.flag('waffeFalsch'); await S.sag(OTTO, 'Lass die stecken, Berger! Ein Taschendieb, mitten zwischen hundert Leuten? Die ziehst du, wenn ein Leben in Gefahr ist. Sonst nie. Nochmal.'); }
+      else { S.flag('waffeFalsch'); S.zeig('ziehen', true); await S.sag(OTTO, 'Lass die stecken, Berger! Ein Taschendieb, mitten zwischen hundert Leuten? Die ziehst du, wenn ein Leben in Gefahr ist. Sonst nie. Nochmal.'); S.zeig('wegstecken'); }
     }
     await S.sag('Mann', 'Ich? Wieso ich? Ich hab nichts gemacht.');
     S.klang('rumms');
@@ -459,7 +459,7 @@ export const AKT = {
         'Laufen lassen, es ist ja nur ein Portemonnaie',
       ]);
       if (a === 1) break;
-      if (a === 0) { S.flag('waffeFalsch'); await S.sag(OTTO, 'Waffe runter! Er läuft weg, er bedroht keinen. Auf so einen richtet man keine Pistole. Lauf!'); }
+      if (a === 0) { S.flag('waffeFalsch'); S.zeig('ziehen', true); await S.sag(OTTO, 'Waffe runter! Er läuft weg, er bedroht keinen. Auf so einen richtet man keine Pistole. Lauf!'); S.zeig('wegstecken'); }
       else await S.sag(OTTO, 'Der hat dich gerade gestoßen und die Rente einer alten Frau in der Tasche. Lauf!');
     }
     await S.sag('', 'Du rennst zwischen den Ständen durch. Am Fischstand stellt sich Otto ihm in den Weg. Der Mann schlägt nach ihm, Otto dreht sich weg – und du bekommst seinen Arm zu fassen.');
@@ -559,7 +559,7 @@ export const AKT = {
         '„Polizei! Stehen bleiben!“ – Lampe auf ihn, alles merken, sofort funken',
       ]);
       if (a === 2) break;
-      if (a === 0) { S.flag('waffeFalsch2'); await S.sag(OTTO, 'Nicht, Kim! Du siehst nicht, was hinter ihm ist, und er läuft weg. Holster. Was macht man stattdessen?'); }
+      if (a === 0) { S.flag('waffeFalsch2'); S.zeig('ziehen', true); await S.sag(OTTO, 'Nicht, Kim! Du siehst nicht, was hinter ihm ist, und er läuft weg. Holster. Was macht man stattdessen?'); S.zeig('wegstecken'); }
       else await S.sag('', 'Otto packt dich am Gürtel. „Allein im Dunkeln hinter einem her, der doppelt so breit ist wie du? Nein. Was macht man stattdessen?“');
     }
     S.punkte(2, 'Im Dunkeln richtig reagiert');

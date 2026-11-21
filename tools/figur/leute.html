@@ -1,0 +1,20 @@
+<!doctype html><body style="margin:0;background:#888"><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three'; import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(1500, 420); document.body.appendChild(r.domElement); r.autoClear = false;
+const s = new THREE.Scene(); s.background = new THREE.Color('#9aa3ad'); s.add(new THREE.HemisphereLight('#fff', '#667', 2.2)); const d = new THREE.DirectionalLight('#fff', 2.2); d.position.set(2, 4, 3); s.add(d);
+const L = new GLTFLoader(); let jetzt = null;
+window.zeig = async (name, art, clip = 'stehen', zeit = 1) => {
+  if (jetzt) s.remove(jetzt);
+  const g = await L.loadAsync('spiel/' + name + '.glb'), b = await L.loadAsync('spiel/bewegungen_' + art + '.glb'); jetzt = g.scene; s.add(jetzt);
+  jetzt.traverse(o => { if (o.material) { o.frustumCulled = false; if (o.material.transparent || o.material.alphaTest) { o.material.transparent = false; o.material.alphaTest = 0.4; o.material.depthWrite = true; } } });
+  const mx = new THREE.AnimationMixer(jetzt); mx.clipAction(b.animations.find(c => c.name === clip)).play(); mx.setTime(zeit); jetzt.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(jetzt), h = box.max.y - box.min.y, m = box.getCenter(new THREE.Vector3());
+  r.clear(); const sichten = [[0, 1], [0.7, 0.7], [1, 0], [0, -1]];
+  for (let i = 0; i < 5; i++) { const k = new THREE.PerspectiveCamera(i < 4 ? 28 : 12, 300 / 420, 0.05, 50);
+    if (i < 4) { k.position.set(m.x + sichten[i][0] * h * 2.3, m.y + h * 0.1, m.z + sichten[i][1] * h * 2.3); k.lookAt(m.x, m.y, m.z); }
+    else { k.position.set(m.x + h * 0.5, box.max.y - h * 0.07, m.z + h * 1.1); k.lookAt(m.x, box.max.y - h * 0.09, m.z); }
+    r.setScissorTest(true); r.setScissor(i * 300, 0, 300, 420); r.setViewport(i * 300, 0, 300, 420); r.render(s, k); }
+  return h; };
+window.fertig = true;
+</script>
