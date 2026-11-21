@@ -22,3 +22,14 @@ Für eine weitere Figur braucht man die Aufnahmen nicht mehr: `nach.js` nimmt Ge
 1. Figur in 3D AI Studio erzeugen, am besten aus Kims Vorlage-Bild abgeleitet (gleiche T-Pose, gleiche Maße), dann mit `klein.mjs` verkleinern → `klein.glb`.
 2. `klein.glb`, `polizist.glb`, `schau.html`, `nach.js` in einen Ordner, dort `python3 -m http.server 8777`.
 3. `node nachbacken.mjs <Ordner von three> otto` schreibt `otto.glb` und Probebilder nach `bilder/`.
+
+## Natürlich stehen (haltung.js)
+
+Die Bewegung „stehen“ aus `bake.js` ist steif (Arme am Körper, beide Beine durchgedrückt). `haltung.js` ersetzt sie: Gewicht auf einem Bein, Becken gekippt,
+Schultern gegengleich, Arme neben dem Körper mit gebeugten Ellbogen, dazu atmen, Gewicht verlagern und umsehen (Schleife von 9 Sekunden). Zahlen stehen oben als `STAND`.
+
+- Kim: `node haltung.mjs <Ordner von three> polizist.glb neu.glb`
+- Otto: `node haltung.mjs <Ordner von three> otto.glb neu.glb '{"seite":-1,"arm":0.27,"zurueck":0.05,"ellbogen":0.2,"becken":2.2,"blick":0.13,"dauer":10.5}'`
+
+Nur einmal auf eine Datei anwenden (das Skript prüft das). Probebilder landen in `bilder/`. Besser wäre eine echte Aufnahme (zum Beispiel von Mixamo): Dann die Aufnahme
+in `bake.js` als weitere Bewegung einlesen statt `steh`.

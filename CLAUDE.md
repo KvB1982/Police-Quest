@@ -68,8 +68,11 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
   (der verletzte Wärter), `h` = Blickrichtung.
 - Fertige Modelle mit Knochen: Kim und (seit 21.11.2026, als Probe) Otto (`assets/modelle/otto.glb`, 30.000 Dreiecke, 1,6 MB). `look.modell: 'otto'` in `daten.js` tauscht die
   Klötzchen-Figur aus (`ladePolizist(gruppe, datei)`). Eine neue Figur braucht keine Bewegungs-Aufnahmen mehr: `tools/figur/nach.js` (gestartet mit `nachbacken.mjs`) legt
-  eine T-Pose-Figur aus 3D AI Studio auf Kims Gerüst und übernimmt ihre drei Bewegungen. Otto ist nur als Standbilder angesehen; beim Reden hebt er keine Hand,
-  im Stehen sind die Schultern etwas eingezogen, und er läuft mit Kims Sprint (zu sportlich für ihn).
+  eine T-Pose-Figur aus 3D AI Studio auf Kims Gerüst und übernimmt ihre drei Bewegungen. Otto ist nur als Standbilder angesehen; beim Reden hebt er keine Hand
+  und er läuft mit Kims Sprint (zu sportlich für ihn).
+- Stehen (Wunsch des Nutzers: natürlich, nicht „wie ein Stock“): `tools/figur/haltung.js` baut „stehen“ für Kim und Otto neu – Gewicht auf einem Bein, Arme neben dem
+  Körper, Ellbogen gebeugt, atmen, Gewicht verlagern, umsehen. Von Hand gebaut, keine Aufnahme; nur als Standbilder von sechs Seiten und im Spiel angesehen.
+  Neue Figuren und Bewegungen immer von allen Seiten in Nahaufnahme prüfen, bevor sie ins Spiel kommen.
 - Nur als Standbilder im Test-Browser angesehen (Spind offen, Waffenschrank offen, Zimmertür offen, Wärter sitzt), die Bewegung selbst nicht.
 
 Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `akt` eine Funktion in `story.js`, den Weg in `DURCHLAUF` ergänzen, `node tools/story.mjs` laufen lassen.

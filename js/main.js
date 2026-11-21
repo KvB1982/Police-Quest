@@ -150,7 +150,7 @@ function sichtbarkeit() {
   if (!welt) return;
   for (const o of welt.objekte) {
     const d = o.def;
-    o.da = (!d.wenn || Z.flags[d.wenn]) && (!d.bis || !Z.flags[d.bis]);
+    o.da = !!((!d.wenn || Z.flags[d.wenn]) && (!d.bis || !Z.flags[d.bis]));
     o.mesh.visible = o.da && !(d.folgt && Z.imAuto);
   }
   welt.lose = welt.objekte.filter(o => o.da && o.fest).map(o => o.fest);      // Dinge, die kommen und gehen (der falsch geparkte Kombi …)
