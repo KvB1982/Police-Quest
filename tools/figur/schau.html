@@ -9,5 +9,5 @@ const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antial
 const s = new THREE.Scene(); s.add(new THREE.HemisphereLight('#ffffff', '#778', 2.2)); const d = new THREE.DirectionalLight('#fff', 2); d.position.set(2, 4, 3); s.add(d); window.s = s;
 // Malt mehrere Ansichten nebeneinander: liste = [{ vor: () => {...}, von: [x,y,z], nach: [x,y,z] }]
 window.reihe = (liste, hoch = 2.2) => { const n = liste.length, B = 1600 / n; r.setScissorTest(true); liste.forEach((a, i) => { a.vor && a.vor(); const k = new THREE.OrthographicCamera(-hoch * B / 800 / 2, hoch * B / 800 / 2, hoch / 2, -hoch / 2, 0.1, 100); k.position.set(...a.von); k.lookAt(...a.nach); r.setViewport(i * B, 0, B, 800); r.setScissor(i * B, 0, B, 800); r.render(s, k); }); };
-await import("./bake.js"); window.fertig = true;
+await import(location.search.includes("nach") ? "./nach.js" : "./bake.js"); window.fertig = true;
 </script>

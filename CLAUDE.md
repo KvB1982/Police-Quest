@@ -65,7 +65,11 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
   `await S.oeffne(id)` und schließt sie mit `await S.oeffne(id, false)` (wartet, bis die Tür steht). `tueren` in einem Ort = Türen in den Wänden,
   die von selbst aufgehen, wenn Kim oder Otto davorsteht (`klappenSchritt` in `main.js`).
 - Leute: `figurLeben` in `welt.js` lässt die Klötzchen-Figuren atmen, sich zu Kim drehen und beim Reden die Hand heben. `look.sitzt: true` = sitzt am Boden
-  (der verletzte Wärter), `h` = Blickrichtung. Fertige Modelle mit Knochen hat weiter nur Kim.
+  (der verletzte Wärter), `h` = Blickrichtung.
+- Fertige Modelle mit Knochen: Kim und (seit 21.11.2026, als Probe) Otto (`assets/modelle/otto.glb`, 30.000 Dreiecke, 1,6 MB). `look.modell: 'otto'` in `daten.js` tauscht die
+  Klötzchen-Figur aus (`ladePolizist(gruppe, datei)`). Eine neue Figur braucht keine Bewegungs-Aufnahmen mehr: `tools/figur/nach.js` (gestartet mit `nachbacken.mjs`) legt
+  eine T-Pose-Figur aus 3D AI Studio auf Kims Gerüst und übernimmt ihre drei Bewegungen. Otto ist nur als Standbilder angesehen; beim Reden hebt er keine Hand,
+  im Stehen sind die Schultern etwas eingezogen, und er läuft mit Kims Sprint (zu sportlich für ihn).
 - Nur als Standbilder im Test-Browser angesehen (Spind offen, Waffenschrank offen, Zimmertür offen, Wärter sitzt), die Bewegung selbst nicht.
 
 Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `akt` eine Funktion in `story.js`, den Weg in `DURCHLAUF` ergänzen, `node tools/story.mjs` laufen lassen.
