@@ -9,7 +9,7 @@ import * as STORY from './story.js';
 import * as UI from './oberflaeche.js';
 import * as KLANG from './klang.js';
 import { baueOrt, figur, figurBewegen, figurLeben, autoModell, spiegelBild } from './welt.js';
-import { ladePolizist } from './polizist.js';
+import { ladePolizist, polizistSpiele } from './polizist.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as BILD from './bilder.js';
 import * as KARTE from './karte.js';
@@ -163,6 +163,11 @@ let sprecher = '', aktiv = null;       // wer gerade spricht und mit wem oder wa
 const S = {
   sag: (wer, text) => { sprecher = wer; return UI.dialog(wer, text).then(() => { sprecher = ''; }); },
   // Etwas aufgehen (oder zugehen) lassen: eine Tür, den Spind, den Stahlschrank. Wartet, bis es offen ist.
+  // Kim macht eine Bewegung vor ('ziehen', 'wegstecken' …). Im Auto passiert nichts.
+  zeig(name, halten = false) { if (Z.imAuto || !kim.userData.mixer) return;
+    // Waffe ziehen und im Anschlag bleiben, bis 'wegstecken' kommt
+    if (name === 'ziehen' && halten) polizistSpiele(kim, 'ziehen', { dann: 'zielen' });
+    else polizistSpiele(kim, name, { halten, dann: name === 'wegstecken' ? null : undefined }); },
   oeffne(id, auf = true) {
     const k = welt.klappen[id]; if (!k) return Promise.resolve();
     k.soll = auf ? 1 : 0; KLANG.spiel('tuer', 0.6);

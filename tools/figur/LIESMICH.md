@@ -59,3 +59,35 @@ npx gltf-transform resize thomsen.glb k.glb --width 1024 --height 1024 && npx gl
 
 Danach in `js/polizist.js` bei `FIGUREN` eintragen (Größe in der Datei, Größe im Spiel) und in `daten.js` `look.modell: 'thomsen'` setzen.
 Nicht `gltf-transform simplify` benutzen – das zerstört die kleinen Augen. Dreiecke spart `"sparen"` (nur an der Kleidung).
+
+## Bewegungen aus Aufnahmen (seit 21.11.2026)
+
+Kristian hat 52 Bewegungs-Aufnahmen von Mixamo heruntergeladen (FBX, Ordner „Motion Capture“ auf seinem Mac). Die FBX-Dateien kommen **nicht** ins Repository.
+Im Spiel liegen nur die fertig umgerechneten Bewegungen, getrennt von den Figuren – eine Datei für alle Figuren mit demselben Gerüst:
+
+| Datei | für wen |
+|---|---|
+| `assets/modelle/bewegungen_polizei.glb` | Kim und Otto (Gerüst aus `polizist.glb`) |
+| `assets/modelle/bewegungen_frau.glb` | Frauen aus MakeHuman |
+| `assets/modelle/bewegungen_mann.glb` | Männer aus MakeHuman |
+
+Welche Aufnahme zu welcher Bewegung wird, steht in `bewegungen.json` (`name`, `datei`, dazu `von`/`bis` = Ausschnitt in Sekunden, `amOrt` = läuft auf der Stelle,
+`faust` = Hand geschlossen). Neu rechnen:
+
+```bash
+node uebertragen.mjs <Ordner von three> <figur.glb> <bewegungen_aus.glb> bewegungen.json    # malt auch Probebilder nach bilder/
+```
+
+Benutzt werden: Idle-2 (stehen), Looking Behind (umsehen), Swagger Walk (gehen), Running-2 (laufen), Drawing Gun (ziehen), Pistol Aim (zielen, wegstecken),
+Standing Up (sitzen, aufstehen). Nicht benutzt: Sport-Übungen, Gewehr-Aufnahmen, Seitschritte.
+Im Spiel: `ladePolizist(gruppe, datei, art)` holt Figur und passende Bewegungen, `polizistSpiele(gruppe, 'ziehen')` spielt eine Bewegung einmal,
+die Geschichte ruft das über `S.zeig(name, halten)` auf.
+
+Für Männer und Frauen aus MakeHuman gelten eigene Listen (`bewegungen_mann.json`, `bewegungen_frau.json`): gleich, nur mit `eng` (Grad) bei `stehen` und `umsehen`,
+weil die Aufnahme sehr breitbeinig steht.
+
+## Alle Personen bauen (leute.py)
+
+`leute.py` enthält das Rezept jeder Person und ruft für jede `bau.sh` auf (`mensch.py` → verkleinern auf 512 Punkte → WebP → `assets/modelle/<id>.glb`).
+Die Pfade in `bau.sh` passen zur Cloud-Sitzung, in der sie entstanden sind – vorher anpassen. Ansehen: `python3 -m http.server 8777` in einem Ordner mit `leute.html`
+und einem Verweis `spiel` → `assets/modelle`, dann `node leute.mjs <Ordner von three> selin:frau harms:mann …` (malt `bilder/L_<id>.png`: vier Seiten und das Gesicht).
