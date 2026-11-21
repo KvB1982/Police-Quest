@@ -1,7 +1,7 @@
 // Blaulicht über Möwenbrück – die Spielfigur als fertiges 3D-Modell mit echten Bewegungen.
 //
 // Die Figur (assets/modelle/polizist.glb) kommt aus 3D AI Studio. Ihre drei Bewegungen stecken mit in der Datei:
-//   "stehen"  – Arme hängen locker, die Figur atmet (selbst gebaut)
+//   "stehen"  – Gewicht auf einem Bein, Arme hängen neben dem Körper, die Figur atmet, verlagert das Gewicht und sieht sich um (selbst gebaut, tools/figur/haltung.js)
 //   "gehen"   – ein Doppelschritt aus einer Bewegungs-Aufnahme (DeepMotion SayMotion)
 //   "laufen"  – ein Doppelschritt Sprint aus einer zweiten Aufnahme
 // Das Spiel blendet weich zwischen den dreien um, je nachdem wie schnell die Figur gerade ist.
@@ -28,7 +28,9 @@ export function ladePolizist(gruppe, datei = 'polizist') {
     const mixer = new THREE.AnimationMixer(modell), teile = {};
     for (const name of ['stehen', 'gehen', 'laufen']) {
       const a = mixer.clipAction(THREE.AnimationClip.findByName(gltf.animations, name));
-      a.play(); a.setEffectiveWeight(name === 'stehen' ? 1 : 0); teile[name] = { a, stark: name === 'stehen' ? 1 : 0 };
+      a.play(); a.setEffectiveWeight(name === 'stehen' ? 1 : 0);
+      if (name === 'stehen') a.time = Math.random() * a.getClip().duration;       // jeder fängt an einer anderen Stelle an, sonst atmen alle im Gleichtakt
+      teile[name] = { a, stark: name === 'stehen' ? 1 : 0 };
     }
     gruppe.userData = { ...gruppe.userData, mixer, teile, al: null, bl: null };
   }, undefined, () => {});
