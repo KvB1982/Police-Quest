@@ -65,6 +65,70 @@ function hund() {
 // ---------------------------------------------------------------------------------------------
 // Ein Auto aus Kisten. Vorn ist bei +z. Mit polizei = true bekommt es Streifen und Blaulicht.
 // ---------------------------------------------------------------------------------------------
+// Wo die Blaulicht-Leiste auf dem Streifenwagen sitzt (Anteil an Höhe und Länge des Autos).
+// So stark ist der Lack ein Spiegel (0 = gar nicht, 1 = ganz).
+const LACK_METALL = 0.35;
+const LEISTE_HOCH = 0.968, LEISTE_VOR = -0.05;
+// Das Spiegelbild für den Lack: main.js baut es einmal und gibt es hierher (spiegelBild).
+let spiegel = null; const lacke = [];
+export function spiegelBild(bild) { spiegel = bild; for (const m of lacke) { m.envMap = bild; m.needsUpdate = true; } }
+
+// Eine Haube mit runden Ecken (für das Blaulicht): ein Kasten, dessen Ecken abgerundet sind.
+function haube(b, h, t) {
+  const r = Math.min(h, t) * 0.42, f = new THREE.Shape();
+  f.moveTo(-b / 2 + r, 0); f.lineTo(b / 2 - r, 0); f.quadraticCurveTo(b / 2, 0, b / 2, r); f.lineTo(b / 2, h - r); f.quadraticCurveTo(b / 2, h, b / 2 - r, h);
+  f.lineTo(-b / 2 + r, h); f.quadraticCurveTo(-b / 2, h, -b / 2, h - r); f.lineTo(-b / 2, r); f.quadraticCurveTo(-b / 2, 0, -b / 2 + r, 0);
+  const g = new THREE.ExtrudeGeometry(f, { depth: t - 2 * r * 0.5, bevelEnabled: true, bevelSize: r * 0.5, bevelThickness: r * 0.5, bevelSegments: 3, curveSegments: 6 });
+  g.translate(0, 0, -(t - r) / 2); return g;
+}
+
+// Die Polizei-Folie: Ein gemaltes Bild (blaues Band, gelber Streifen, Schrift POLIZEI) wird von der Seite auf den Lack "geklebt".
+// Das macht das Malprogramm der Grafikkarte: Nur helle Stellen (Lack) an den Seiten bekommen Folie, Fenster und Reifen bleiben frei.
+// Zahlen: wo das Band sitzt, als Anteil an der Höhe des Autos (0 = Boden, 1 = Dach).
+const FOLIE = { unten: 0.47, oben: 0.66, vorn: 0.88, hinten: 0.05 };
+let folienBild = null;
+function folie() {
+  if (folienBild) return folienBild;
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 512;
+  const x = c.getContext('2d'), B = c.width, H = c.height;
+  const y1 = H * (1 - FOLIE.oben), y2 = H * (1 - FOLIE.unten), x1 = B * FOLIE.hinten, x2 = B * FOLIE.vorn;
+  x.fillStyle = '#1549b5'; x.fillRect(x1, y1, x2 - x1, y2 - y1);
+  x.fillStyle = '#d8ee2a'; x.fillRect(x1, y2 - (y2 - y1) * 0.16, x2 - x1, (y2 - y1) * 0.16);     // leuchtgelber Streifen unten am Band
+  x.fillStyle = '#ffffff'; x.font = `800 ${Math.round((y2 - y1) * 0.7)}px "Arial Narrow", Arial, sans-serif`;
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText('POLIZEI', B * 0.5, y1 + (y2 - y1) * 0.44);
+  folienBild = new THREE.CanvasTexture(c); folienBild.colorSpace = THREE.SRGBColorSpace; folienBild.anisotropy = 8;
+  return folienBild;
+}
+function folieKleben(material, gr) {
+  material.onBeforeCompile = sh => {
+    sh.uniforms.folie = { value: folie() };
+    sh.uniforms.autoMass = { value: new THREE.Vector3(gr.x, gr.y, gr.z) };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vOrt;\nvarying vec3 vRicht;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvOrt = position; vRicht = normal;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vOrt;\nvarying vec3 vRicht;\nuniform sampler2D folie;\nuniform vec3 autoMass;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        {
+          float hell = dot(diffuseColor.rgb, vec3(0.3333));
+          float lack = smoothstep(LACK_AB, LACK_AB + 0.12, hell) * (1.0 - smoothstep(0.08, 0.2, diffuseColor.r - diffuseColor.g));   // nicht auf Fenster, nicht auf rote Rücklichter
+          float seite = smoothstep(0.45, 0.7, abs(normalize(vRicht).x));
+          vec2 fo = vec2(vOrt.z / autoMass.z + 0.5, vOrt.y / autoMass.y);
+          if (vOrt.x > 0.0) fo.x = 1.0 - fo.x;      // damit die Schrift auf beiden Seiten richtig herum steht
+          vec4 f = texture2D(folie, fo);
+          folieStark = f.a * lack * seite;
+          // Hinten läuft das Band über die Heckklappe weiter (dasselbe Bild, ein Stück ohne Schrift).
+          float heck = smoothstep(0.5, 0.75, -normalize(vRicht).z) * step(vOrt.z, -0.3 * autoMass.z);
+          vec4 h = texture2D(folie, vec2(0.2, fo.y));
+          folieStark = max(folieStark, h.a * lack * heck);
+          diffuseColor.rgb = mix(diffuseColor.rgb, mix(f.rgb, h.rgb, step(0.5, heck)), folieStark);
+        }`)
+      .replace('void main() {', 'float folieStark = 0.0;\nvoid main() {')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.1, folieStark);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.45, folieStark);');
+    sh.fragmentShader = '#define LACK_AB 0.10\n' + sh.fragmentShader;
+  };
+}
+
 export function autoModell(farbe = '#f4f4f4', polizei = false) {
   const g = new THREE.Group(), kisten = new THREE.Group();
   g.add(kisten);
@@ -83,25 +147,37 @@ export function autoModell(farbe = '#f4f4f4', polizei = false) {
   if (polizei) {
     for (const x of [-0.96, 0.96]) { const s = kiste(0.03, 0.28, 3.6, '#2b6fd6'); s.position.set(x, 0.66, 0); g.add(s); streifen.push(s); }
     const hb = kiste(1.5, 0.02, 0.5, '#2b6fd6'); hb.position.set(0, 0.93, 1.6); kisten.add(hb);
-    const balken = kiste(1.1, 0.1, 0.3, '#333'); balken.position.set(0, 1.58, -0.1); g.add(balken);
-    const blau = [-0.36, 0.36].map(x => { const b = kiste(0.34, 0.14, 0.26, '#1e4fd0', { emissive: '#1e66ff', emissiveIntensity: 0 }); b.position.set(x, 1.67, -0.1); g.add(b); return b; });
+    // Die Blaulicht-Leiste auf dem Dach: schwarzer Fuß, zwei blaue Hauben, in der Mitte ein silbernes Stück.
+    const leiste = new THREE.Group(); leiste.position.set(0, 1.56, -0.1); g.add(leiste);
+    const fuss = kiste(1.24, 0.05, 0.34, '#16181b'); fuss.position.y = 0.025;
+    const mitte = kiste(0.2, 0.1, 0.3, '#c9ced4'); mitte.position.y = 0.1;
+    leiste.add(fuss, mitte);
+    const blau = [-0.36, 0.36].map(x => {
+      const b = new THREE.Mesh(haube(0.5, 0.13, 0.3), new THREE.MeshStandardMaterial({ color: '#1747c9', roughness: 0.18, metalness: 0.1, emissive: '#1e66ff', emissiveIntensity: 0 }));
+      b.position.set(x, 0.05, 0); leiste.add(b); return b;
+    });
     // Scheinwerfer für die Fahrt im Dunkeln und ein blaues Licht, das beim Blaulicht mitblitzt.
     const sw = new THREE.SpotLight('#fff4d0', 0, 60, 0.6, 0.5, 1.2); sw.position.set(0, 1, 2.2);
     sw.target.position.set(0, 0, 14); g.add(sw, sw.target);
     const blitz = new THREE.PointLight('#2a6bff', 0, 30, 1.4); blitz.position.set(0, 2.2, 0); g.add(blitz);
-    g.userData = { blau, sw, blitz, balken };
+    g.userData = { blau, sw, blitz, leiste };
   }
-  // Das fertige Modell (ein Kombi) ersetzt die Kisten, sobald es geladen ist. Streifen und Blaulicht rücken an seine Maße.
-  MOD.lade('auto_kombi').then(m => {
+  // Das fertige Modell ersetzt die Kisten, sobald es geladen ist.
+  // Der Streifenwagen bekommt die Vorlage in voller Qualität (19.000 Dreiecke, scharfes Bild, Glanz), die anderen Autos die kleine Datei.
+  MOD.lade(polizei ? 'streifenwagen' : 'auto_kombi').then(m => {
     if (!m) return;
     const material = m.mat.clone(); if (!polizei) material.color.set(farbe);
     const netz = new THREE.Mesh(m.geo, material); netz.castShadow = true;
     kisten.visible = false; g.add(netz);
     if (polizei) {
-      const hoch = m.gr.y, breit = m.gr.x;
-      streifen.forEach((s, i) => { s.position.set((i ? 1 : -1) * (breit / 2 - 0.21), hoch * 0.47, -0.1); s.scale.set(1, 0.5, 0.72); });
-      g.userData.balken.position.y = hoch + 0.04; g.userData.balken.position.z = -0.35;
-      for (const b of g.userData.blau) { b.position.y = hoch + 0.13; b.position.z = -0.35; }
+      netz.receiveShadow = true;
+      for (const s of streifen) s.visible = false;
+      // Die Vorlage ist ganz aus spiegelndem Metall gemalt. Ohne echte Umgebung zum Spiegeln sähe das schwarz aus, deshalb spiegelt der Lack hier nur zum Teil.
+      material.metalness = LACK_METALL; material.roughness = 1;
+      folieKleben(material, m.gr);
+      lacke.push(material); if (spiegel) material.envMap = spiegel;
+      g.userData.lack = material;
+      g.userData.leiste.position.set(0, m.gr.y * LEISTE_HOCH, m.gr.z * LEISTE_VOR);
     }
   });
   return g;

@@ -8,7 +8,8 @@ import { ORTE } from './daten.js';
 import * as STORY from './story.js';
 import * as UI from './oberflaeche.js';
 import * as KLANG from './klang.js';
-import { baueOrt, figur, figurBewegen, autoModell } from './welt.js';
+import { baueOrt, figur, figurBewegen, autoModell, spiegelBild } from './welt.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as BILD from './bilder.js';
 import * as KARTE from './karte.js';
 import { baueHimmel } from './himmel.js';
@@ -78,7 +79,13 @@ function tempoMessen(dt) {
 let himmel = null, umland = null, verkehr = null, verkehrBild = null;
 
 const kim = figur({ hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#7a4a22', muetze: '#f4f4f4' });
+// Kamera im Auto: so viele Meter hinter dem Wagen und so hoch. Kleiner = der Wagen ist größer im Bild.
+const KAMERA_AUTO = [8.2, 4.1];
+// So stark spiegelt der Lack des Streifenwagens bei welchem Licht.
+const SPIEGELN = { tag: 0.9, abend: 0.5, nacht: 0.22, dunkel: 0.12 };
 const wagen = autoModell('#f4f4f4', true);
+// Damit der Lack des Streifenwagens glänzt, braucht er etwas zum Spiegeln: ein unsichtbares helles Zimmer rund um das Auto.
+{ const pm = new THREE.PMREMGenerator(renderer); spiegelBild(pm.fromScene(new RoomEnvironment(), 0.04).texture); pm.dispose(); }
 const zielSaeule = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 120, 20, 1, true),
   new THREE.MeshBasicMaterial({ color: '#ffd23a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
 kim.traverse(o => { if (o.isMesh) o.castShadow = true; }); wagen.traverse(o => { if (o.isMesh) o.castShadow = true; });
@@ -95,6 +102,7 @@ function lichtSetzen(name) {
   const l = LICHT[name], draussen = !!(welt && welt.stadt);
   oben.intensity = l.oben; sonne.intensity = l.sonne; sonne.color.set(l.farbe || '#fff4e0');
   lampe.intensity = l.lampe; wagen.userData.sw.intensity = l.auto;
+  if (wagen.userData.lack) wagen.userData.lack.envMapIntensity = SPIEGELN[name] ?? 0.5;
   sonne.castShadow = draussen && name !== 'dunkel' && !sparsam;
   if (draussen && himmel) {
     // In der Stadt: echter Himmel mit Wolken, Dunst in der Ferne, Fenster und Laternen an oder aus
@@ -415,11 +423,11 @@ function kameraSetzen(staerke) {
   if (Z.imAuto) {
     const a = Z.auto;
     // Die Kamera fährt hinter dem Wagen her. Gerät sie dabei in ein Haus, rückt sie näher heran und höher.
-    let weg = 11; py = 5.5;
+    let weg = KAMERA_AUTO[0]; py = KAMERA_AUTO[1];
     const imHaus = (x, z) => nahe(x, z, 1).some(q => q[2] - q[0] > 3 && q[3] - q[1] > 3 && x > q[0] - 0.8 && x < q[2] + 0.8 && z > q[1] - 0.8 && z < q[3] + 0.8);
     while (weg > 2.5 && imHaus(a.x - Math.sin(a.h) * weg, a.z - Math.cos(a.h) * weg)) { weg -= 1.5; py += 0.9; }
     px = a.x - Math.sin(a.h) * weg; pz = a.z - Math.cos(a.h) * weg;
-    bx = a.x + Math.sin(a.h) * 5; bz = a.z + Math.cos(a.h) * 5;
+    bx = a.x + Math.sin(a.h) * 4; bz = a.z + Math.cos(a.h) * 4;
   } else {
     const [hoch, weg] = ORTE[Z.ort].kamera;
     px = spieler.x; py = hoch; pz = spieler.z + weg; bx = spieler.x; bz = spieler.z - 0.5;
@@ -479,7 +487,7 @@ function schritt(dt) {
   wagen.position.set(Z.auto.x, 0, Z.auto.z); wagen.rotation.y = Z.auto.h;
   const u = wagen.userData, blink = Z.blaulicht && Math.floor(zeit * 5) % 2;
   u.blau[0].material.emissiveIntensity = Z.blaulicht && blink ? 3 : 0; u.blau[1].material.emissiveIntensity = Z.blaulicht && !blink ? 3 : 0;
-  u.blitz.intensity = Z.blaulicht ? (blink ? 160 : 60) : 0;
+  u.blitz.intensity = Z.blaulicht ? (blink ? 70 : 28) : 0;
   geraeusche(dt);
   // Taschenlampe: leuchtet dahin, wohin die Figur schaut
   lampe.position.set(spieler.x, 2.4, spieler.z);

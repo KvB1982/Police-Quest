@@ -10,6 +10,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const V = Math.PI / 2;
 // name: { h: so hoch in Metern  ODER  l: so lang ist die längste Seite am Boden · dreh: Drehung, damit "vorn" nach +z zeigt }
 export const MODELLE = {
+  // echt: true = das Material bleibt, wie es aus der Vorlage kommt (mit Glanz und feinen Beulen). Das kostet mehr, deshalb nur beim Streifenwagen.
+  streifenwagen: { l: 5.0, dreh: -V, echt: true },
   auto_kombi: { l: 4.6, dreh: -V }, auto_kompakt: { l: 4.0, dreh: -V }, auto_van: { l: 5.0 }, auto_suv: { l: 4.7 },
   laterne: { h: 6.5, dreh: V }, laterne_alt: { h: 4.2 }, laterne_hafen: { h: 1.1 },
   baum_laub: { h: 8 }, baum_fichte: { h: 9 },
@@ -48,7 +50,7 @@ export function lade(name) {
       geo.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
       geo.scale(mal, mal, mal);
       geo.computeBoundingBox(); geo.computeBoundingSphere();
-      const mat = netz.material; mat.metalness = 0; mat.roughness = Math.max(0.6, mat.roughness ?? 0.8);
+      const mat = netz.material; if (!T.echt) { mat.metalness = 0; mat.roughness = Math.max(0.6, mat.roughness ?? 0.8); }
       const e = { geo, mat, gr: gr.multiplyScalar(mal) };
       fertig.set(name, e); ok(e);
     }, undefined, f => { console.warn('Modell fehlt: ' + name, f && f.message); fertig.set(name, null); ok(null); });
