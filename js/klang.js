@@ -24,6 +24,9 @@ let ton = null;                 // die Tonausgabe des Browsers (gibt es erst nac
 const aufnahmen = {};           // Name → geladene Aufnahme
 const laufend = {};             // Name → Schleife, die gerade spielt
 
+// Die Tonausgabe für andere Dateien (wetter.js erzeugt damit Regen, Wind und Donner). null = noch kein Ton erlaubt
+export const kontext = () => ton;
+
 // Tonausgabe einschalten. Browser erlauben das erst, wenn der Spieler etwas gedrückt hat.
 export function an() {
   if (ton) { if (ton.state === 'suspended') ton.resume(); return; }

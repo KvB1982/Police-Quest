@@ -46,19 +46,30 @@ export function baueHimmel() {
     const m = new THREE.SpriteMaterial({ map: wolkenBilder[i % 6], fog: false, depthWrite: false, transparent: true, opacity: 0.9, toneMapped: false });
     const s = new THREE.Sprite(m), gross = 420 + w() * 900;
     s.scale.set(gross, gross * 0.42, 1); s.renderOrder = -8;
-    s.userData = { x: (w() * 2 - 1) * 4200, z: (w() * 2 - 1) * 4200, y: 480 + w() * 900, tempo: 5 + w() * 6 };
+    s.userData = { gross, x: (w() * 2 - 1) * 4200, z: (w() * 2 - 1) * 4200, y: 480 + w() * 900, tempo: 5 + w() * 6 };
     wolken.push(s); gruppe.add(s);
   }
+
+  // Wolkendecke für trübes Wetter: eine zweite, graue Kuppel vor Sonne und Sternen. Sie ist durchsichtig, solange der Himmel klar ist.
+  const decke = new THREE.Mesh(new THREE.SphereGeometry(WEIT * 0.93, 24, 12), new THREE.MeshBasicMaterial({ color: '#8f9aa4', side: THREE.BackSide, fog: false, depthWrite: false, transparent: true, opacity: 0, toneMapped: false }));
+  decke.renderOrder = -8.5; gruppe.add(decke);
+  // Das Wetter (wetter.js) schreibt hier hinein: decke = wie zugezogen (0…1), dunkel = wie finster die Wolken sind (0…1),
+  // wind = wie schnell die Wolken ziehen (1 = normal), farbe = Farbe der Wolkendecke, blitz = gerade zuckt ein Blitz (0…1)
+  const wetter = { decke: 0, dunkel: 0, wind: 1, farbe: new THREE.Color('#8f9aa4'), blitz: 0 };
+  const DUNKLE_WOLKE = { tag: '#4a525d', abend: '#353041', nacht: '#090c18' };
+  const wolkenFarbe = new THREE.Color(), dunkleWolke = new THREE.Color(), blitzFarbe = new THREE.Color('#e8eeff');
+  let name = 'tag';
 
   const sonneRichtung = new THREE.Vector3(0.5, 0.6, 0.5);
   let jetzt = STIMMUNG.tag;
   return {
-    gruppe, sonneRichtung,
+    gruppe, sonneRichtung, wetter,
     get dunst() { return jetzt.dunst; },
     // Lichtstimmung wechseln: tag, abend oder nacht
-    setze(name) {
-      const s = jetzt = STIMMUNG[name] || STIMMUNG.nacht;
-      kuppel.material.map = bilder[STIMMUNG[name] ? name : 'nacht'];
+    setze(n) {
+      name = STIMMUNG[n] ? n : 'nacht';
+      const s = jetzt = STIMMUNG[name];
+      kuppel.material.map = bilder[name];
       sonneRichtung.set(...s.sonne).normalize();
       kern.material.color.set(s.sonneFarbe); hof.material.color.set(s.sonneFarbe);
       const gr = s.mond ? 260 : 420; kern.scale.set(gr, gr, 1); hof.scale.set(gr * (s.mond ? 3 : 5), gr * (s.mond ? 3 : 5), 1);
@@ -70,13 +81,21 @@ export function baueHimmel() {
     schritt(dt, kamera) {
       gruppe.position.set(kamera.position.x, 0, kamera.position.z);
       kern.position.copy(sonneRichtung).multiplyScalar(WEIT * 0.9); hof.position.copy(kern.position);
+      // Bei trübem Wetter: Die Wolkendecke schiebt sich vor Sonne und Sterne, die Wolken werden größer, dichter und dunkler.
+      const zu = wetter.decke, klar = jetzt.mond ? 0.55 : 0.92;
+      decke.material.opacity = zu * 0.86; decke.material.color.copy(wetter.farbe).lerp(blitzFarbe, wetter.blitz * 0.5);
+      kern.material.opacity = 1 - zu; hof.material.opacity = (jetzt.mond ? 0.35 : 0.8) * (1 - zu);
+      sterne.material.opacity = jetzt.sterne * (1 - zu);
+      wolkenFarbe.set(jetzt.wolke).lerp(dunkleWolke.set(DUNKLE_WOLKE[name]), Math.min(1, wetter.dunkel * 1.8)).lerp(blitzFarbe, wetter.blitz * 0.6);
       for (const c of wolken) {
         const u = c.userData;
-        u.x += u.tempo * dt; if (u.x > 4200) u.x -= 8400;
+        u.x += u.tempo * wetter.wind * dt; if (u.x > 4200) u.x -= 8400;
         c.position.set(u.x, u.y, u.z);
+        c.material.color.copy(wolkenFarbe);
+        const gr = u.gross * (1 + zu * 0.7); c.scale.set(gr, gr * 0.42, 1);
         // weit weg werden die Wolken blasser, damit keine am Rand plötzlich auftaucht
         const fern = Math.hypot(u.x, u.z) / 4200;
-        c.material.opacity = (jetzt.mond ? 0.55 : 0.92) * Math.max(0, Math.min(1, (1.25 - fern) * 3));
+        c.material.opacity = (klar + (1 - klar) * zu) * Math.max(0, Math.min(1, (1.25 - fern) * 3));
       }
     },
   };
