@@ -84,7 +84,7 @@ Koordinaten: Meter, x seitlich, z längs (zur Kamera hin ist plus). Ein Winkel h
   und `bewegungen_mann.glb` (MakeHuman; `look.art: 'frau' | 'mann'` in `daten.js`). Quelle: Mixamo-Aufnahmen des Nutzers (FBX nicht im Repository), umgerechnet mit
   `tools/figur/uebertragen.js` nach der Liste `tools/figur/bewegungen.json`. Es gibt `stehen`, `umsehen` (von selbst alle 9–24 s), `gehen`, `laufen`, `ziehen`, `zielen`,
   `wegstecken`, `sitzen`, `aufstehen`. Die Geschichte spielt eine Bewegung mit `S.zeig('ziehen', true)` (bleibt im Anschlag) und `S.zeig('wegstecken')` – bisher an den vier
-  Stellen, an denen man fälschlich die Waffe zieht. Die Pistole in der Hand ist ein kleiner Kasten (`WAFFE_DA` in `polizist.js`), die im Holster bleibt dabei sichtbar.
+  Stellen, an denen man fälschlich die Waffe zieht. Die Pistole in der Hand ist ein ausgestanzter Umriss (`pistole`, Lage `WAFFE_ORT`, Zeiten `WAFFE_DA` in `polizist.js`); sie liegt in der Handfläche vor dem ersten Finger-Gelenk, die Finger greifen dabei fest zu (`griff` in `bewegungen.json`). Die Pistole im Holster bleibt dabei sichtbar.
   `look.sitzt` + `modell` = Figur sitzt mit der Aufnahme am Boden (Brinkmann). Nur als Standbilder angesehen. `gehen` wird weiter nicht benutzt (zu Fuß immer 4,6 m/s).
 - Stehen (Wunsch des Nutzers: natürlich, nicht „wie ein Stock“): `tools/figur/haltung.js` baut „stehen“ für Kim und Otto neu – Gewicht auf einem Bein, Arme neben dem
   Körper, Ellbogen gebeugt, atmen, Gewicht verlagern, umsehen. Von Hand gebaut, keine Aufnahme; nur als Standbilder von sechs Seiten und im Spiel angesehen.

@@ -22,16 +22,21 @@ const HELLER = 1.5;                 // die dunkelblaue Uniform wäre im Spiel fa
 const HELLER_MENSCH = 1.15;
 const UMSEHEN = [9, 24];            // wer herumsteht, sieht sich alle 9 bis 24 Sekunden einmal um
 const SCHLEIFEN = ['stehen', 'gehen', 'laufen', 'zielen', 'sitzen'];      // diese Bewegungen laufen im Kreis, alle anderen genau einmal
+const WAFFE_ORT = [-0.045, 0.03, 0.0];   // wo der Griff der Pistole in der rechten Hand liegt, gemessen vom ersten Finger-Gelenk: zurück zum Handgelenk, in die Handfläche hinein, zum Daumen hin (Meter)
 const WAFFE_DA = { ziehen: [1.0, 99], zielen: [0, 99], wegstecken: [0, 2.0] };      // in welchen Sekunden einer Bewegung die Pistole in der Hand ist
 
 const lader = new GLTFLoader(), lager = {};
 const hole = datei => lager[datei] || (lager[datei] = new Promise((ok, nein) => lader.load(`assets/modelle/${datei}.glb`, ok, undefined, nein)));
 
-// Eine kleine Pistole aus drei Klötzchen (Lauf nach +x, Griff nach −z). Sie liegt nur in der Hand, solange die Waffe gezogen ist.
+// Die Dienstpistole für die Hand: ein Umriss von der Seite (Schlitten, schräger Griff, Abzugsbügel), 2,8 cm dick ausgestanzt.
+// Lauf zeigt nach +x, oben ist +z, der Nullpunkt liegt mitten im Griff – dort, wo die Hand zufasst. Sie ist nur zu sehen, solange die Waffe gezogen ist.
 function pistole() {
-  const g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: '#16181c', roughness: 0.5, metalness: 0.4 });
-  const teil = (b, h, t, x, y, z) => { const k = new THREE.Mesh(new THREE.BoxGeometry(b, h, t), m); k.position.set(x, y, z); k.castShadow = true; g.add(k); };
-  teil(0.19, 0.028, 0.034, 0.06, 0, 0.012); teil(0.036, 0.03, 0.1, -0.01, 0, -0.05); teil(0.03, 0.012, 0.04, 0.035, 0, -0.02);
+  const g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: '#17191d', roughness: 0.45, metalness: 0.5 });
+  const u = new THREE.Shape([[-0.052, 0.058], [0.128, 0.058], [0.128, 0.03], [0.062, 0.03], [0.062, 0.022], [0.05, 0.004], [0.022, 0.0], [0.016, 0.022], [0.006, -0.058], [-0.03, -0.062], [-0.046, 0.016], [-0.056, 0.03]].map(p => new THREE.Vector2(p[0], p[1])));
+  u.holes.push(new THREE.Path([[0.022, 0.024], [0.054, 0.024], [0.045, 0.009], [0.026, 0.006]].map(p => new THREE.Vector2(p[0], p[1]))));
+  const form = new THREE.ExtrudeGeometry(u, { depth: 0.028, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 1 });
+  form.translate(0, 0, -0.014); form.rotateX(Math.PI / 2);
+  const k = new THREE.Mesh(form, m); k.castShadow = true; g.add(k);
   g.visible = false; return g;
 }
 
@@ -73,8 +78,10 @@ export function ladePolizist(gruppe, datei = 'polizist', art = 'polizei', haltun
     const knochen = n => haut.skeleton.bones.findIndex(b => b.name.replace(/^mixamorig\d*:?_?/, '') === n), ih = knochen('RightHand');
     let waffe = null;
     if (polizei && ih >= 0) { const sk = haut.skeleton, ruhe = i => new THREE.Vector3().setFromMatrixPosition(sk.boneInverses[i].clone().invert());
-      const hand = ruhe(ih), f1 = ruhe(knochen('RightFinger1')), f3 = ruhe(knochen('RightFinger3')), x = f3.clone().sub(f1).normalize(), z = new THREE.Vector3(0, 0, 1), y = z.clone().cross(x).normalize();
-      const einheit = hand.y > 10 ? 100 : 1, ort = hand.clone().addScaledVector(x, 0.085 * einheit).addScaledVector(y, -0.035 * einheit);
+      // Die Handfläche liegt vor dem ersten Finger-Gelenk (das Hand-Gelenk selbst sitzt bei dieser Figur neben dem Arm und taugt nicht zum Messen).
+      const hand = ruhe(ih), f1 = ruhe(knochen('RightFinger1')), f3 = ruhe(knochen('RightFinger3')), x = f3.clone().sub(f1).normalize();
+      const z = new THREE.Vector3(0, 0, 1); z.addScaledVector(x, -z.dot(x)).normalize(); const y = z.clone().cross(x).normalize();
+      const einheit = hand.y > 10 ? 100 : 1, ort = f1.clone().addScaledVector(x, WAFFE_ORT[0] * einheit).addScaledVector(y, WAFFE_ORT[1] * einheit).addScaledVector(z, WAFFE_ORT[2] * einheit);
       const soll = new THREE.Matrix4().makeBasis(x, y, z).scale(new THREE.Vector3(einheit, einheit, einheit)).setPosition(ort);
       waffe = pistole(); waffe.matrix.copy(sk.boneInverses[ih].clone().multiply(soll)); waffe.matrixAutoUpdate = false; sk.bones[ih].add(waffe); }
     gruppe.userData = { ...gruppe.userData, mixer, teile, waffe, einmal: null, haltung, warten: UMSEHEN[0] * Math.random() + 3, al: null, bl: null };
