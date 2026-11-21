@@ -6,6 +6,8 @@ const ECHT = [...KETTE, ...SEITE.map(n => 'Left' + n), ...SEITE.map(n => 'Right'
 const FINGER = ['Finger1', 'Finger2', 'Finger3', 'Thumb'];                                     // diese bauen wir selbst dazu: drei Gelenke für alle vier Finger zusammen, eins für den Daumen
 const NAMEN = [...ECHT, ...FINGER.map(n => 'Left' + n), ...FINGER.map(n => 'Right' + n)];
 // So stark sind die Finger gekrümmt (Winkel in Bogenmaß für Gelenk 1, 2, 3 und den Daumen)
+// So weit (Bogenmaß) sinken die Schultern gegenüber der T-Pose: Mit erhobenen Armen sind Schultern hoch und breit, mit hängenden Armen fallen sie zur Seite ab.
+const SENKE = 0.45;
 const KRUMM = { stehen: [0.32, 0.5, 0.36, 0.35], gehen: [0.4, 0.58, 0.4, 0.4], laufen: [0.85, 1.15, 0.7, 0.55] };
 const gegen = n => n.startsWith('Left') ? 'Right' + n.slice(4) : n.startsWith('Right') ? 'Left' + n.slice(5) : n;
 
@@ -73,6 +75,12 @@ window.backe = async (opt = {}) => {
     return { q, h: P.h }; };
   const gehenB = await lies('lauf.fbx', fbx), laufenB = await lies('sprint.fbx');
   const gehen = zyklus(gehenB, opt.G0 ?? 5, opt.GN ?? 39, 5), laufen = zyklus(laufenB, opt.L0 ?? 129, opt.LN ?? 24);
+  // Schultern senken: Das Schlüsselbein dreht sich nach unten, der Arm behält seine Richtung (er hängt dann tiefer und näher am Körper).
+  const unter = (n, m) => { let k = m; while (k) { if (k === n) return true; k = eltern[k]; } return false; };
+  const senke = (P, winkel) => { const W = welt(P);
+    for (const [S, v] of [['Left', 1], ['Right', -1]]) { const d = new T.Quaternion().setFromAxisAngle(V(0, 0, 1), -v * winkel), z = d.clone().invert();
+      for (const m of NAMEN) { if (unter(S + 'Shoulder', m)) W[m].premultiply(d); if (unter(S + 'Arm', m)) W[m].premultiply(z); } }
+    return { q: lokal(W), h: P.h }; };
   // ---- Stehen: Arme hängen locker herunter, der Brustkorb hebt sich ein wenig beim Atmen
   const steh = atem => { const W = {}; for (const n of NAMEN) W[n] = ruhe[n].w.clone();
     const dreh = (n, achse, winkel) => { const d = new T.Quaternion().setFromAxisAngle(achse, winkel); for (const m of NAMEN) { let k = m, drin = false; while (k) { if (k === n) drin = true; k = eltern[k]; } if (drin) W[m].premultiply(d); } };
@@ -83,26 +91,38 @@ window.backe = async (opt = {}) => {
 
   // ---- Gewichte: Welcher Knochen bewegt welche Stelle? Gerechnet in der T-Pose, Stück für Stück.
   const J = n => ruhe[n].p, nr = Object.fromEntries(NAMEN.map((n, i) => [n, i]));
-  const si = new Uint16Array(P.count * 4), sw = new Float32Array(P.count * 4);
+  const si = new Uint16Array(P.count * 4), sw = new Float32Array(P.count * 4), G = [];
   const armAb = J('LeftArm').x, achsel = J('LeftArm').y - (opt.achsel ?? 13);
   for (let i = 0; i < P.count; i++) {
     const x = P.getX(i), y = P.getY(i), z = P.getZ(i), ax = Math.abs(x), S = x >= 0 ? 'Left' : 'Right', g = {};
     const gib = (n, w) => { if (w > 0.001) g[n] = (g[n] || 0) + w; };
     // Rumpf von unten nach oben
     const rumpf = w0 => { let rest = w0; for (let k = KETTE.length - 1; k >= 1; k--) { const t = glatt(y, J(KETTE[k]).y - 5, J(KETTE[k]).y + 5); gib(KETTE[k], rest * t); rest *= 1 - t; } gib('Hips', rest); };
+    // oben zwischen Hals und Arm gehört die Stelle zum Schlüsselbein
+    const rumpfS = w0 => { const sh = glatt(ax, 4, 12) * glatt(y, J('Spine2').y - 5, J('Spine2').y + 5) * (1 - glatt(y, J('Neck').y + 2, J('Neck').y + 7)); gib(S + 'Shoulder', w0 * sh); rumpf(w0 * (1 - sh)); };
     if (ax > armAb + 9 || (ax > armAb - 5 && y > achsel)) {            // Arm
-      const a = glatt(ax, armAb - 5, armAb + 6), e = glatt(ax, J('LeftForeArm').x - 5, J('LeftForeArm').x + 5), H = hand[S], hx = Math.abs(H.o.x), h = glatt(ax, hx - 2, hx + 2.5);
+      const a = glatt(ax, armAb - 9, armAb + 8), e = glatt(ax, J('LeftForeArm').x - 5, J('LeftForeArm').x + 5), H = hand[S], hx = Math.abs(H.o.x), h = glatt(ax, hx - 2, hx + 2.5);
       const px = x - H.o.x, pz = z - H.o.z, u = px * H.d.x + pz * H.d.z, q = px * H.quer.x + pz * H.quer.z;      // u = wie weit vorn an der Hand, q = wie weit zur Daumen-Seite
       const dau = glatt(q, 4.5, 7.5) * glatt(u, 1, 4), f1 = glatt(u, H.k[0] - 1.2, H.k[0] + 1.2) * (1 - dau), f2 = glatt(u, H.k[1] - 1, H.k[1] + 1), f3 = glatt(u, H.k[2] - 0.9, H.k[2] + 0.9);
-      rumpf(1 - a); gib(S + 'Arm', a * (1 - e)); gib(S + 'ForeArm', a * e * (1 - h)); const hw = a * e * h;
+      rumpfS(1 - a); gib(S + 'Arm', a * (1 - e)); gib(S + 'ForeArm', a * e * (1 - h)); const hw = a * e * h;
       gib(S + 'Hand', hw * (1 - dau) * (1 - f1)); gib(S + 'Thumb', hw * dau); gib(S + 'Finger1', hw * f1 * (1 - f2)); gib(S + 'Finger2', hw * f1 * f2 * (1 - f3)); gib(S + 'Finger3', hw * f1 * f2 * f3);
     } else if (y < schritt + 9 && !(y > schritt - 2 && ax > J('LeftUpLeg').x + 13)) {                    // Bein
       const b = glatt(y, schritt + 9, schritt - 6), k = glatt(y, J('LeftLeg').y + 5, J('LeftLeg').y - 5), f = glatt(y, J('LeftFoot').y + 5, J('LeftFoot').y - 2), zeh = glatt(z, J('LeftToeBase').z - 2, J('LeftToeBase').z + 3) * (y < 9 ? 1 : 0);
       const mitte = glatt(ax, 0, 3);                                    // genau in der Mitte gehört die Hose zu beiden Beinen ein wenig – dort hält die Hüfte fest
       gib('Hips', (1 - b) + b * (1 - mitte) * (1 - k)); const bb = b * (mitte + (1 - mitte) * k);
       gib(S + 'UpLeg', bb * (1 - k)); gib(S + 'Leg', bb * k * (1 - f)); gib(S + 'Foot', bb * k * f * (1 - zeh)); gib(S + 'ToeBase', bb * k * f * zeh);
-    } else rumpf(1);
-    const top = Object.entries(g).sort((a, b) => b[1] - a[1]).slice(0, 4), sum = top.reduce((s, e) => s + e[1], 0);
+    } else rumpfS(1);
+    G.push(g);
+  }
+  // Gewichte an Schulter und Oberarm glätten: Jede Stelle nimmt ein paar Mal die Mitte aus sich und ihren Nachbarn. Das verhindert Knicke.
+  const gruppe = new Map(), gNr = new Int32Array(P.count), stellen = [];
+  for (let i = 0; i < P.count; i++) { const k = Math.round(P.getX(i) * 50) + '_' + Math.round(P.getY(i) * 50) + '_' + Math.round(P.getZ(i) * 50); if (!gruppe.has(k)) { gruppe.set(k, stellen.length); stellen.push({ i: [], nach: new Set() }); } gNr[i] = gruppe.get(k); stellen[gNr[i]].i.push(i); }
+  const idx = geo.index.array; for (let t = 0; t < idx.length; t += 3) for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) if (a !== b) stellen[gNr[idx[t + a]]].nach.add(gNr[idx[t + b]]);
+  const weich = stellen.map(s => { const i = s.i[0], ax = Math.abs(P.getX(i)), y = P.getY(i); return y > J('Spine1').y && ax > 3 && ax < J('LeftForeArm').x - 6; });
+  for (let runde = 0; runde < (opt.glatt ?? 8); runde++) { const neu = stellen.map((s, k) => { if (!weich[k]) return null; const m = {}; let n = 0; for (const o of s.nach) { for (const [b, w] of Object.entries(G[stellen[o].i[0]])) m[b] = (m[b] || 0) + w; n++; } const g = G[s.i[0]], aus = {}; for (const b of new Set([...Object.keys(m), ...Object.keys(g)])) aus[b] = 0.5 * (g[b] || 0) + 0.5 * (m[b] || 0) / n; return aus; });
+    neu.forEach((g, k) => { if (g) for (const i of stellen[k].i) G[i] = g; }); }
+  for (let i = 0; i < P.count; i++) {
+    const top = Object.entries(G[i]).sort((a, b) => b[1] - a[1]).slice(0, 4), sum = top.reduce((s, e) => s + e[1], 0);
     top.forEach(([n, w], k) => { si[i * 4 + k] = nr[n]; sw[i * 4 + k] = w / sum; });
   }
   geo.setAttribute('skinIndex', new T.BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new T.BufferAttribute(sw, 4));
@@ -120,7 +140,7 @@ window.backe = async (opt = {}) => {
     spuren.push(new T.VectorKeyframeTrack('Hips.position', zeiten, alle.flatMap(P => [P.h.x, P.h.y, P.h.z])));
     return new T.AnimationClip(name, -1, spuren); };
   for (const P of stehen) { P.h.x = 0; P.h.z = 0; }
-  const clips = [spur('stehen', stehen.map(P => krumm(P, KRUMM.stehen)), 1.1), spur('gehen', gehen.bilder.map(P => krumm(P, KRUMM.gehen)), 30), spur('laufen', laufen.bilder.map(P => krumm(P, KRUMM.laufen)), 30)];
+  const clips = [spur('stehen', stehen.map(P => senke(krumm(P, KRUMM.stehen), SENKE)), 1.1), spur('gehen', gehen.bilder.map(P => senke(krumm(P, KRUMM.gehen), SENKE)), 30), spur('laufen', laufen.bilder.map(P => senke(krumm(P, KRUMM.laufen), SENKE * 0.8)), 30)];
   mess.tempoGehen = gehen.tempo; mess.tempoLaufen = laufen.tempo;
   return { wurzel, haut, clips, mess, ruhe, NAMEN };
 };
