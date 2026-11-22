@@ -62,8 +62,8 @@ const tuerschild = (text, x, z, dreh = 0) => ({ form: 'schild', text, x, z, dreh
 
 export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
   const HARMS = { name: 'Harms (Waffenkammer)', look: { ...POLIZEI, haar: '#3a3a3a', muetze: null, bauch: 1.1, modell: 'harms', art: 'mann' } };
-  const HARMS_KAMMER = { ...HARMS, id: 'harms', x: -15.3, z: 3, h: V, akt: 'harms', nah: 3.2, sieh: 'Harms steht hinter dem Gitter der Waffenausgabe. Hinter ihm der Stahlschrank, vor ihm eine Liste. Er sieht aus wie jemand, der jede Zeile zweimal liest.' };
-  const HARMS_GEWAHRSAM = { ...HARMS, id: 'harms_g', name: 'Harms (Gewahrsam)', x: 41.6, z: 3.6, h: -V, akt: 'gewahrsam', nah: 3, sieh: 'Harms hat heute auch den Gewahrsam. Vor ihm liegt das Gewahrsamsbuch, daneben ein Stapel durchsichtiger Beutel für die Sachen der Festgenommenen.' };
+  const HARMS_KAMMER = { ...HARMS, id: 'harms', x: -15.3, z: 3, h: V, akt: 'harms', nah: 3.2, runde: [[-15.3, 3, 16, V], [-17.6, 1.7, 7, N], [-16.9, 4.3, 6, 0]], sieh: 'Harms hinter dem Gitter der Waffenausgabe. Er zählt Helme, prüft Kisten und hakt alles auf seiner Liste ab. Er sieht aus wie jemand, der jede Zeile zweimal liest.' };
+  const HARMS_GEWAHRSAM = { ...HARMS, look: { ...HARMS.look, arbeit: 'tippen' }, id: 'harms_g', name: 'Harms (Gewahrsam)', x: 41.28, z: 3.6, h: -V, akt: 'gewahrsam', nah: 3, sieh: 'Harms hat heute auch den Gewahrsam. Vor ihm liegt das Gewahrsamsbuch, daneben ein Stapel durchsichtiger Beutel für die Sachen der Festgenommenen.' };
   const TIMO = { hemd: '#4a4f57', hose: '#2a2a2a', haut: '#f0c8a0', haar: '#3a2a1a', modell: 'unfallfahrer', art: 'mann' };
   const DIEB = { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', modell: 'w2', art: 'mann' };
 
@@ -191,18 +191,18 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
       // ----- Besprechung
       { form: 'tafel', x: 0, z: -9.82, b: 3.6 }, { form: 'bild', bild: 'whiteboard', x: -4.82, z: -5, b: 2.6, h: 1.2, dreh: V }, { form: 'bild', bild: 'dienstplan', x: 4.82, z: -6.6, b: 2.4, h: 1.1, dreh: -V },
       { form: 'flipchart', x: 3.9, z: -8.9, dreh: -0.5 }, { form: 'flagge', x: -4.3, z: -9.2 }, { form: 'uhr', x: 2.4, z: -9.82 }, { form: 'kaffee', x: 4.5, z: -1.6, y: 0.9, dreh: -V },
-      ...[-1.8, -0.6, 0.6, 1.8].flatMap(x => [{ form: 'stuhl', x, z: -3.45, dreh: N }, { form: 'stuhl', x, z: -5.55 }]),
+      ...[-1.8, -0.6, 0.6, 1.8].flatMap(x => [{ form: 'stuhl', x, z: -3.45, dreh: N, rollt: x === 1.8 }, { form: 'stuhl', x, z: -5.55 }]),
       { form: 'stuhl', x: -2.95, z: -4.5, dreh: V }, { form: 'stuhl', x: 2.95, z: -4.5, dreh: -V },
-      { modell: 'klemmbrett', x: -0.9, z: -4.4, y: 0.77, dreh: 0.4 }, { modell: 'laptop', x: 1.2, z: -4.6, y: 0.76, dreh: 2.6 }, { modell: 'pflanzkuebel', x: -4.3, z: -0.8 },
+      { modell: 'klemmbrett', x: -0.9, z: -4.4, y: 0.77, dreh: 0.4 }, { modell: 'laptop', x: 1.8, z: -4.02, y: 0.76 }, { modell: 'pflanzkuebel', x: -4.3, z: -0.8 },
       // ----- Wachraum
-      { form: 'drehstuhl', x: 12.2, z: -1.7, dreh: 1.9 }, { form: 'drehstuhl', x: 6.9, z: -1.9, dreh: N + 0.3 }, { form: 'drehstuhl', x: 7.6, z: -5.2, dreh: 2.6 },
+      { form: 'drehstuhl', x: 12.72, z: -3.2, dreh: V }, { form: 'drehstuhl', x: 6.9, z: -1.8, rollt: true }, { form: 'drehstuhl', x: 7.0, z: -5.64, dreh: N, rollt: true }, { form: 'tastatur', x: 7.0, z: -5.95, y: 0.78, dreh: N },
       { form: 'bild', bild: 'plan', x: 5.18, z: -3.4, b: 2.6, h: 1.2, dreh: V }, { form: 'funklader', x: 5.18, z: -5.3, b: 0.9, dreh: V }, { form: 'schluessel', x: 13.82, z: -5.5, dreh: -V },
       { form: 'uhr', x: 13.82, z: -1.0, dreh: -V }, { form: 'papierkorb', x: 11.2, z: -5.6 }, { form: 'monitor', x: 10.6, z: -6.2, y: 0.78, dreh: 0.2 }, { form: 'monitor', x: 7.0, z: -6.2, y: 0.78, dreh: -0.2 },
       { form: 'bild', bild: 'fahndung', x: 13.82, z: -8.4, b: 2.4, h: 1.2, dreh: -V }, { form: 'bild', bild: 'notruf', x: 6.6, z: -9.72, b: 1.3, h: 0.7, y: 0.45, rahmen: '#1d3f8a' },
       { form: 'matte', x: 9.5, z: -9.2, b: 1.8, t: 1.0 }, { modell: 'pflanzkuebel', x: 5.6, z: -6.95 }, { form: 'wasserspender', x: 13.5, z: -7.3, dreh: -V }, { form: 'papierkorb', x: 5.5, z: -9.5 },
       { form: 'schild', text: 'Bitte hier|anmelden', x: 8.8, z: -6.92, dreh: N, b: 1.0, h: 0.4, y: 1.55, farbe: '#f2f2ee', schrift: '#1d3f8a' },
       // ----- Wachleitung
-      { form: 'drehstuhl', x: 16.5, z: -6.6 }, { form: 'stuhl', x: 15.9, z: -4.5, dreh: N + 0.15 }, { form: 'stuhl', x: 17.1, z: -4.5, dreh: N - 0.15 },
+      { form: 'drehstuhl', x: 16.5, z: -6.34 }, { form: 'stuhl', x: 15.9, z: -4.5, dreh: N + 0.15 }, { form: 'stuhl', x: 17.1, z: -4.5, dreh: N - 0.15 },
       { form: 'teppich', x: 16.5, z: -5.4, b: 3.6, t: 3.2, farbe: '#7a2f2f' }, { form: 'bild', bild: 'urkunden', x: 18.82, z: -5.2, b: 2.2, h: 1.0, dreh: -V }, { form: 'flagge', x: 18.3, z: -9.2 },
       { form: 'stehlampe', x: 14.6, z: -9.3 }, { form: 'garderobe', x: 18.4, z: -0.7 }, { modell: 'pflanzkuebel', x: 14.6, z: -0.7 }, { form: 'bild', bild: 'foto', x: 14.18, z: -3, b: 1.5, h: 0.9, dreh: V, rahmen: '#3a2a1a' },
       { modell: 'vase', x: 18.5, z: -4.4, y: 0.9 }, { modell: 'bueste', x: 18.5, z: -6.0, y: 0.9, dreh: -V }, { form: 'papierkorb', x: 17.7, z: -6.4 },
@@ -231,7 +231,7 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
       // ----- Gewahrsam
       { form: 'bild', bild: 'messlatte', x: 36.3, z: 5.82, b: 1.3, h: 1.4, y: 1.0, dreh: N, rahmen: '#22262b' }, { form: 'fotostativ', x: 36.3, z: 3.9, dreh: 0 },
       { form: 'schild', text: 'Waffen|einschließen!', x: 32.17, z: 0.18, b: 0.8, h: 0.42, y: 1.2, farbe: '#b02a25' },
-      { form: 'drehstuhl', x: 41.5, z: 2.5, dreh: -1.2 }, { form: 'uhr', x: 42.82, z: 1.2, dreh: -V }, { form: 'feuerloescher', x: 31.68, z: 5.3, dreh: V },
+      { form: 'drehstuhl', x: 41.34, z: 3.6, dreh: -V }, { form: 'uhr', x: 42.82, z: 1.2, dreh: -V }, { form: 'feuerloescher', x: 31.68, z: 5.3, dreh: V },
       { form: 'schraffur', x: 37.25, z: 1.1, b: 9.6, t: 0.35, farbe: '#d8a81e', y: 0.03 }, { modell: 'kamera_wand', x: 42.6, z: 5.6, y: 1.5, dreh: -2.4 }, { form: 'papierkorb', x: 42.4, z: 5.4 },
       { modell: 'klemmbrett', x: 40.5, z: 4.1, y: 0.76, dreh: 1.2 },
       // ----- Hof: Parkplätze
@@ -313,9 +313,11 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
     leute: [
       { id: 'otto', x: 2, z: 3.5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, bis: 'briefing', look: OTTO_LOOK },
       { id: 'otto', x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'briefing', look: OTTO_LOOK },
-      { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', look: { ...POLIZEI, haar: '#1e1a17', muetze: null, modell: 'selin', art: 'frau' }, sieh: 'Selin Aydin leitet die Wache. Kerzengerade, die Uniform wie gebügelt. Sie sieht von ihren Unterlagen auf, bevor du etwas sagst.' },
-      { id: 'petersen', x: 12.35, z: -3.2, h: V, name: 'Frau Petersen (Leitstelle)', akt: 'petersen', nah: 2.4, look: { hemd: '#7a4fa0', hose: '#333', haut: '#f0c8a0', haar: '#d8d2c4', modell: 'petersen', art: 'frau' }, sieh: 'Frau Petersen steht mit Kopfhörer am Funkpult. Vor ihr zwei Bildschirme – auf einem die Kameras vom Hof – und eine Tasse mit einer Möwe darauf.' },
-      { id: 'hanne', x: 22.2, z: -8.2, h: 0, name: 'Hanne (Pausenraum)', akt: 'hanne', nah: 2.6, look: { hemd: '#ffffff', hose: '#444', haut: '#e8b890', haar: '#a03a2a', modell: 'hanne', art: 'frau' }, sieh: 'Hanne steht hinter der Theke im Pausenraum und wischt, obwohl alles sauber ist. Ihr entgeht hier nichts.' },
+      { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', bis: 'briefing', look: { ...POLIZEI, haar: '#1e1a17', muetze: null, modell: 'selin', art: 'frau' }, sieh: 'Selin Aydin leitet die Wache. Kerzengerade, die Uniform wie gebügelt. Sie sieht von ihren Unterlagen auf, bevor du etwas sagst.' },
+      // Nach der Besprechung sitzt sie in ihrem Büro am Rechner
+      { id: 'selin', x: 16.5, z: -6.28, h: 0, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', wenn: 'briefing', nah: 2.6, look: { ...POLIZEI, haar: '#1e1a17', muetze: null, modell: 'selin', art: 'frau', arbeit: 'tippen' }, sieh: 'Selin Aydin sitzt in ihrem Büro am Rechner und schreibt den Dienstplan für nächste Woche. Kerzengerade, auch im Sitzen.' },
+      { id: 'petersen', x: 12.78, z: -3.2, h: V, name: 'Frau Petersen (Leitstelle)', akt: 'petersen', nah: 2.4, look: { hemd: '#7a4fa0', hose: '#333', haut: '#f0c8a0', haar: '#d8d2c4', modell: 'petersen', art: 'frau', arbeit: 'tippen' }, sieh: 'Frau Petersen sitzt mit Kopfhörer am Funkpult und tippt. Vor ihr zwei Bildschirme – auf einem die Kameras vom Hof – und eine Tasse mit einer Möwe darauf.' },
+      { id: 'hanne', x: 22.2, z: -8.2, h: 0, name: 'Hanne (Pausenraum)', akt: 'hanne', nah: 2.6, runde: [[22.2, -8.1, 14, 0], [21.0, -8.75, 9, N], [24.3, -8.6, 6, 1.2], [23.2, -8.1, 8, 0], [22.6, -8.75, 7, N]], look: { hemd: '#ffffff', hose: '#444', haut: '#e8b890', haar: '#a03a2a', modell: 'hanne', art: 'frau' }, sieh: 'Hanne ist hinter der Theke im Pausenraum unterwegs: Kaffee aufsetzen, Brötchen aus dem Kühlschrank, wischen, obwohl alles sauber ist. Ihr entgeht hier nichts.' },
       // Harms ist in der Waffenkammer – außer wenn du jemanden einlieferst: Dann wartet er im Gewahrsam.
       { ...HARMS_KAMMER, bis: 'gefangen1' }, { ...HARMS_KAMMER, wenn: 'abgabe1', bis: 'gefangen2' }, { ...HARMS_KAMMER, wenn: 'abgabe2' },
       { ...HARMS_GEWAHRSAM, wenn: 'gefangen1', bis: 'abgabe1' }, { ...HARMS_GEWAHRSAM, wenn: 'gefangen2', bis: 'abgabe2' },
@@ -325,17 +327,18 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
       { id: 'timo_zelle', x: 33.6, z: -5.25, y: 0.5, h: -V, name: 'Timo Reents (Zelle 1)', akt: 'zellenmann', nah: 6, wenn: 'zelle1', look: { ...TIMO, sitzt: true }, sieh: 'Timo sitzt auf der Liege, das verletzte Bein ausgestreckt. Er zupft an der grauen Decke und schaut nicht zur Tür.' },
       { id: 'dieb_zelle', x: 37.25, z: -1.9, h: 0, name: 'Der Taschendieb (Zelle 2)', akt: 'zellenmann', nah: 3.4, wenn: 'zelle2', look: DIEB, sieh: 'Der Taschendieb steht dicht an der Tür und lauscht. Als er dich bemerkt, tut er, als würde er die Wand betrachten.' },
       // Kollegen im Dienst. "runde" = ihr Weg durch die Wache: Punkte [x, z, Pause in Sekunden, Blickrichtung in der Pause]. Sie gehen ihn immer wieder ab.
-      { id: 'dirks', x: 7.6, z: -3.6, name: 'Jan Dirks (Möwe 12)', akt: 'kollege', look: KOLLEGE('pol1', 'mann'), sieh: 'Jan Dirks fährt Möwe 12. Fast zwei Meter groß, die Ärmel hochgekrempelt. Er pendelt zwischen Wachraum und Umkleide, als hätte er etwas vergessen.',
-        runde: [[7.6, -3.6, 8, 1.2], [9.4, -1.6], [9.5, 1.8], [-9.3, 1.8], [-9.5, -1.6], [-8.2, -5, 9, -1.57], [-9.5, -1.6], [-9.3, 1.8], [9.5, 1.8], [9.4, -1.6]] },
-      { id: 'tammen', x: 9, z: 9.5, name: 'Meike Tammen (Möwe 12)', akt: 'kollege', look: KOLLEGE('pol2', 'frau'), sieh: 'Meike Tammen, die Beifahrerin von Möwe 12. Pferdeschwanz, wacher Blick. Sie trägt ein Klemmbrett zwischen Hof und Besprechungsraum hin und her.',
-        runde: [[9, 9.5, 9, 0.9], [1.9, 8.6], [0.9, 7.2], [0, 1.4], [0, -1.3], [3.6, -2.2], [3.7, -6.2, 8, -1.95], [3.6, -2.2], [0, -1.3], [0, 1.4], [0.9, 7.2], [1.9, 8.6]] },
+      { id: 'dirks', x: 6.9, z: -1.76, name: 'Jan Dirks (Möwe 12)', akt: 'kollege', look: KOLLEGE('pol1', 'mann'), sieh: 'Jan Dirks fährt Möwe 12. Fast zwei Meter groß, die Ärmel hochgekrempelt. Er tippt seinen Bericht von gestern Nacht – und holt zwischendurch etwas aus seinem Spind.',
+        runde: [[6.9, -1.76, 34, 0, 'tippen'], [7.8, -1.8], [8.6, -2.3], [9.5, -1.4], [9.5, 1.8], [-9.3, 1.8], [-9.5, -1.6], [-8.2, -5, 9, -1.57], [-9.5, -1.6], [-9.3, 1.8], [9.5, 1.8], [9.5, -1.4], [8.6, -2.3], [7.8, -1.8]] },
+      { id: 'tammen', x: 9, z: 9.5, name: 'Meike Tammen (Möwe 12)', akt: 'kollege', look: KOLLEGE('pol2', 'frau'), sieh: 'Meike Tammen, die Beifahrerin von Möwe 12. Pferdeschwanz, wacher Blick. Sie schaut am Wagen nach dem Rechten, liest den Dienstplan und trägt im Besprechungsraum ihre Einsätze in den Rechner ein.',
+        runde: [[9, 9.5, 9, 0.9], [1.9, 8.6], [0.9, 7.2], [0, 1.4], [0, -1.3], [3.6, -2.2], [3.7, -6.2, 7, -1.95], [3.2, -2.9], [2.5, -3.3], [1.8, -3.4, 24, N, 'tippen'], [2.5, -3.3], [2.2, -2.2], [0, -1.3], [0, 1.4], [0.9, 7.2], [1.9, 8.6]] },
       { id: 'okafor', x: -7.9, z: 16.6, name: 'Ben Okafor (Möwe 9)', akt: 'kollege', look: KOLLEGE('pol3', 'mann'), sieh: 'Ben Okafor prüft Möwe 9 vor der Streife – Reifen, Lichter, Kofferraum. Genau das, was Otto gleich von dir sehen will.',
         runde: [[-7.9, 16.6, 6, 1.57], [-6, 17.6, 5, 3.14], [-4.2, 17.2], [-4.1, 15, 6, -1.57], [-4.1, 10.6], [-6, 10.2, 6, 0], [-7.9, 10.6]] },
-      { id: 'luehrs', x: 8.8, z: -5.3, h: N, name: 'Linh Lührs (Wachdienst)', akt: 'kollege', nah: 2.4, look: KOLLEGE('pol4', 'frau'), sieh: 'Linh Lührs hat heute Wachdienst. Sie steht am Tresen hinter der Scheibe und nimmt Anzeigen auf, eine nach der anderen.' },
+      { id: 'luehrs', x: 7.0, z: -5.7, h: N, name: 'Linh Lührs (Wachdienst)', akt: 'kollege', nah: 2.4, look: KOLLEGE('pol4', 'frau'), sieh: 'Linh Lührs hat heute Wachdienst. Sie sitzt am Tresen hinter der Scheibe und tippt Anzeigen in den Rechner, eine nach der anderen. Zwischendurch holt sie eine Akte aus dem Schrank.',
+        runde: [[7.0, -5.7, 30, N, 'tippen'], [7.9, -5.6], [8.2, -4.6], [11.7, -1.5, 7, 0.6], [8.8, -4.4], [8.8, -5.45, 12, N], [7.9, -5.6]] },
       { id: 'lotte', x: -3, z: 3.6, name: 'Lotte (Diensthund)', akt: 'lotte', hund: true, sieh: 'Lotte, der Diensthund. Ein Schäferhund mit grauer Schnauze. Sie hebt ein Ohr und lässt es wieder fallen.' },
       // Bürger im Wartebereich
-      { id: 'buerger1', x: 6.6, z: -8.3, h: V, name: 'Herr Janßen', akt: 'buerger', look: { hemd: '#8a7a5a', hose: '#444', haut: '#f0c8a0', haar: '#cfcfcf', modell: 'p6', art: 'mann' }, sieh: 'Ein älterer Herr im Wartebereich. Er hält eine Fahrradklingel in der Hand – ohne Fahrrad.' },
-      { id: 'buerger2', x: 11.4, z: -7.9, h: N - 0.4, name: 'Frau Nguyen', akt: 'buerger', look: { hemd: '#c96a7a', hose: '#333', haut: '#e8c8a0', haar: '#1e1a17', modell: 'p3', art: 'frau' }, sieh: 'Eine Frau mit einem dicken Umschlag unter dem Arm. Sie liest zum dritten Mal das Plakat mit dem Notruf.' },
+      { id: 'buerger1', x: 5.72, z: -8.3, h: V, name: 'Herr Janßen', akt: 'buerger', look: { hemd: '#8a7a5a', hose: '#444', haut: '#f0c8a0', haar: '#cfcfcf', modell: 'p6', art: 'mann', arbeit: 'ruhe', sitzHoch: 0.58 }, sieh: 'Ein älterer Herr sitzt im Wartebereich. Er hält eine Fahrradklingel in der Hand – ohne Fahrrad.' },
+      { id: 'buerger2', x: 12.03, z: -9.4, h: 0, name: 'Frau Nguyen', akt: 'buerger', look: { hemd: '#c96a7a', hose: '#333', haut: '#e8c8a0', haar: '#1e1a17', modell: 'p3', art: 'frau', arbeit: 'ruhe', sitzHoch: 0.58 }, sieh: 'Eine Frau sitzt auf den Wartestühlen, einen dicken Umschlag auf dem Schoß. Sie schaut alle paar Sekunden zum Tresen.' },
     ],
   };
 }
