@@ -21,6 +21,7 @@
 //   verkehr: true – steht auf der Straße: Die anderen Autos bremsen davor.
 
 import { PLAN, GROSS } from './stadtplan.js';
+import { wacheDaten } from './wache.js';
 
 const OTTO_SIEH = 'Otto Brandl, dein Ausbilder. Grauer Bart, breite Schultern, die Mütze gerade. Seine Stiefel sind die saubersten der ganzen Wache.';
 const POLIZEI = { hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#5a3b22', muetze: '#f4f4f4' };
@@ -35,97 +36,8 @@ function wand(x1, z1, x2, z2) {
   return [Math.min(x1, x2) - d, Math.min(z1, z2) - d, Math.max(x1, x2) + d, Math.max(z1, z2) + d];
 }
 
-// ---------------------------------------------------------------------------------------------
-// Die Polizeiwache Am Deich: drei Räume, davor der Flur, dahinter der Hof mit dem Streifenwagen.
-// ---------------------------------------------------------------------------------------------
-const wache = {
-  name: 'Polizeiwache Am Deich',
-  gross: [-14, -10, 14, 22],
-  kamera: [11, 7.5],
-  boden: [
-    { r: [-14, -10, 14, 6], farbe: '#cfc7b8' },      // Flur
-    { r: [-14, -10, -5, 0], farbe: '#9db7c9' },      // Umkleide
-    { r: [-5, -10, 5, 0], farbe: '#b9a98a' },        // Besprechungsraum
-    { r: [5, -10, 14, 0], farbe: '#a9c4a4' },        // Leitstelle und Kantine
-    { r: [-14, 6, 14, 22], farbe: '#6f7378' },       // Hof
-  ],
-  waende: [
-    wand(-14, -10, 14, -10), wand(-14, -10, -14, 22), wand(14, -10, 14, 22), wand(-14, 22, 14, 22),
-    wand(-14, 6, -1.5, 6), wand(1.5, 6, 14, 6),                       // Wand zum Hof mit Tür
-    wand(-14, 0, -10.5, 0), wand(-8.5, 0, -1, 0), wand(1, 0, 8.5, 0), wand(10.5, 0, 14, 0), // Türen zu den Räumen
-    wand(-5, -10, -5, 0), wand(5, -10, 5, 0),
-  ],
-  moebel: [
-    { x: -6, z: -3.6, b: 0.6, t: 1.3, h: 0.5, farbe: '#8a6a4a', modell: 'holzbank', dreh: -Math.PI / 2 },   // Bänke in der Umkleide
-    { x: -6, z: -6.4, b: 0.6, t: 1.3, h: 0.5, farbe: '#8a6a4a', modell: 'holzbank', dreh: -Math.PI / 2 },
-    { x: -10.5, z: -9.4, b: 5, t: 0.8, h: 2, farbe: '#5f7f96', form: 'spinde' },       // Spinde der Kollegen
-    { x: 0, z: -4.5, b: 5, t: 1.6, h: 0.8, farbe: '#7a5a3a', form: 'tisch' },         // Tisch im Besprechungsraum
-    { x: 0, z: -9.6, b: 4, t: 0.3, h: 2.2, farbe: '#f5f5f0', form: 'tafel' },         // Tafel mit dem Streifenplan
-    { x: 8, z: -8.7, b: 2, t: 1, h: 0.8, farbe: '#4a4f57', modell: 'schreibtisch' },      // Funkpult: zwei Schreibtische
-    { x: 10.1, z: -8.7, b: 2, t: 1, h: 0.8, farbe: '#4a4f57', modell: 'schreibtisch' },
-    { x: 12.6, z: -2.5, b: 1.6, t: 3, h: 1, farbe: '#b8894f', form: 'theke' },        // Theke der Kantine
-    { x: -4, z: 5.2, b: 1.3, t: 0.6, h: 0.5, farbe: '#8a6a4a', modell: 'holzbank', dreh: Math.PI },       // Bank im Flur
-    { x: -11.6, z: 3, b: 0.6, t: 2.2, h: 1.05, farbe: '#6b5a44', form: 'theke' },      // Tresen der Waffenkammer
-    { x: -10, z: 19, b: 3, t: 2, h: 1.6, farbe: '#3d5a3a' },           // Müllcontainer im Hof
-    // Neu: Was eine Wache sonst noch braucht (form = selbst gebautes Möbel aus welt.js)
-    { x: 5.55, z: -5.2, b: 0.7, t: 0.9, h: 1.9, farbe: '#b02a25', form: 'automat', dreh: Math.PI / 2 },   // Getränkeautomat der Kantine
-    { x: 13.55, z: -6.6, b: 0.5, t: 1.6, h: 1.4, farbe: '#8d949b', form: 'akten', dreh: -Math.PI / 2 },   // Aktenschrank der Leitstelle
-    { x: 10.6, z: 5.55, b: 1.6, t: 0.5, h: 1.4, farbe: '#8d949b', form: 'akten', dreh: Math.PI },        // Aktenschrank im Flur
-    { x: 7.4, z: 5.2, b: 1.3, t: 0.6, h: 0.5, farbe: '#8a6a4a', modell: 'holzbank', dreh: Math.PI },      // zweite Bank im Flur
-    { x: 6.9, z: -1.7, b: 1.7, t: 1.7, h: 0.8, farbe: '#8a6a4a', modell: 'bistro' },                      // Tisch in der Kantine
-    { x: -13.4, z: -1.2, b: 0.6, t: 1.6, h: 2, farbe: '#777', modell: 'regal_metall', dreh: Math.PI / 2 }, // Regal in der Umkleide
-    { x: 12.6, z: 9.2, b: 1.6, t: 0.5, h: 0.8, farbe: '#888', modell: 'betonsperre' },                    // Hof: Sperren und Gitter für Einsätze
-    { x: 12.9, z: 12.5, b: 0.5, t: 2, h: 1, farbe: '#888', modell: 'absperrgitter', dreh: Math.PI / 2 },
-    { x: 12.9, z: 14.9, b: 0.5, t: 2, h: 1, farbe: '#888', modell: 'absperrgitter', dreh: Math.PI / 2 },
-  ],
-  deko: [
-    { modell: 'laptop', x: 8, z: -8.5, y: 0.8 }, { modell: 'laptop', x: 10.1, z: -8.5, y: 0.8 },
-    { form: 'monitor', x: 7.5, z: -9.0, y: 0.8, dreh: 0.25 }, { form: 'monitor', x: 8.5, z: -9.0, y: 0.8, dreh: -0.25 }, { form: 'monitor', x: 10.1, z: -9.0, y: 0.8 },
-    { form: 'stuhl', x: 8, z: -7.7, dreh: Math.PI }, { form: 'stuhl', x: 10.3, z: -7.7, dreh: 2.8 },
-    { form: 'plan', x: 12.4, z: -9.82, b: 2.4 }, { form: 'pinn', x: 5.2, z: -8, b: 2, dreh: Math.PI / 2 }, { form: 'pinn', x: 4.5, z: 5.82, b: 2.2, dreh: Math.PI },
-    { form: 'kaffee', x: 12.6, z: -3.7, y: 1.0, dreh: -Math.PI / 2 }, { modell: 'pflanzkuebel', x: -13.2, z: 5.2 }, { modell: 'pflanzkuebel', x: 4.3, z: -0.8 }, { modell: 'pflanzkuebel', x: -4.3, z: -9.2 },
-    ...[-1.8, -0.6, 0.6, 1.8].flatMap(x => [{ form: 'stuhl', x, z: -3.45, dreh: Math.PI }, { form: 'stuhl', x, z: -5.55 }]),      // acht Stühle am Besprechungstisch
-    { modell: 'klemmbrett', x: -0.9, z: -4.4, y: 0.81, dreh: 0.4 }, { modell: 'laptop', x: 1.2, z: -4.6, y: 0.8, dreh: 2.6 },
-    ...[-9, -3, 3, 9].map(x => ({ form: 'linie', x, z: 14, b: 0.14, t: 6, farbe: '#e8e8e8' })),      // Parkplatz-Linien im Hof
-    { modell: 'muelltonne', x: 13.2, z: 7 }, { modell: 'reifen', x: -13, z: 20.8 }, { modell: 'kiste_holz', x: -12.6, z: 16.6, dreh: 0.3 },
-    { modell: 'klemmbrett', x: -11.6, z: 3.6, y: 1.06 }, { modell: 'erste_hilfe', x: 4.6, z: 5.2, y: 0 },
-    { modell: 'croissant', x: 12.4, z: -3.2, y: 1.0 }, { modell: 'apfel', x: 12.7, z: -2.4, y: 1.0 }, { modell: 'kaese', x: 12.5, z: -1.6, y: 1.0 },
-    { modell: 'pflanzkuebel', x: 13.2, z: 5.2 }, { modell: 'muelltonne', x: -13.2, z: 8 }, { modell: 'reifen', x: 12.8, z: 20.6 }, { modell: 'reifen', x: 12.9, z: 19.8, dreh: 1 },
-  ],
-  tueren: [{ x: -9.5, z: 0, b: 2 }, { x: 0, z: 0, b: 2 }, { x: 9.5, z: 0, b: 2 }, { x: 0, z: 6, b: 3, farbe: '#5f6b78' }],
-  schilder: [
-    { x: -9.5, z: -9.8, text: 'Umkleide' }, { x: 0, z: -9.8, text: 'Besprechung' },
-    { x: 9.5, z: -9.8, text: 'Leitstelle · Kantine' }, { x: -13.6, z: 3, text: 'Waffenkammer' }, { x: 0, z: 21.5, text: 'Hof' },
-  ],
-  dinge: [
-    { id: 'waffenschrank', x: -13.3, z: 3, name: 'Stahlschrank der Waffenkammer', art: 'schrank', fest: [1, 1.6], sieh: 'Ein schwerer Stahlschrank mit zwei Türen und einem Zahlenschloss. Den Schlüssel dazu hat nur Harms.' },
-    { id: 'spind', x: -13.2, z: -6, name: 'Dein Spind', art: 'spind', akt: 'spind', fest: [1, 1.2], sieh: 'Ein schmaler Stahlspind mit Zahlenschloss. Auf dem Namensschild steht: K. Berger.' },
-    { id: 'auto', x: 6, z: 14, art: 'auto', polizei: true, h: 0, fest: [2, 4.4] },
-    { id: 'moewe9', x: -6, z: 14, art: 'auto', polizei: true, leicht: true, h: 0, fest: [2, 4.4], name: 'Streifenwagen Möwe 9', verb: 'sieh', sieh: 'Möwe 9, der Wagen von Ben Okafor. Frisch gewaschen, die Reifen glänzen noch nass.' },
-    { id: 'c_vorn', x: 6, z: 17.2, name: 'Scheinwerfer und Blinker prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_vorn', nah: 1.6, verb: 'sieh' },
-    { id: 'c_reifen1', x: 4.2, z: 15.3, name: 'Reifen links prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_reifen1', nah: 1.6, verb: 'sieh' },
-    { id: 'c_reifen2', x: 7.8, z: 12.7, name: 'Reifen rechts prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_reifen2', nah: 1.6, verb: 'sieh' },
-    { id: 'c_heck', x: 6, z: 10.8, name: 'Rücklichter und Kofferraum prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_heck', nah: 1.6, verb: 'sieh' },
-    { id: 'einsteigen', x: 4.2, z: 13.6, name: 'In den Streifenwagen einsteigen', art: 'punkt', akt: 'einsteigen_hof', wenn: 'briefing', nah: 1.6, farbe: '#3fa7ff', sieh: 'Die Fahrertür von Möwe 14.' },
-  ],
-  leute: [
-    { id: 'otto', x: 2, z: 3.5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, bis: 'briefing', look: OTTO_LOOK },
-    { id: 'otto', x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'briefing', look: OTTO_LOOK },
-    { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', look: { ...POLIZEI, haar: '#1e1a17', muetze: null, modell: 'selin', art: 'frau' }, sieh: 'Selin Aydin leitet die Wache. Kerzengerade, die Uniform wie gebügelt. Sie sieht von ihren Unterlagen auf, bevor du etwas sagst.' },
-    { id: 'petersen', x: 9, z: -7, name: 'Frau Petersen (Leitstelle)', akt: 'petersen', look: { hemd: '#7a4fa0', hose: '#333', haut: '#f0c8a0', haar: '#d8d2c4', modell: 'petersen', art: 'frau' }, sieh: 'Frau Petersen sitzt mit Kopfhörer am Funkpult. Vor ihr drei Bildschirme und eine Tasse mit einer Möwe darauf.' },
-    { id: 'hanne', x: 11.2, z: -2.5, name: 'Hanne (Kantine)', akt: 'hanne', look: { hemd: '#ffffff', hose: '#444', haut: '#e8b890', haar: '#a03a2a', modell: 'hanne', art: 'frau' }, sieh: 'Hanne steht hinter der Theke der Kantine und wischt, obwohl alles sauber ist. Ihr entgeht hier nichts.' },
-    { id: 'harms', x: -10.6, z: 3, name: 'Harms (Waffenkammer)', akt: 'harms', look: { ...POLIZEI, haar: '#3a3a3a', muetze: null, bauch: 1.1, modell: 'harms', art: 'mann' }, sieh: 'Harms lehnt am Tresen der Waffenkammer. Hinter ihm der Stahlschrank, vor ihm eine Liste. Er sieht aus wie jemand, der jede Zeile zweimal liest.' },
-    // Kollegen im Dienst. "runde" = ihr Weg durch die Wache: Punkte [x, z, Pause in Sekunden, Blickrichtung in der Pause]. Sie gehen ihn immer wieder ab.
-    { id: 'dirks', x: 7, z: -5, name: 'Jan Dirks (Möwe 12)', akt: 'kollege', look: KOLLEGE('pol1', 'mann'), sieh: 'Jan Dirks fährt Möwe 12. Fast zwei Meter groß, die Ärmel hochgekrempelt. Er pendelt zwischen Leitstelle und Umkleide, als hätte er etwas vergessen.',
-      runde: [[7, -5, 8, 2.3], [9.3, -1.6], [9.5, 1.8], [-9.3, 1.8], [-9.5, -1.6], [-8.4, -5, 9, -1.57], [-9.5, -1.6], [-9.3, 1.8], [9.5, 1.8], [9.3, -1.6]] },
-    { id: 'tammen', x: -2.5, z: 9.5, name: 'Meike Tammen (Möwe 12)', akt: 'kollege', look: KOLLEGE('pol2', 'frau'), sieh: 'Meike Tammen, die Beifahrerin von Möwe 12. Pferdeschwanz, wacher Blick. Sie trägt ein Klemmbrett zwischen Hof und Besprechungsraum hin und her.',
-      runde: [[-2.5, 9.5, 9, 0.4], [0, 7.4], [0, 1.4], [0, -1.3], [3.6, -2.2], [3.8, -6, 8, -1.95], [3.6, -2.2], [0, -1.3], [0, 1.4], [0, 7.4]] },
-    { id: 'okafor', x: -7.9, z: 16.6, name: 'Ben Okafor (Möwe 9)', akt: 'kollege', look: KOLLEGE('pol3', 'mann'), sieh: 'Ben Okafor prüft Möwe 9 vor der Streife – Reifen, Lichter, Kofferraum. Genau das, was Otto gleich von dir sehen will.',
-      runde: [[-7.9, 16.6, 6, 1.57], [-6, 17.6, 5, 3.14], [-4.2, 17.2], [-4.1, 15, 6, -1.57], [-4.1, 11], [-6, 10.4, 6, 0], [-7.9, 11]] },
-    { id: 'luehrs', x: 11.7, z: -7.3, h: -2.6, name: 'Linh Lührs (Wachdienst)', akt: 'kollege', look: KOLLEGE('pol4', 'frau'), sieh: 'Linh Lührs hat heute Wachdienst. Sie steht am zweiten Funkpult und schreibt Anzeigen in den Rechner, eine nach der anderen.' },
-    { id: 'lotte', x: -3, z: 3.6, name: 'Lotte (Diensthund)', akt: 'lotte', hund: true, sieh: 'Lotte, der Diensthund. Ein Schäferhund mit grauer Schnauze. Sie hebt ein Ohr und lässt es wieder fallen.' },
-  ],
-};
+// Die Polizeiwache Am Deich steht in einer eigenen Datei (js/wache.js), weil sie so viele Räume und Möbel hat.
+const wache = wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH });
 
 // ---------------------------------------------------------------------------------------------
 // Die Stadt Möwenbrück: Was die Geschichte dort braucht.

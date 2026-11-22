@@ -10,6 +10,7 @@
 //   S.gib(sache)                      – etwas in die Tasche oder an den Gürtel stecken
 //   S.ziel(text, [ort, x, z])         – was als Nächstes zu tun ist (mit Wegweiser)
 //   S.ort(name, x, z)                 – an einen anderen Ort wechseln
+//   await S.fuehre(id, [[x, z], …])   – eine Person geht diesen Weg entlang (der Festgenommene in seine Zelle)
 //   S.klang(name)                     – ein Geräusch abspielen (Namen stehen in klang.js)
 //   await S.oeffne(ding, true/false)  – eine Tür, den Spind oder einen Schrank auf- oder zugehen lassen (Name = id in daten.js)
 //   S.auto(true/false), S.licht(..), S.uhr(..), S.speichern(), await S.ende(..)
@@ -17,10 +18,10 @@
 //   S.jagd()                          – wie lief die Verfolgungsfahrt? { rumms: wie oft angestoßen, sirene: lief die Sirene? }
 // So kann dasselbe auch ohne Bildschirm durchgespielt werden (tools/story.mjs).
 
-const OTTO = 'Otto Brandl', SELIN = 'Selin Aydin', FUNK = 'Leitstelle (Frau Petersen)', KIM = 'Kim', HARMS = 'Harms (Waffenkammer)';
+const OTTO = 'Otto Brandl', SELIN = 'Selin Aydin', FUNK = 'Leitstelle (Frau Petersen)', KIM = 'Kim', HARMS = 'Harms';
 
 export const START = { ort: 'wache', x: 0, z: 3.5, licht: 'tag', uhr: '06:00' };
-export const MAX_PUNKTE = 63;
+export const MAX_PUNKTE = 67;
 
 // Die Verfolgungsfahrt am Vormittag: Wo der Fluchtwagen losfährt, zu welcher Kreuzung zuerst und wo er am Ende festsitzt
 // (der Wendeplatz in der Sackgasse Finkenstieg). Den Weg dazwischen sucht sich jagd.js selbst.
@@ -41,6 +42,11 @@ export const SACHEN = {
   pistole: { name: 'Dienstpistole', text: 'Nummer MB-0417, gesichert im Holster. Gezogen wird sie nur, wenn jemand bewaffnet ist oder ein Leben in Gefahr ist.' },
   schluessel: { name: 'Autoschlüssel', text: 'Für den Streifenwagen Möwe 14.' },
 };
+
+// Wen liefern wir gerade im Gewahrsam ein? 1 = Timo, 2 = der Taschendieb, 0 = niemanden.
+function lieferung(S) { return S.hat('gefangen2') && !S.hat('abgabe2') ? 2 : S.hat('gefangen1') && !S.hat('abgabe1') ? 1 : 0; }
+const GEFANGEN = { 1: { name: 'Timo', wen: 'Timo' }, 2: { name: 'Der Taschendieb', wen: 'den Taschendieb' } };
+const ZELLE_X = { 1: 33.4, 2: 37.25, 3: 41.1 };       // hier sind die drei Zellentüren (wie in js/wache.js)
 
 export async function beginn(S) {
   await S.sag('', 'Montag, 6:00 Uhr. Polizeiwache Am Deich, Möwenbrück. Dein erster Tag im Streifendienst.');
@@ -84,6 +90,7 @@ export const AKT = {
     if (!S.hat('flucht')) return S.sag(OTTO, !S.hat('ersteHilfe') ? 'Die Frau im roten Wagen, Kim. Verletzte zuerst.'
       : !S.hat('uKennz') ? 'Sprich mit der Zeugin und mit dem Fahrer. Und sieh dir seinen Wagen genau an.' : 'Frag das Kennzeichen über Funk ab (📻). Und bleib zwischen ihm und seiner Fahrertür.');
     if (!S.hat('jagdFertig')) return S.sag(OTTO, 'In den Wagen, Kim! Blaulicht und Sirene!');
+    if (lieferung(S)) return AKT.otto_gewahrsam(S);
     if (!S.hat('marktFertig')) return S.sag(OTTO, S.hat('opfer') ? 'Grüne Jacke, blauer Rucksack. Schau genau hin, bevor du jemanden ansprichst. Und die Waffe bleibt, wo sie ist.'
       : 'Sprich zuerst mit der Bestohlenen. Wir brauchen eine Beschreibung.');
     if (!S.hat('alarm')) return S.sag(OTTO, 'Komm, zurück zum Wagen.');
@@ -92,7 +99,7 @@ export const AKT = {
 
   async lotte(S) { S.klang('hund'); await S.sag('Lotte', 'Wuff! (Lotte beschnuppert deine Schuhe, sieht dich lange an und legt sich wieder hin. Du bist wohl in Ordnung.)'); },
   async hanne(S) {
-    await S.sag('Hanne', 'Du bist also neu an Ottos Seite? Hanne. Bei mir gibt es mittags Frikadellen – und alles, was in dieser Stadt geredet wird.');
+    await S.sag('Hanne', 'Du bist also neu an Ottos Seite? Hanne. Ich schmeiße hier den Pausenraum. Bei mir gibt es mittags Frikadellen – und alles, was in dieser Stadt geredet wird.');
     await S.sag('Hanne', 'Pass auf den Otto auf. Der geht bald in Rente und tut so, als wäre ihm das egal. Dabei gibt es einen alten Fall, der ihm keine Ruhe lässt.');
   },
   // Die Kollegen in der Wache: Jeder hat einen Satz für den Morgen und einen für später, wenn schon etwas passiert ist.
@@ -128,7 +135,7 @@ export const AKT = {
     for (const s of ['funk', 'notizbuch', 'lampe', 'weste', 'handschellen', 'spray', 'schluessel']) S.gib(s);
     S.flag('spind'); S.punkte(2, 'Ausrüstung vollständig');
     await S.oeffne('spind', false);
-    S.ziel('Hol deine Dienstwaffe in der Waffenkammer (im Flur links)', ['wache', -11.6, 3]);
+    S.ziel('Hol deine Dienstwaffe in der Waffenkammer (im Flur ganz links)', ['wache', -12.8, 3]);
   },
 
   // Die Waffenkammer: Hier bekommt man die Dienstpistole – aber nur, wer genau hinschaut.
@@ -198,6 +205,12 @@ export const AKT = {
   },
 
   async einsteigen_hof(S) {
+    const n = lieferung(S);
+    if (n) {       // Wir liefern gerade jemanden ein: Losgefahren wird erst, wenn die Zellentür zu ist und die Waffe wieder im Holster steckt.
+      if (!S.hat('zelle' + n)) return S.sag(OTTO, `Wir fahren erst, wenn ${GEFANGEN[n].wen} in der Zelle sitzt. Der Gewahrsam hat seine eigene Tür: rechts am Gebäude, wo die gelben Streifen auf dem Boden sind.`);
+      if (!S.hat('zurueck' + n)) return S.sag(OTTO, 'Moment. Schau mal an deinen Gürtel, Kim. Fällt dir etwas auf? … Genau. Deine Pistole liegt noch im Schließfach. Ohne die fährst du mir nicht vom Hof.');
+      return AKT['abfahrt' + n](S);
+    }
     if (!S.hat('wagen')) {
       return S.sag(OTTO, 'Halt, nicht so schnell! Erst gehen wir einmal um den Wagen. Stell dir vor, uns platzt mitten im Einsatz ein Reifen.');
     }
@@ -434,17 +447,168 @@ export const AKT = {
     S.blaulichtAn(0);
     await S.sag(OTTO, 'Wer festnimmt, liefert auch ab. Timo kommt hinten in unseren Wagen, und wir bringen ihn zur Wache. Blaulicht bleibt aus – er läuft uns nicht mehr weg.');
     S.flag('jagdFertig'); S.flag('gefangen1'); S.uhr('09:40');
-    S.ziel('Bring Timo zur Wache (halte in der Wachstraße vor der Wache an)', ['stadt', 40, -2.5]);
+    S.ziel('Bring Timo zur Wache (halte in der Wachstraße vor der Wache an, dann fahrt ihr auf den Hof)', ['stadt', 40, -2.5]);
     S.speichern();
   },
-  // Den Festgenommenen an der Wache abgeben
+  // ------------------------------------------------------------------ Gewahrsam: Wer festnimmt, liefert auch ein
+  // Der Ablauf wie in einer echten Wache: auf den Hof fahren → Waffe ins Schließfach → durchsuchen und alles aufschreiben →
+  // in die Zelle bringen → Waffe wieder holen → zurück zum Wagen. Merker je Einlieferung n (1 = Timo, 2 = der Taschendieb):
+  // fach n (Waffe eingeschlossen), sucht n (durchsucht), zelle n (Tür zu), zurueck n (Waffe wieder im Holster), abgabe n (wieder losgefahren).
   async z_abgabe1(S) {
-    await S.sag('', 'Du hältst vor der Wache. Harms kommt heraus, öffnet die hintere Tür und nimmt Timo am Arm.');
-    await S.sag('Harms', 'Reents, Timo? Dann komm mal mit, Junge. Erst das Knie anschauen lassen, dann reden wir.');
-    await S.sag(OTTO, 'Den Bericht schreiben wir heute Mittag. Jetzt wieder raus auf die Straße.');
-    S.flag('abgabe1'); S.punkte(1, 'Festgenommenen zur Wache gebracht'); S.uhr('09:55');
+    await S.sag(OTTO, 'Wir fahren durch das Tor auf den Hof. Den Gewahrsam kennst du noch nicht: Er hat seine eigene Tür, rechts am Gebäude. Dort drin gelten strenge Regeln. Lies die Schilder, bevor du etwas anfasst.');
+    S.blaulichtAn(0); S.auto(false); S.ort('wache', 4.2, 13.6);
+    await S.sag('', 'Das Schiebetor rollt hinter euch zu. Du parkst Möwe 14 auf Platz 8 und hilfst Timo von der Rückbank. Er tritt vorsichtig auf, das Knie ist dick.');
+    S.ziel('Bring Timo in den Gewahrsam (graue Tür am Hof, rechts bei den gelben Streifen)', ['wache', 34, 7.6]);
+    S.speichern();
+  },
+  async z_abgabe2(S) {
+    await S.sag(OTTO, 'Wieder auf den Hof. Den Weg kennst du ja jetzt – und die Regeln auch.');
+    S.blaulichtAn(0); S.auto(false); S.ort('wache', 4.2, 13.6);
+    await S.sag('', 'Der Mann steigt aus, ohne dass du ihm helfen musst. Sein Blick springt über den Zaun, das Tor, die Kameras.');
+    S.ziel('Bring den Taschendieb in den Gewahrsam (graue Tür am Hof, rechts)', ['wache', 34, 7.6]);
+    S.speichern();
+  },
+  async otto_gewahrsam(S) {
+    const n = lieferung(S), g = GEFANGEN[n];
+    if (S.wo() !== 'wache') return S.sag(OTTO, `Zur Wache, Kim. Halt in der Wachstraße an, dann fahren wir auf den Hof. ${n === 1 ? 'Timo' : 'Der Herr hinten'} hat genug von der Stadt gesehen.`);
+    if (!S.hat('fach' + n)) return S.sag(OTTO, 'Ich bleibe beim Wagen und fange das Protokoll an. Der Gewahrsam ist die graue Tür rechts. Und Kim: Erst lesen, dann handeln.');
+    if (!S.hat('sucht' + n)) return S.sag(OTTO, 'Harms wartet im Gewahrsam auf euch. Er nimmt jeden auf, der hier in eine Zelle kommt.');
+    if (!S.hat('zelle' + n)) return S.sag(OTTO, `${g.name} gehört in Zelle ${n}. Tür auf, er geht rein, Tür zu – in der Reihenfolge.`);
+    if (!S.hat('zurueck' + n)) return S.sag(OTTO, 'Fehlt dir nicht etwas? Dein Holster sieht so leicht aus.');
+    return S.sag(OTTO, 'Gut gemacht. Steig ein, die Straße wartet.');
+  },
+  async waffenfach(S) {
+    const n = lieferung(S);
+    if (!n) return S.sag('', 'Die Waffenschließfächer vor dem Zellentrakt. Wer jemanden in eine Zelle bringt, schließt hier vorher seine Pistole ein. Gerade brauchst du kein Fach.');
+    if (!S.hat('fach' + n)) {
+      await S.oeffne('waffenfach');
+      await S.sag('', 'Du nimmst die Pistole aus dem Holster, legst sie in Fach 5 und drückst die kleine Stahltür zu. Der Schlüssel kommt an deinen Gürtel.');
+      S.klang('schloss'); await S.oeffne('waffenfach', false);
+      S.flag('fach' + n);
+      if (!S.hat('fachErinnert' + n)) S.punkte(1, 'Waffe vor dem Zellentrakt eingeschlossen');
+      if (n === 1) await S.sag(KIM, '(Leuchtet ein: Wo keine Waffe ist, kann einem auch keiner eine wegnehmen.)');
+      return S.ziel(`Melde ${GEFANGEN[n].wen} bei Harms im Gewahrsam an`, ['wache', 39.6, 3.6]);
+    }
+    if (!S.hat('zelle' + n)) return S.sag('', 'Deine Pistole liegt sicher in Fach 5. Du holst sie erst wieder, wenn die Zellentür zu ist.');
+    if (!S.hat('zurueck' + n)) {
+      await S.oeffne('waffenfach');
+      await S.sag('', 'Du schließt Fach 5 auf, prüfst die Sicherung und steckst die Pistole zurück ins Holster. Der Schlüssel bleibt im Schloss.');
+      S.klang('schloss'); await S.oeffne('waffenfach', false);
+      S.flag('zurueck' + n);
+      return S.ziel('Geh zurück zum Streifenwagen im Hof (blaue Stelle an der Fahrertür)', ['wache', 4.2, 13.6]);
+    }
+    return S.sag('', 'Fach 5 ist wieder leer, der Schlüssel steckt.');
+  },
+  // Harms am Aufnahme-Tisch im Gewahrsam
+  async gewahrsam(S) {
+    const n = lieferung(S), g = GEFANGEN[n];
+    if (!n) return S.sag(HARMS, 'Alles ruhig im Gewahrsam.');
+    if (!S.hat('fach' + n)) {
+      S.flag('fachErinnert' + n);
+      await S.sag(HARMS, 'Stopp, Berger. Keinen Schritt weiter. Was steht da vorne an der Wand, in Rot?');
+      return S.sag(HARMS, 'Waffen einschließen. Hier drin bist du ganz nah an Leuten, die nichts zu verlieren haben. Ein Griff an dein Holster, und wir haben ein Problem. Erst das Fach, dann reden wir.');
+    }
+    if (S.hat('zelle' + n)) return S.sag(HARMS, S.hat('zurueck' + n) ? `Ich habe ein Auge auf ${g.wen}. Alle fünfzehn Minuten ein Blick durchs Guckloch, das steht so im Gewahrsamsbuch.` : 'Vergiss dein Schließfach nicht, Berger. Fach 5.');
+    if (S.hat('sucht' + n)) return S.sag(HARMS, `Zelle ${n}, Berger. Steht auf dem Laufzettel.`);
+    let gleich = true;
+    if (n === 1) {
+      await S.sag(HARMS, 'Reents, Timo, neunzehn Jahre. Vorwurf: Unfallflucht, Fahren ohne Führerschein, ein gestohlener Wagen. Uhrzeit: neun Uhr achtundvierzig.');
+      for (;;) {
+        const a = await S.wahl(HARMS, 'Ich trage ihn ins Gewahrsamsbuch ein. Und was machst du, bevor er in die Zelle geht?', [
+          'Nichts mehr – er hat ja schon Handschellen an',
+          'Durchsuchen: Alles aus den Taschen kommt in einen Beutel und auf eine Liste',
+          'Die Handschellen abnehmen, damit er sich erst einmal beruhigt',
+        ]);
+        if (a === 1) break;
+        gleich = false;
+        await S.sag(HARMS, a === 0 ? 'Und das Feuerzeug in seiner Jacke? Das Taschenmesser? In eine Zelle kommt nichts, womit sich einer wehtun kann. Nochmal.' : 'Hier im Vorraum, mit der offenen Tür im Rücken? Die Handschellen kommen ab, wenn er in der Zelle steht. Nochmal.');
+      }
+      if (gleich) S.punkte(1, 'Vor der Zelle durchsucht');
+      await S.sag('', 'Du tastest Timo ab: ein Handy mit gesprungenem Glas, ein Schlüsselbund, ein Feuerzeug – und ein zerknitterter Fünfzig-Euro-Schein. Harms schreibt jede Sache auf. Timo unterschreibt mit zitternder Hand.');
+      S.notiz('Bei Timo Reents sichergestellt: ein 50-Euro-Schein (der Lohn für die Fahrt?), Handy, Schlüssel.');
+      await S.sag(HARMS, 'Gürtel und Schnürsenkel bleiben auch bei mir. Den Schein tüte ich extra ein, den will die Kripo sehen. Zelle 1 ist frei. Und keine Sorge, Junge: Nach dem Knie schaut gleich ein Arzt.');
+    } else {
+      await S.sag(HARMS, 'Name? … Er sagt keinen. Macht nichts. Hand auf die Glasplatte, bitte.');
+      await S.sag('', 'Harms drückt die Finger des Mannes einen nach dem anderen auf das Gerät für Fingerabdrücke. Auf dem Bildschirm baut sich ein Muster aus Linien auf. Dann stellt er ihn vor die Messlatte: ein Meter achtundsiebzig. Die Kamera blitzt.');
+      for (;;) {
+        const a = await S.wahl(HARMS, 'In seiner Jacke waren zwei Portemonnaies, die ihm nicht gehören. Wohin damit, Berger?', [
+          'In den Beutel zu seinen eigenen Sachen',
+          'Einzeln eintüten und beschriften – das sind Beweismittel',
+          'Gleich auf dem Markt zurückgeben, die Leute vermissen ihr Geld',
+        ]);
+        if (a === 1) break;
+        gleich = false;
+        await S.sag(HARMS, a === 0 ? 'Dann bekommt er sie mit seinen Sachen zurück, wenn er entlassen wird. Schön für ihn. Nochmal.' : 'Und vor Gericht zeigen wir dann – was? Erst sichern, aufschreiben, fotografieren. Zurück gibt es sie danach. Nochmal.');
+      }
+      if (gleich) S.punkte(1, 'Beweismittel getrennt gesichert');
+      S.notiz('Taschendieb: Name unbekannt, Fingerabdrücke und Foto genommen. Zwei fremde Portemonnaies als Beweismittel gesichert.');
+      await S.sag(HARMS, 'So ist es. Zelle 2. Und halt ihn gut fest – der schaut mir zu oft zur Tür.');
+    }
+    S.flag('sucht' + n);
+    S.ziel(`Bring ${g.wen} in Zelle ${n}`, ['wache', ZELLE_X[n], 1.6]);
+  },
+  // Eine Zellentür: aufschließen, hineinführen, zuschließen
+  async zelle(S, d) {
+    const n = lieferung(S), nr = d ? d.nr : n;
+    if (!n || S.hat('zelle' + n)) {
+      if (S.hat('zelle' + nr)) return S.sag('', nr === 1 ? 'Du schiebst das Guckloch auf. Timo sitzt auf der Liege und starrt auf seine Schuhe ohne Schnürsenkel.' : 'Du schiebst das Guckloch auf. Der Mann steht mitten in der Zelle und sieht genau zurück. Du schiebst es wieder zu.');
+      return S.sag('', `Zelle ${nr} ist leer. Eine Liege mit blauer Matratze, eine graue Decke, ein WC aus Edelstahl. Sonst nichts. Es riecht nach Putzmittel.`);
+    }
+    if (!S.hat('fach' + n)) {
+      S.flag('fachErinnert' + n);
+      return S.sag(HARMS, 'Halt, Berger! Hände weg von der Tür. Mit Pistole am Gürtel macht hier niemand eine Zelle auf. Das Schließfach ist gleich neben dem Eingang.');
+    }
+    if (!S.hat('sucht' + n)) return S.sag(HARMS, 'Langsam. Erst wird er bei mir aufgenommen und durchsucht. Was nicht im Buch steht, sitzt hier nicht.');
+    if (nr !== n) return S.sag(HARMS, `Zelle ${n}, Berger. Steht auf dem Laufzettel.`);
+    S.klang('schloss'); await S.oeffne('zelle' + n);
+    await S.fuehre('gef' + n, [[ZELLE_X[n], 1.3], [ZELLE_X[n], -1.6], [ZELLE_X[n] + 0.3, -3.4]]);
+    await S.sag('', n === 1 ? 'Timo humpelt hinein. Drinnen nimmst du ihm die Handschellen ab. Er reibt sich die Handgelenke und setzt sich auf die Liege, ohne dich anzusehen.'
+      : 'Der Mann geht hinein, als würde er die Zelle besichtigen. Drinnen nimmst du ihm die Handschellen ab – und gehst rückwärts wieder hinaus, den Blick auf ihm.');
+    await S.oeffne('zelle' + n, false); S.klang('schloss');
+    S.flag('zelle' + n);
+    await S.sag('', 'Die schwere Tür fällt ins Schloss. Du schiebst beide Riegel vor und siehst noch einmal durch das Guckloch.');
+    if (n === 1) await S.sag('Timo', '(leise, durch die Tür) Rufen Sie bitte meine Mutter an? Die denkt, ich bin in der Berufsschule.');
+    else await S.sag(HARMS, 'Eingetragen: zehn Uhr achtundfünfzig, Zelle 2. Gute Arbeit, Berger.');
+    S.ziel('Hol deine Pistole aus dem Waffenschließfach', ['wache', 32.8, 1.3]);
+    S.speichern();
+  },
+  // Der Festgenommene, solange er neben dir hergeht
+  async gefangener(S, d) {
+    if (d && d.id === 'gef2') return S.sag('Mann', 'Ich sage nichts. (Er lächelt dünn und schaut an dir vorbei zum Tor.)');
+    return S.sag('Timo', S.hat('sucht1') ? 'Muss ich da wirklich rein? … Wie lange denn?' : 'Ich lauf nicht weg. Mit dem Knie komm ich eh nicht weit.');
+  },
+  // … und später durch die Zellentür
+  async zellenmann(S, d) {
+    if (d && d.id === 'dieb_zelle') return S.sag('', 'Du klopfst an die Tür. Der Mann drinnen antwortet nicht. Aber du hörst, dass er ganz dicht dahinter steht.');
+    await S.sag('Timo', '(durch die Klappe) Der mit der Lederjacke … wenn der hört, dass ich hier bin, glaubt er, ich hab geredet.');
+    return S.sag(KIM, 'Hier drin kommt keiner an dich ran, Timo. Und wer redet, dem können wir helfen.');
+  },
+  // Wieder losfahren, wenn alles erledigt ist
+  async abfahrt1(S) {
+    await S.sag(OTTO, 'Sauber eingeliefert. Den Bericht schreiben wir heute Mittag. Jetzt wieder raus auf die Straße.');
+    S.flag('abgabe1'); S.punkte(1, 'Festgenommenen in den Gewahrsam gebracht'); S.uhr('09:55');
+    S.ort('stadt', 40, -2.5); S.auto(true);
     S.streife('ruf_markt', 25);
     S.speichern();
+  },
+  async abfahrt2(S) {
+    S.flag('abgabe2'); S.punkte(1, 'Festgenommenen in den Gewahrsam gebracht');
+    await S.sag(OTTO, 'Zwei Einlieferungen an einem Vormittag. Harms wird dich nicht vergessen – das ist bei ihm ein Lob.');
+    await S.sag('', 'Der Tag vergeht. Ihr schreibt die Berichte, esst bei Hanne und fahrt Streife. Langsam wird es Abend.');
+    S.ort('stadt', 40, -2.5); S.auto(true);
+    S.licht('abend'); S.uhr('21:30'); S.flag('abend');
+    await S.sag(OTTO, 'Eine letzte Runde, dann ist Feierabend.');
+    S.streife('ruf_museum', 25);
+    S.speichern();
+  },
+  // Bürger im Wartebereich der Wache
+  async buerger(S, d) {
+    if (d && d.id === 'buerger2') {
+      await S.sag('Frau Nguyen', 'Ich möchte etwas abgeben. Dieser Umschlag lag heute früh am Deich, mitten auf dem Weg. Da ist Geld drin, ziemlich viel.');
+      return S.sag(KIM, 'Das ist ehrlich von Ihnen. Die Kollegin am Tresen nimmt eine Fundanzeige auf – dann bekommen Sie auch eine Quittung.');
+    }
+    await S.sag('Herr Janßen', 'Mein Fahrrad ist weg! Vor dem Bäcker, keine fünf Minuten. Nur die Klingel haben sie mir dagelassen. Vierzig Jahre fahre ich das Rad!');
+    return S.sag(KIM, 'Das tut mir leid, Herr Janßen. Frau Lührs am Tresen nimmt die Anzeige auf. Wissen Sie die Rahmennummer? Die hilft uns am meisten.');
   },
   async ruf_markt(S) {
     await S.sag(FUNK, 'Leitstelle an Möwe 14: Diebstahl auf dem Wochenmarkt. Einer Frau wurde das Portemonnaie aus der Tasche gezogen, der Täter soll noch auf dem Platz sein.');
@@ -538,16 +702,6 @@ export const AKT = {
     S.notiz('Taschendieb festgenommen, drei Portemonnaies sichergestellt.');
     S.flag('marktFertig'); S.flag('gefangen2'); S.uhr('11:00');
     S.ziel('Bring den Taschendieb zur Wache (halte in der Wachstraße vor der Wache an)', ['stadt', 40, -2.5]);
-    S.speichern();
-  },
-  async z_abgabe2(S) {
-    await S.sag('', 'Vor der Wache wartet Petersen schon. Er nimmt den Mann und die drei Portemonnaies entgegen.');
-    await S.sag('Petersen', 'Drei Stück an einem Vormittag. Fleißig, der Herr. Ich nehme ihn auf.');
-    S.flag('abgabe2'); S.punkte(1, 'Festgenommenen zur Wache gebracht');
-    await S.sag('', 'Der Tag vergeht. Ihr schreibt die Berichte, esst bei Hanne und fahrt Streife. Langsam wird es Abend.');
-    S.licht('abend'); S.uhr('21:30'); S.flag('abend');
-    await S.sag(OTTO, 'Eine letzte Runde, dann ist Feierabend.');
-    S.streife('ruf_museum', 25);
     S.speichern();
   },
   async marktmann(S) { await S.sag('Mann', 'Die Krabben vom Hein sind die besten. Aber mit dem redet ja keiner mehr, seit der Sache mit der Glocke damals.'); },
@@ -738,16 +892,18 @@ export const DURCHLAUF = [
   ['einsteigen_hof', null, []], ['f_anmelden', null, []], ['z_kita', null, []],
   ['erzieherin', null, []], ['falschparker', null, []], ['f_kennz', null, []], ['baecker', null, [1, 0, 0]], ['f_kita_fertig', null, []], ['ruf_unfall', null, []],
   ['z_unfall', null, []], ['verletzte', null, [0, 2]], ['zeugin', null, []], ['unfallfahrer', null, [1, 0]], ['unfallwagen', null, []], ['roterwagen', null, []],
-  ['f_unfall', null, [1, 2]], ['eingestiegen', null, []], ['jagd_ende', null, [1, 2, 0, 1]], ['z_abgabe1', null, []], ['ruf_markt', null, []],
+  ['f_unfall', null, [1, 2]], ['eingestiegen', null, []], ['jagd_ende', null, [1, 2, 0, 1]], ['z_abgabe1', null, []],
+  ['zelle', 'zelle1', [], true], ['waffenfach', null, []], ['gewahrsam', 'harms_g', [0, 2, 1]], ['zelle', 'zelle2', [], true], ['zelle', 'zelle1', []], ['einsteigen_hof', null, [], true], ['waffenfach', null, []], ['einsteigen_hof', null, []], ['ruf_markt', null, []],
   ['z_markt', null, []], ['opfer', null, [1, 0]], ['f_beschreibung', null, []],
   ['verdacht', 'w1', [], true], ['verdacht', 'w2', [1, 2, 0, 1, 0, 1]],
-  ['z_abgabe2', null, []], ['ruf_museum', null, []], ['z_museum', null, []], ['museumstuer', null, []], ['brinkmann', null, [0, 2]], ['thomsen', null, []],
+  ['z_abgabe2', null, []], ['waffenfach', null, []], ['gewahrsam', 'harms_g', [2, 1]], ['zelle', 'zelle2', []], ['waffenfach', null, []], ['einsteigen_hof', null, []],
+  ['ruf_museum', null, []], ['z_museum', null, []], ['museumstuer', null, []], ['brinkmann', null, [0, 2]], ['thomsen', null, []],
   ['spur', 'spur_feder', []], ['spur', 'spur_fuss', []], ['fenster', null, []], ['spur', 'spur_kratzer', [0, 2]],
   ['otto', null, [0, 1]], ['brinkmann', null, [1, 0]],
 ];
 // Die Antworten, mit denen es beim ersten Versuch klappt (für die Rechnung der besten Punktzahl).
 // Steht eine Aktion zweimal im Durchlauf, sind es zwei Listen hintereinander.
 export const BESTE = {
-  harms: [[1, 1]], baecker: [[0, 0]], verletzte: [[2]], unfallfahrer: [[0]], f_unfall: [[2]], jagd_ende: [[2, 1]], opfer: [[0]], 'verdacht:w2': [[2, 1, 1]],
+  harms: [[1, 1]], baecker: [[0, 0]], verletzte: [[2]], unfallfahrer: [[0]], f_unfall: [[2]], jagd_ende: [[2, 1]], gewahrsam: [[1], [1]], opfer: [[0]], 'verdacht:w2': [[2, 1, 1]],
   brinkmann: [[2], [0]], 'spur:spur_kratzer': [[2]], otto: [[1]],
 };

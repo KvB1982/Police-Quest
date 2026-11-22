@@ -112,13 +112,20 @@ function groesse() {
 }
 addEventListener('resize', groesse); groesse();
 
+// So groß ist das Feld, in dem die Sonne Schatten wirft (halbe Breite in Metern). Kleiner = schärfere Schatten.
+function schattenFeld(r) {
+  const k = sonne.shadow.camera; if (k.right === r) return;
+  Object.assign(k, { left: -r, right: r, top: r, bottom: -r }); k.updateProjectionMatrix(); sonne.shadow.normalBias = r < 60 ? 0.06 : 0.35; sonne.shadow.bias = r < 60 ? -0.0004 : -0.0006;
+}
 function lichtSetzen(name) {
   Z.licht = name;
   const l = LICHT[name], draussen = !!(welt && welt.stadt);
   oben.intensity = l.oben; sonne.intensity = l.sonne; sonne.color.set(l.farbe || '#fff4e0');
   lampe.intensity = l.lampe; wagen.userData.sw.intensity = l.auto;
   if (wagen.userData.lack) wagen.userData.lack.envMapIntensity = SPIEGELN[name] ?? 0.5;
-  sonne.castShadow = draussen && name !== 'dunkel' && !sparsam;
+  const innen = !draussen && ORTE[Z.ort].schatten;       // auch die Wache hat Schatten: Sie ist klein, das kostet fast nichts
+  sonne.castShadow = (draussen || !!innen) && name !== 'dunkel' && !sparsam;
+  schattenFeld(innen ? innen : SCHATTEN);
   if (draussen && himmel) {
     // In der Stadt: echter Himmel mit Wolken, Dunst in der Ferne, Fenster und Laternen an oder aus
     const lampen = wetter ? wetter.lampen(name) : name;         // bei Gewitter gehen auch am Tag die Lichter an
@@ -129,7 +136,8 @@ function lichtSetzen(name) {
   } else {
     szene.background = new THREE.Color(l.himmel);
     szene.fog = new THREE.Fog(l.himmel, name === 'dunkel' ? 30 : 120, name === 'dunkel' ? 60 : 420);
-    oben.color.set('#ffffff'); oben.groundColor.set('#8a8a7a'); sonne.position.set(30, 60, 40); sonne.target.position.set(0, 0, 0);
+    oben.color.set('#ffffff'); oben.groundColor.set('#8a8a7a');
+    const [mx, mz] = ORTE[Z.ort].mitte || [0, 0]; sonne.position.set(mx + 38, 80, mz + 46); sonne.target.position.set(mx, 0, mz);
   }
   if (wetter) wetter.basis(name, draussen);       // das Wetter merkt sich diese Einstellung und legt sich darüber
 }
@@ -206,6 +214,8 @@ const S = {
   kommt: (art, ziel, wie) => gastRufen(art, ziel, wie),
   // Verfolgung zu Fuß: Die Person id rennt den Weg [[x, z], …] entlang, du läufst hinterher. Zurück kommt true (gefangen) oder false (entwischt).
   verfolge: (id, weg, wie) => laufStart(id, weg, wie),
+  // Eine Person geht einen Weg entlang ([[x, z], …]) und bleibt am Ende stehen – zum Beispiel der Festgenommene in seine Zelle.
+  fuehre(id, weg) { const o = welt.objekte.find(q => q.def.id === id && q.da); if (!o) return Promise.resolve(); return new Promise(fertig => { o.fuehrt = { weg, i: 0, fertig }; }); },
   jagd: () => JAGD.bilanz(jagd),                   // wie lief die Verfolgung? { rumms, sirene }
   speichern() { Z.sp = { x: spieler.x, z: spieler.z }; try { localStorage.setItem(SPEICHER, JSON.stringify(Z)); } catch (e) { /* kein Speicher: dann eben nicht */ } },
   ende: (titel, text) => UI.ende(titel, text, Z.punkte, STORY.MAX_PUNKTE, Z.notizen),
@@ -520,9 +530,17 @@ function fahren(dt) {
   UI.tacho(kmh);
 }
 
+const FUEHR_TEMPO = 1.5;      // so schnell geht jemand, den die Geschichte führt (m/s)
 function ottoFolgt(dt) {
   for (const o of welt.objekte) {
-    if (!o.def.folgt || Z.imAuto) continue;
+    if (!o.def.folgt || Z.imAuto || !o.da) continue;
+    if (o.fuehrt) {       // die Geschichte führt diese Person gerade einen Weg entlang (S.fuehre)
+      const F = o.fuehrt, p = F.weg[F.i];
+      if (p) { const dx = p[0] - o.x, dz = p[1] - o.z, d = Math.hypot(dx, dz), weg = FUEHR_TEMPO * dt;
+        if (d <= weg) { o.x = p[0]; o.z = p[1]; if (++F.i >= F.weg.length && F.fertig) { F.fertig(); F.fertig = null; } }
+        else { o.x += dx / d * weg; o.z += dz / d * weg; o.mesh.rotation.y = Math.atan2(dx, dz); } }
+      o.mesh.position.set(o.x, 0, o.z); o.mesh.userData.selbst = true; figurBewegen(o.mesh, dt, p ? FUEHR_TEMPO : 0); o.geht = !!p; continue;
+    }
     const zx = spieler.x - Math.sin(spieler.h) * 1.4 + Math.cos(spieler.h) * 0.9, zz = spieler.z - Math.cos(spieler.h) * 1.4 - Math.sin(spieler.h) * 0.9;
     const dx = zx - o.x, dz = zz - o.z, d = Math.hypot(dx, dz);
     const tempo = d > 12 ? 40 : d > 1.2 ? LAUF_TEMPO * 1.05 : 0;      // zu weit weg: hinterherspringen
