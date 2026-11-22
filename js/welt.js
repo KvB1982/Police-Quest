@@ -3,7 +3,7 @@
 // Fertige Modelle (assets/modelle/) ersetzen die Kisten, sobald sie geladen sind.
 
 import * as THREE from 'three';
-import { polizistBewegen, ladePolizist } from './polizist.js';
+import { polizistBewegen, ladePolizist, polizistSitz, polizistBlick } from './polizist.js';
 import * as MOD from './modelle.js';
 import { baueStadt, radForm, RAD_BREIT } from './stadtbau.js';
 import * as BILD from './bilder.js';
@@ -45,6 +45,7 @@ export function figur(look = {}) {
     const tief = new THREE.Group(); tief.position.y = -0.68; tief.add(...g.children); g.add(tief); g.userData.sitzt = true;
   }
   // Gibt es für diese Person ein fertiges Modell mit Knochen (assets/modelle/<modell>.glb)? Dann ersetzt es die Klötzchen, sobald es geladen ist.
+  if (look.arbeit) polizistSitz(g, look.arbeit, look.sitzHoch);       // sitzt auf einem Stuhl und arbeitet: 'tippen', 'lesen' oder 'ruhe' (polizist.js)
   if (look.modell) ladePolizist(g, look.modell, look.art || 'polizei', look.sitzt ? 'sitzen' : null, look.weste ? 'weste' : look.rucksack || null);
   return g;
 }
@@ -55,6 +56,8 @@ export function figurLeben(g, dt, zeit, spricht, zu) {
   const u = g.userData;
   if (!u.al && !u.mixer) return;
   if (u.grund === undefined) { u.grund = g.rotation.y; u.takt = Math.abs(Math.sin(g.position.x * 12.9 + g.position.z * 78.2)) * 6; u.rede = 0; }
+  // Wer auf einem Stuhl sitzt, dreht nur den Kopf zu dir, nicht den ganzen Körper
+  if (u.sitzSoll) { polizistBlick(g, zu); zu = null; } else if (u.blickZu != null) polizistBlick(g, null);
   // langsam drehen: zu dir, wenn du nah bist – sonst zurück in die Grundstellung
   let d = (zu ?? u.grund) - g.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
   if (u.sitzt) { if (u.mixer) polizistBewegen(g, dt, 0); return; }
@@ -464,7 +467,10 @@ export function baueOrt(def) {
     if (!q.durch) fest.push([q.x - q.b / 2, q.z - q.t / 2, q.x + q.b / 2, q.z + q.t / 2]);
   }
   // Fertige Modelle als Schmuck (ohne Hindernis): { modell, x, z, y (Höhe), dreh, mal (größer/kleiner) }
-  for (const q of def.deko || []) if (q.form) { const n = moebelForm(q); n.position.set(q.x, q.y || 0, q.z); n.rotation.y = q.dreh || 0; gruppe.add(n); statisch.push(n); }
+  // "rollt" = ein Stuhl, der sich bewegt: Er rollt zurück, wenn jemand aufsteht, und wieder an den Tisch, wenn sich jemand setzt (main.js)
+  const rollt = [];
+  for (const q of def.deko || []) if (q.form) { const n = moebelForm(q); n.position.set(q.x, q.y || 0, q.z); n.rotation.y = q.dreh || 0; gruppe.add(n);
+    if (q.rollt) rollt.push({ mesh: n, x: q.x, z: q.z, dreh: q.dreh || 0, aus: 1, soll: 1 }); else statisch.push(n); }
   for (const q of (def.deko || []).filter(q => q.modell)) MOD.lade(q.modell).then(mo => {
     if (!mo) return;
     const n = new THREE.Mesh(mo.geo, mo.mat); n.position.set(q.x, q.y || 0, q.z); n.rotation.y = q.dreh || 0; if (q.mal) n.scale.setScalar(q.mal); n.castShadow = true; gruppe.add(n);
@@ -498,5 +504,5 @@ export function baueOrt(def) {
     m.position.set(l.x || 0, l.y || 0, l.z || 0); m.rotation.y = l.h || 0; gruppe.add(m);
     objekte.push({ def: l, mesh: m, typ: 'leut', x: l.x || 0, z: l.z || 0 });
   }
-  return { gruppe, fest, objekte, stadt, hausSchilder, klappen };
+  return { gruppe, fest, objekte, stadt, hausSchilder, klappen, rollt };
 }

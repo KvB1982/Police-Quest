@@ -10,7 +10,7 @@ import * as UI from './oberflaeche.js';
 import * as KLANG from './klang.js';
 import { Neigung } from './neigung.js';
 import { baueOrt, figur, figurBewegen, figurLeben, autoModell, autoRaeder, spiegelBild } from './welt.js';
-import { ladePolizist, polizistSpiele, polizistBewegen } from './polizist.js';
+import { ladePolizist, polizistSpiele, polizistBewegen, polizistSitz } from './polizist.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as BILD from './bilder.js';
 import * as KARTE from './karte.js';
@@ -552,17 +552,26 @@ function ottoFolgt(dt) {
 
 // Kollegen auf ihrer Runde: Sie gehen von Punkt zu Punkt (runde in daten.js), bleiben an manchen Punkten eine Weile stehen
 // und halten an, wenn du dicht vor ihnen stehst oder mit ihnen redest.
-const RUNDE_TEMPO = 1.25, RUNDE_HALT = 1.5, RUNDE_GEDULD = 3.5;       // so schnell gehen sie (m/s) · so nah (Meter) bleiben sie für dich stehen
+const RUNDE_TEMPO = 1.25, RUNDE_HALT = 1.5, RUNDE_GEDULD = 3.5, RUNDE_AUFSTEHEN = 0.9;       // so schnell gehen sie (m/s) · so nah (Meter) bleiben sie für dich stehen
+const STUHL_WEG = 0.55, STUHL_TEMPO = 1.6;       // so weit (Meter) rollt ein Stuhl vom Tisch zurück, wenn niemand darauf sitzt · so schnell rollt er
+const stuhlBei = (x, z) => (welt.rollt || []).find(s => abstand(x, z, s.x, s.z) < 0.5);
 function rundenSchritt(dt) {
+  // Die Stühle der Kollegen: frei = ein Stück vom Tisch weggerollt und leicht verdreht, besetzt = am Tisch
+  for (const s of welt.rollt || []) { s.aus += Math.max(-dt * STUHL_TEMPO, Math.min(dt * STUHL_TEMPO, s.soll - s.aus)); const t = s.aus * s.aus * (3 - 2 * s.aus);
+    s.mesh.position.set(s.x - Math.sin(s.dreh) * STUHL_WEG * t, 0, s.z - Math.cos(s.dreh) * STUHL_WEG * t); s.mesh.rotation.y = s.dreh + t * 0.4; s.soll = 1; }
   for (const o of welt.objekte) {
     const R = o.def.runde; if (!R || !o.da || o.typ !== 'leut') continue;
-    if (o.ri === undefined) { o.x = o.def.x; o.z = o.def.z; o.ri = 1 % R.length; o.warte = R[0][2] || 0; if (R[0][3] !== undefined) { o.mesh.rotation.y = R[0][3]; o.mesh.userData.grund = R[0][3]; } }
+    if (o.ri === undefined) { o.x = o.def.x; o.z = o.def.z; o.ri = 1 % R.length; o.warte = R[0][2] || 0; if (R[0][3] !== undefined) { o.mesh.rotation.y = R[0][3]; o.mesh.userData.grund = R[0][3]; }
+      if (R[0][4]) { o.sitzt = R[0][4]; polizistSitz(o.mesh, R[0][4]); } }
     const beiDir = !Z.imAuto && abstand(spieler.x, spieler.z, o.x, o.z) < RUNDE_HALT, redet = beschaeftigt && o.def === aktiv;
     // Stehst du im Weg, wartet der Kollege höchstens RUNDE_GEDULD Sekunden und geht dann an dir vorbei.
     o.halt = beiDir ? (o.halt || 0) + dt : 0;
-    if (o.warte > 0 || (beiDir && o.halt < RUNDE_GEDULD) || redet) { if (!beiDir && !redet) o.warte -= dt; o.geht = false; o.mesh.userData.selbst = false; continue; }
+    if (o.warte > 0 || (beiDir && o.halt < RUNDE_GEDULD) || redet) { if (!beiDir && !redet) o.warte -= dt; o.geht = false; o.mesh.userData.selbst = false;
+      if (o.sitzt) { const st = stuhlBei(o.x, o.z); if (st) st.soll = 0; const w = Math.atan2(Math.sin(o.mesh.userData.grund - o.mesh.rotation.y), Math.cos(o.mesh.userData.grund - o.mesh.rotation.y)); if (Math.abs(w) < 0.25) polizistSitz(o.mesh, o.sitzt); }       // erst zum Tisch drehen, dann hinsetzen
+      continue; }
+    if (o.sitzt) { o.sitzt = false; polizistSitz(o.mesh, null); o.warte = RUNDE_AUFSTEHEN; continue; }       // die Arbeit ist getan: erst aufstehen, dann losgehen
     const [zx, zz, pause, blick] = R[o.ri], dx = zx - o.x, dz = zz - o.z, d = Math.hypot(dx, dz), weg = RUNDE_TEMPO * dt;
-    if (d <= weg) { o.x = zx; o.z = zz; o.ri = (o.ri + 1) % R.length; if (pause) { o.warte = pause; if (blick !== undefined) o.mesh.userData.grund = blick; } }
+    if (d <= weg) { o.x = zx; o.z = zz; o.ri = (o.ri + 1) % R.length; if (pause) { o.warte = pause * (0.8 + Math.random() * 0.5); if (blick !== undefined) o.mesh.userData.grund = blick; o.sitzt = R[(o.ri + R.length - 1) % R.length][4] || false; } }
     else { o.x += dx / d * weg; o.z += dz / d * weg;
       let w = Math.atan2(dx, dz) - o.mesh.rotation.y; while (w > Math.PI) w -= 2 * Math.PI; while (w < -Math.PI) w += 2 * Math.PI; o.mesh.rotation.y += w * Math.min(1, dt * 7); }
     o.mesh.position.set(o.x, 0, o.z); o.mesh.userData.selbst = true; figurBewegen(o.mesh, dt, RUNDE_TEMPO); o.geht = true;
