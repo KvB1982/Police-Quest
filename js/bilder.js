@@ -20,7 +20,7 @@ function textur(c, farbe = true) {
 // ---- geladene Bilder (Backstein von ambientCG); bis sie da sind, malen wir Ersatz
 const geladen = {};
 export function ladeBilder() {
-  const namen = ['wand_backstein', 'boden_asphalt', 'boden_gehweg', 'boden_kopfstein', 'boden_gras', 'boden_steg'];
+  const namen = ['wand_backstein', 'boden_asphalt', 'boden_gehweg', 'boden_kopfstein', 'boden_gras', 'boden_steg', 'boden_fliesen', 'boden_parkett', 'boden_dielen'];
   return Promise.all(namen.map(n => new Promise(fertig => {
     const b = new Image();
     b.onload = () => { geladen[n] = b; fertig(); };
