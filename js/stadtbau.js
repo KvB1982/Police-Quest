@@ -300,7 +300,7 @@ export function baueStadt() {
   for (const g of P.gleise) for (let z = g.z1; z < 900; z += 1.4) E('farbe').kiste(g.x - 1.2, 0.02, z, g.x + 1.2, 0.08, z + 0.3, farbe('#4f4338'));
 
   // ---- Häuser
-  for (const h of P.haeuser) haus(h);
+  for (const h of P.haeuser) if (!h.selbst) haus(h);       // die Polizeiwache baut welt.js aus js/wache.js
   function haus(h) {
     // Das Haus wird so gebaut, als stünde es gerade (Tür nach Süden, Mitte bei 0/0). "lokal" dreht und schiebt jede Ecke an ihren Platz.
     const x1 = -h.b / 2, z1 = -h.t / 2, x2 = h.b / 2, z2 = h.t / 2, f = farbe(h.farbe), stil = h.stil;

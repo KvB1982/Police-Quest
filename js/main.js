@@ -21,6 +21,7 @@ import { neuerVerkehr } from './verkehr.js';
 import { baueVerkehr } from './verkehrbau.js';
 import { woBinIch, UFER, imHindernis } from './stadtplan.js';
 import * as JAGD from './jagd.js';
+import { WACHE_X, WACHE_Z, WACHE_KAMERA, WACHE_PLATZ8, inWache, imWachHaus } from './wache.js';
 
 // ------------------------------------------------------------------ Zahlen zum Einstellen
 const LAUF_TEMPO = 4.6;          // Meter pro Sekunde zu Fuß
@@ -49,8 +50,30 @@ const SCHNITT_VOR = 0.5;         // zu Fuß wird von der Stadt alles weggeschnit
 // ------------------------------------------------------------------ Spielstand
 let Z = neuerStand();
 function neuerStand() {
-  return { flags: {}, punkte: 0, sachen: [], notizen: [], ziel: null, ort: STORY.START.ort, licht: STORY.START.licht, uhr: STORY.START.uhr,
-    imAuto: false, blaulicht: AUS, auto: { x: 0, z: 0, h: 0, v: 0 }, sp: { x: STORY.START.x, z: STORY.START.z } };
+  // Der Streifenwagen parkt am Anfang im Hof der Wache auf Platz 8, die Nase zum Tor.
+  return { fassung: 2, flags: {}, punkte: 0, sachen: [], notizen: [], ziel: null, ort: 'stadt', licht: STORY.START.licht, uhr: STORY.START.uhr,
+    imAuto: false, blaulicht: AUS, auto: { x: WACHE_PLATZ8[0], z: WACHE_PLATZ8[1], h: 0, v: 0 }, sp: { x: STORY.START.x, z: STORY.START.z } };
+}
+// Die Polizeiwache gehört zur Stadt (js/wache.js). Die Geschichte darf trotzdem weiter in "Wache-Maßen" rechnen:
+// ['wache', x, z] ist eine Stelle in der Wache (0/6 = die Hoftür), ['wagen'] ist dort, wo der Streifenwagen gerade steht.
+function stelle(w) {
+  if (!w) return null;
+  if (w[0] === 'wache') return ['stadt', w[1] + WACHE_X, w[2] + WACHE_Z];
+  if (w[0] === 'wagen') return ['stadt', Z.auto.x, Z.auto.z];
+  return w;
+}
+// Ein Spielstand von früher (als die Wache noch ein eigener Ort war) wird beim Laden umgerechnet.
+function altenStand(A) {
+  if (A.fassung === 2) return A;
+  const liefert = [1, 2].find(n => A.flags['gefangen' + n] && !A.flags['abgabe' + n]);
+  if (A.ort === 'wache') {
+    A.ort = 'stadt'; A.sp = { x: A.sp.x + WACHE_X, z: A.sp.z + WACHE_Z }; A.imAuto = false;
+    A.auto = { x: WACHE_PLATZ8[0], z: WACHE_PLATZ8[1], h: 0, v: 0 };
+    if (liefert) { A.flags['hof' + liefert] = A.flags['zone_zh' + liefert] = true; }
+    if (liefert || A.flags.angemeldet) A.flags.los = true;
+  } else if (A.flags.wagen) A.flags.los = true;
+  A.fassung = 2;
+  return A;
 }
 const spieler = { x: 0, z: 0, h: Math.PI, tap: null, tempo: 0 };
 let welt = null;
@@ -144,30 +167,53 @@ function lichtSetzen(name) {
 
 // ------------------------------------------------------------------ Orte wechseln
 function ortLaden(name, x, z) {
-  if (welt) szene.remove(welt.gruppe);
+  [name, x, z] = stelle([name, x, z]);       // 'wache' ist kein eigener Ort mehr: Das ist die Stadt, nur in Wache-Maßen
+  // Die Stadt ist groß. Steht sie schon, wird sie nicht noch einmal gebaut – dann wird nur die Figur umgesetzt.
+  if (!(welt && welt.stadt && name === 'stadt')) {
+    if (welt) szene.remove(welt.gruppe);
+    welt = baueOrt(ORTE[name]);
+    szene.add(welt.gruppe);
+    for (const g of [himmel, umland, verkehrBild]) if (g) { if (welt.stadt) szene.add(g.gruppe); else szene.remove(g.gruppe); }
+    rasterBauen();
+  }
   Z.ort = name;
-  welt = baueOrt(ORTE[name]);
-  szene.add(welt.gruppe);
-  for (const g of [himmel, umland, verkehrBild]) if (g) { if (welt.stadt) szene.add(g.gruppe); else szene.remove(g.gruppe); }
-  rasterBauen();
   lichtSetzen(Z.licht);
   KARTE.radarZeigen(!!welt.stadt);
   spieler.x = x; spieler.z = z; spieler.tap = null;
   wagen.visible = name === 'stadt';
-  for (const o of welt.objekte) if (o.def.folgt) { o.x = x + 1.2; o.z = z + 1.2; }
+  for (const o of welt.objekte) o.da = undefined;       // alle tauchen neu auf: Wer dir folgt, steht dann neben dir
+  wachFern = null; kam.innen = wacheNah() ? 1 : 0;
   sichtbarkeit();
   kameraSetzen(1);
 }
+// Bist du gerade (zu Fuß) auf dem Grundstück der Polizeiwache? Dann schaut die Kamera steiler, und es läuft die Musik der Wache.
+const wacheNah = () => !!(welt && welt.stadt) && !Z.imAuto && inWache(spieler.x, spieler.z);
+const WACHE_WEIT = 160;          // weiter weg als so (Meter) ruhen die Leute in der Wache: Man sieht sie nicht, und sie kosten keine Rechenzeit
+let wachFern = null;
 
 // Welche Dinge und Leute gibt es gerade? Das hängt von den Merkern der Geschichte ab.
 function sichtbarkeit() {
   if (!welt) return;
+  if (wachFern === null) wachFern = !!welt.stadt && !inWache(spieler.x, spieler.z, WACHE_WEIT);
   for (const o of welt.objekte) {
-    const d = o.def;
+    const d = o.def, war = o.da;
     o.da = !!((!d.wenn || Z.flags[d.wenn]) && (!d.bis || !Z.flags[d.bis]));
-    o.mesh.visible = o.da && !(d.folgt && Z.imAuto);
+    if (o.da && !war) {       // taucht gerade auf
+      if (d.folgt) { o.x = spieler.x + 1.2; o.z = spieler.z + 1.2; }       // läuft dir nach: steht neben dir
+      else if (d.amWagen) {       // wartet am Streifenwagen (auf der Beifahrerseite)
+        const a = Z.auto; o.x = a.x - Math.cos(a.h) * 1.9; o.z = a.z + Math.sin(a.h) * 1.9;
+        o.mesh.position.set(o.x, 0, o.z); o.mesh.rotation.y = Math.atan2(-Math.cos(a.h), Math.sin(a.h)); o.mesh.userData.grund = undefined;
+      }
+    }
+    o.ruht = !!(d.wache && o.typ === 'leut' && !d.folgt && wachFern);
+    o.mesh.visible = o.da && !(d.folgt && Z.imAuto) && !o.ruht;
   }
-  welt.lose = welt.objekte.filter(o => o.da && o.fest).map(o => o.fest);      // Dinge, die kommen und gehen (der falsch geparkte Kombi …)
+  loseNeu();
+}
+// Welche Dinge stehen gerade im Weg? Das ändert sich, wenn etwas auftaucht, verschwindet oder das Schiebetor aufgeht.
+function loseNeu() {
+  for (const o of welt.objekte) if (o.def.art === 'tor' && o.fest) o.fest.durchgang = true;      // das Schiebetor geht von selbst auf: Die Wegsuche darf hindurch
+  welt.lose = welt.objekte.filter(o => o.da && o.fest && !o.offen).map(o => o.fest);      // Dinge, die kommen und gehen (der falsch geparkte Kombi …)
   if (!welt.raster) welt.lose = welt.fest.concat(welt.lose);
   gitter = null;      // die Kästchen für die Wegsuche werden beim nächsten Tippen neu gerechnet
 }
@@ -197,14 +243,19 @@ const S = {
   schloss: titel => UI.schloss(titel),
   flag: n => { Z.flags[n] = true; },
   hat: n => !!Z.flags[n],
-  wo: () => Z.ort,
+  wo: () => Z.ort === 'stadt' && inWache(spieler.x, spieler.z) ? 'wache' : Z.ort,       // 'wache' = auf dem Grundstück der Polizeiwache (sie gehört zur Stadt)
+  hinweis: text => UI.toast(text),                 // ein kurzer Hinweis am Bildrand (ohne Stimme)
   punkte(n, wofuer) { Z.punkte = Math.max(0, Z.punkte + n); UI.toast(`${n > 0 ? '+' : ''}${n} ⭐ ${wofuer}`); if (n > 0) KLANG.spiel('pling'); anzeigen(); },
   notiz(t) { if (!Z.notizen.includes(t)) Z.notizen.push(t); },
   gib(s) { if (!Z.sachen.includes(s)) Z.sachen.push(s); },
   ziel(text, wo) { Z.ziel = { text, wo }; anzeigen(); },
   ort(name, x, z) { ortLaden(name, x, z); KLANG.spiel('tuer'); anzeigen(); },
   klang: name => KLANG.spiel(name),
-  auto(an) { Z.imAuto = an; if (an) Z.auto = { x: spieler.x, z: spieler.z, h: -Math.PI / 2, v: 0 }; sichtbarkeit(); kameraSetzen(1); },
+  // Ein- oder aussteigen. Der Wagen bleibt, wo er steht. Nur wenn er weit weg ist (das sollte nicht vorkommen), steht er danach bei dir.
+  auto(an) {
+    if (an) { if (abstand(spieler.x, spieler.z, Z.auto.x, Z.auto.z) > 9) Z.auto = { x: spieler.x, z: spieler.z, h: -Math.PI / 2, v: 0 }; einsteigenJetzt(); }
+    else if (Z.imAuto) aussteigen(); else sichtbarkeit();
+  },
   imWagen: () => Z.imAuto,
   licht: lichtSetzen,
   wetter: name => wetter.setze(name),              // ein Wetter festlegen (Namen in wetterplan.js), ohne Namen wieder nach Plan
@@ -221,7 +272,10 @@ const S = {
   // Verfolgung zu Fuß: Die Person id rennt den Weg [[x, z], …] entlang, du läufst hinterher. Zurück kommt true (gefangen) oder false (entwischt).
   verfolge: (id, weg, wie) => laufStart(id, weg, wie),
   // Eine Person geht einen Weg entlang ([[x, z], …]) und bleibt am Ende stehen – zum Beispiel der Festgenommene in seine Zelle.
-  fuehre(id, weg) { const o = welt.objekte.find(q => q.def.id === id && q.da); if (!o) return Promise.resolve(); return new Promise(fertig => { o.fuehrt = { weg, i: 0, fertig }; }); },
+  // Bei Leuten aus der Wache ist der Weg in Wache-Maßen gemeint (wie in js/wache.js).
+  fuehre(id, weg) { const o = welt.objekte.find(q => q.def.id === id && q.da); if (!o) return Promise.resolve();
+    if (o.def.wache) weg = weg.map(p => [p[0] + WACHE_X, p[1] + WACHE_Z]);
+    return new Promise(fertig => { o.fuehrt = { weg, i: 0, fertig }; }); },
   jagd: () => JAGD.bilanz(jagd),                   // wie lief die Verfolgung? { rumms, sirene }
   speichern() { Z.sp = { x: spieler.x, z: spieler.z }; try { localStorage.setItem(SPEICHER, JSON.stringify(Z)); } catch (e) { /* kein Speicher: dann eben nicht */ } },
   ende: (titel, text) => UI.ende(titel, text, Z.punkte, STORY.MAX_PUNKTE, Z.notizen),
@@ -231,7 +285,7 @@ const S = {
 async function tu(akt, def) {
   if (beschaeftigt || !STORY.AKT[akt]) return;
   beschaeftigt = true; spieler.tap = null; aktiv = def || null;
-  try { await STORY.AKT[akt](S, def); } finally { beschaeftigt = false; aktiv = null; sprecher = ''; sichtbarkeit(); anzeigen(); }
+  try { return await STORY.AKT[akt](S, def); } finally { beschaeftigt = false; aktiv = null; sprecher = ''; sichtbarkeit(); anzeigen(); }
 }
 
 function anzeigen() {
@@ -244,10 +298,11 @@ function anzeigen() {
 let schrittZeit = 0;
 function geraeusche(dt) {
   const stadt = Z.ort === 'stadt', nah = (x, z, weit) => Math.max(0, 1 - abstand(spieler.x, spieler.z, x, z) / weit);
+  const haus = stadt && !Z.imAuto && imWachHaus(spieler.x, spieler.z) ? 0.3 : 1;       // in der Wache hört man die Möwen nur leise
   KLANG.schleife('sirene', Z.blaulicht === SIRENE ? 1 : 0);
   KLANG.schleife('motor', Z.imAuto ? 0.6 + Math.abs(Z.auto.v) / 40 : 0, 0.8 + Math.abs(Z.auto.v) / 14);
   KLANG.schleife('markt', stadt && Z.licht === 'tag' ? nah(-40, -30, 60) : 0);
-  KLANG.schleife('moewen', stadt && Z.licht !== 'nacht' ? 0.25 + Math.max(0, 1 - (spieler.z - UFER) / 160) * 0.75 : 0);      // am Wasser lauter
+  KLANG.schleife('moewen', stadt && Z.licht !== 'nacht' ? (0.25 + Math.max(0, 1 - (spieler.z - UFER) / 160) * 0.75) * haus : 0);      // am Wasser lauter
   KLANG.schleife('alarm', stadt && Z.flags.alarm && !Z.flags.tagEnde ? nah(74, 30, 70) : 0);
   if (!Z.imAuto && spieler.tempo > 0 && (schrittZeit -= dt) <= 0) { schrittZeit = 0.34; KLANG.spiel('schritt'); }
   KLANG.musik(musikWahl());
@@ -261,7 +316,7 @@ function musikWahl() {
   const stadt = Z.ort === 'stadt';
   if (stadt && Z.flags.flucht && !Z.flags.jagdFertig) return 'jagd';
   if (Z.ort === 'museum') return 'museum';
-  if (Z.ort === 'wache') return 'wache';
+  if (wacheNah()) return 'wache';
   if (Z.licht === 'nacht' || Z.licht === 'dunkel' || (Z.flags.alarm && !Z.flags.tagEnde)) return 'spannung';
   if (!Z.imAuto && spieler.z - UFER < HAFEN_NAH) return 'hafen';
   return 'streife';
@@ -320,7 +375,12 @@ function aussteigen() {
   for (const o of welt.objekte) if (o.def.folgt) { o.x = a.x - Math.cos(a.h) * 2; o.z = a.z + Math.sin(a.h) * 2; }
   sichtbarkeit();
 }
-function einsteigen() { neigung.kalibrieren(); Z.imAuto = true; spieler.tap = null; sichtbarkeit(); tu('eingestiegen'); }
+function einsteigenJetzt() { neigung.kalibrieren(); Z.imAuto = true; spieler.tap = null; Z.auto.v = 0; sichtbarkeit(); }
+function einsteigen() {
+  // Steht der Wagen im Hof der Wache, entscheidet die Geschichte, ob es schon losgehen darf (erst den Wagen prüfen, erst die Zellentür zu …).
+  if (inWache(Z.auto.x, Z.auto.z)) return tu('einsteigen_hof');
+  einsteigenJetzt(); tu('eingestiegen');
+}
 
 function blaulichtSetzen(stufe) {
   Z.blaulicht = stufe === true ? SIRENE : stufe || AUS;
@@ -440,10 +500,13 @@ function schieben(x, z, r, wagen = false) {
 let gitter = null;
 function gitterBauen() {
   // In der großen Stadt wird nur ein Fenster von 180 m rund um die Figur in Kästchen geteilt (sonst wären es Millionen).
-  const O = ORTE[Z.ort].gross, k = ORTE[Z.ort].draussen ? 1 : 0.5, r = 0.48, F = 90;
+  // Rund um die Polizeiwache sind die Kästchen fein wie drinnen (sonst käme man durch keine Tür), dafür ist das Fenster kleiner.
+  const fein = !!welt.stadt && inWache(spieler.x, spieler.z, 6);
+  const O = ORTE[Z.ort].gross, k = ORTE[Z.ort].draussen && !fein ? 1 : 0.5, r = 0.48, F = fein ? 56 : 90;
   const G = welt.raster ? [Math.max(O[0], Math.floor(spieler.x) - F), Math.max(O[1], Math.floor(spieler.z) - F), Math.min(O[2], Math.floor(spieler.x) + F), Math.min(O[3], Math.floor(spieler.z) + F)] : O;
   const nx = Math.ceil((G[2] - G[0]) / k), nz = Math.ceil((G[3] - G[1]) / k), zu = new Uint8Array(nx * nz);
   for (const q of nahe(spieler.x, spieler.z, F + 4)) {
+    if (q.durchgang) continue;
     const i1 = Math.max(0, Math.floor((q[0] - r - G[0]) / k)), i2 = Math.min(nx - 1, Math.floor((q[2] + r - G[0]) / k));
     const j1 = Math.max(0, Math.floor((q[1] - r - G[1]) / k)), j2 = Math.min(nz - 1, Math.floor((q[3] + r - G[1]) / k));
     for (let j = j1; j <= j2; j++) for (let i = i1; i <= i2; i++) {
@@ -577,7 +640,7 @@ function rundenSchritt(dt) {
   for (const s of welt.rollt || []) { s.aus += Math.max(-dt * STUHL_TEMPO, Math.min(dt * STUHL_TEMPO, s.soll - s.aus)); const t = s.aus * s.aus * (3 - 2 * s.aus);
     s.mesh.position.set(s.x - Math.sin(s.dreh) * STUHL_WEG * t, 0, s.z - Math.cos(s.dreh) * STUHL_WEG * t); s.mesh.rotation.y = s.dreh + t * 0.4; s.soll = 1; }
   for (const o of welt.objekte) {
-    const R = o.def.runde; if (!R || !o.da || o.typ !== 'leut') continue;
+    const R = o.def.runde; if (!R || !o.da || o.ruht || o.typ !== 'leut') continue;
     if (o.ri === undefined) { o.x = o.def.x; o.z = o.def.z; o.ri = 1 % R.length; o.warte = R[0][2] || 0; if (R[0][3] !== undefined) { o.mesh.rotation.y = R[0][3]; o.mesh.userData.grund = R[0][3]; }
       if (R[0][4]) { o.sitzt = R[0][4]; polizistSitz(o.mesh, R[0][4]); } }
     const beiDir = !Z.imAuto && abstand(spieler.x, spieler.z, o.x, o.z) < RUNDE_HALT, redet = beschaeftigt && o.def === aktiv;
@@ -597,15 +660,22 @@ function rundenSchritt(dt) {
 
 // Türen, Spind und Schrank: jedes Bild ein Stück weiter auf oder zu. Türen in den Wänden gehen von selbst auf, wenn du oder Otto davorstehen.
 function klappenSchritt(dt) {
+  if (wachFern) return;       // weit weg von der Wache bewegt sich dort nichts (in der Stadt gibt es sonst nur die Museumstür, und die öffnet die Geschichte)
   for (const k of Object.values(welt.klappen)) {
     if (k.auto) {
       const nah = (x, z) => abstand(x, z, k.auto.x, k.auto.z) < k.auto.r;
-      const ich = nah(spieler.x, spieler.z), soll = ich || welt.objekte.some(o => (o.def.folgt || o.def.runde) && o.da && o.x !== undefined && nah(o.x, o.z)) ? 1 : 0;
+      // Das Schiebetor (k.auto.wagen) geht nur für dich auf – zu Fuß oder im Wagen. Türen öffnen auch die Kollegen.
+      const ich = nah(spieler.x, spieler.z), soll = ich || (!k.auto.wagen && welt.objekte.some(o => (o.def.folgt || o.def.runde) && o.da && o.x !== undefined && nah(o.x, o.z))) ? 1 : 0;
       if (soll && !k.soll) KLANG.spiel('tuer', ich ? 0.35 : 0.12);       // öffnet ein Kollege die Tür, hört man es nur leise
       k.soll = soll;
     }
-    k.ist += Math.max(-dt * 2.6, Math.min(dt * 2.6, k.soll - k.ist));
+    const tempo = k.tempo || 2.6;
+    k.ist += Math.max(-dt * tempo, Math.min(dt * tempo, k.soll - k.ist));
     const t = k.ist * k.ist * (3 - 2 * k.ist);       // weich anfahren und abbremsen
+    if (k.schieb) {       // das Schiebetor rollt zur Seite. Ist es mehr als halb offen, steht es nicht mehr im Weg.
+      k.obj.mesh.position.x = k.x0 + k.schieb * t;
+      if ((k.ist > 0.55) !== !!k.obj.offen) { k.obj.offen = k.ist > 0.55; loseNeu(); }
+    }
     for (const e of k.teile) e.teil.rotation.y = e.zu + (e.auf - e.zu) * t;
     if (k.wartet && Math.abs(k.ist - k.soll) < 0.02) { const f = k.wartet; k.wartet = null; f(); }
   }
@@ -613,7 +683,7 @@ function klappenSchritt(dt) {
 // Die Leute stehen nicht steif herum: Sie atmen, drehen sich zu dir, wenn du nah bist, und reden mit den Händen.
 function leuteLeben(dt) {
   for (const o of welt.objekte) {
-    if (o.typ !== 'leut' || o.def.hund || !o.da) continue;
+    if (o.typ !== 'leut' || o.def.hund || !o.da || o.ruht) continue;
     const x = o.x ?? o.def.x, z = o.z ?? o.def.z, weit = abstand(spieler.x, spieler.z, x, z);
     const spricht = !!sprecher && (o.def.name.startsWith(sprecher) || (o.def === aktiv && sprecher !== 'Kim' && !sprecher.startsWith('Otto') && !sprecher.startsWith('Leitstelle')));
     if (o.rennt) continue;                     // rennt gerade weg: bewegt sich schon selbst
@@ -628,8 +698,9 @@ let haltHinweis = '', funkPiep = 0;
 function zonen(dt) {
   const steht = !Z.imAuto || Math.abs(Z.auto.v) < STEHT;
   for (const zo of STORY.ZONEN) {
-    if (zo.ort !== Z.ort || Z.flags['zone_' + zo.id] || (zo.wenn && !Z.flags[zo.wenn]) || (zo.bis && Z.flags[zo.bis])) continue;
-    if (abstand(spieler.x, spieler.z, zo.x, zo.z) >= zo.r) continue;
+    const [zOrt, zx, zz] = stelle([zo.ort, zo.x, zo.z]);       // ort: 'wache' = eine Stelle in Wache-Maßen
+    if (zOrt !== Z.ort || Z.flags['zone_' + zo.id] || (zo.wenn && !Z.flags[zo.wenn]) || (zo.bis && Z.flags[zo.bis])) continue;
+    if (abstand(spieler.x, spieler.z, zx, zz) >= zo.r) continue;
     if (steht) { Z.flags['zone_' + zo.id] = true; haltHinweis = ''; tu(zo.akt); return; }
     if (haltHinweis !== zo.id) { haltHinweis = zo.id; UI.toast('Du bist da. Halt an – dann geht es los.'); }
     return;
@@ -649,7 +720,7 @@ function zonen(dt) {
 // Dazu die Knöpfe ⟲ ⟳ ＋ － am rechten Rand und die Tasten Q, R (drehen), + und − (zoomen), Pos1 = wieder wie am Anfang.
 // w = Drehung um die Figur (0 = Blick nach Norden), neig = steiler (+) oder flacher (−) als normal, mal = Abstand (1 = normal).
 // Die Werte mit z davor sind das Ziel, die anderen laufen weich hinterher. wAuto = Drehung um den Wagen (geht beim Fahren von selbst zurück).
-const kam = { w: 0, neig: 0, mal: 1, zw: 0, zneig: 0, zmal: 1, wAuto: 0, zwAuto: 0, taste: null, zeiger: new Map(), rechts: null, zog: 0, tipp: null };
+const kam = { innen: 0, w: 0, neig: 0, mal: 1, zw: 0, zneig: 0, zmal: 1, wAuto: 0, zwAuto: 0, taste: null, zeiger: new Map(), rechts: null, zog: 0, tipp: null };
 const KAM_MAL = [0.4, 3.2], KAM_NEIG = [-0.75, 0.9];       // so nah und so weit, so flach und so steil geht es
 function kamGrenzen() {
   kam.zmal = Math.max(KAM_MAL[0], Math.min(KAM_MAL[1], kam.zmal)); kam.zneig = Math.max(KAM_NEIG[0], Math.min(KAM_NEIG[1], kam.zneig));
@@ -663,16 +734,19 @@ function kamSchritt(dt) {
   kamGrenzen();
   // Im Auto dreht sich die Kamera von selbst wieder hinter den Wagen, sobald man fährt und nicht gerade an ihr zieht.
   if (Z.imAuto && !kam.zeiger.size && !t && Math.abs(Z.auto.v) > 2) kam.zwAuto *= Math.exp(-dt * 1.5);
+  // Auf dem Grundstück der Wache schaut die Kamera steiler und enger als in der Stadt (innen läuft weich von 0 nach 1).
+  kam.innen += ((wacheNah() ? 1 : 0) - kam.innen) * Math.min(1, dt * 2.2);
   const k = Math.min(1, dt * 8);
   kam.w += (kam.zw - kam.w) * k; kam.neig += (kam.zneig - kam.neig) * k; kam.mal += (kam.zmal - kam.mal) * k; kam.wAuto += (kam.zwAuto - kam.wAuto) * k;
 }
 // Wie steil schaut die Kamera gerade (Winkel über dem Boden) und wie weit ist sie weg?
 function kamLage() {
-  const [hoch, weg] = Z.imAuto ? [KAMERA_AUTO[1], KAMERA_AUTO[0]] : ORTE[Z.ort].kamera;
+  const ort = ORTE[Z.ort].kamera, wi = kam.innen;
+  const [hoch, weg] = Z.imAuto ? [KAMERA_AUTO[1], KAMERA_AUTO[0]] : [ort[0] + (WACHE_KAMERA[0] - ort[0]) * wi, ort[1] + (WACHE_KAMERA[1] - ort[1]) * wi];
   const e = Math.max(0.12, Math.min(1.5, Math.atan2(hoch - 1, weg) + kam.neig));
   // Drinnen schaut die Kamera mit einem engeren Blickwinkel von weiter weg: Dann kippen die Leute am Bildrand nicht so schief zur Seite.
-  const drinnen = !Z.imAuto && !ORTE[Z.ort].draussen, winkel = drinnen ? WINKEL_DRINNEN : WINKEL;
-  if (kamera.fov !== winkel) { kamera.fov = winkel; kamera.updateProjectionMatrix(); }
+  const drinnen = !Z.imAuto && !ORTE[Z.ort].draussen, winkel = drinnen ? WINKEL_DRINNEN : WINKEL + (WINKEL_DRINNEN - WINKEL) * wi;
+  if (Math.abs(kamera.fov - winkel) > 0.01) { kamera.fov = winkel; kamera.updateProjectionMatrix(); }
   return { e, d: Math.hypot(hoch - 1, weg) * kam.mal * Math.tan(WINKEL * Math.PI / 360) / Math.tan(winkel * Math.PI / 360) };
 }
 
@@ -710,6 +784,12 @@ function stadtSchritt(dt) {
   S.schnitt.normal.set(-sw, 0, -cw);
   S.schnitt.constant = Z.imAuto || window.__polizei.frei || kamLage().e > 1.2 ? 1e9 : spieler.x * sw + spieler.z * cw + SCHNITT_VOR;
   S.schritt(dt, spieler.x, spieler.z);
+  // Die Polizeiwache: Von draußen hat sie Mauern bis oben und ein Dach (die Hülle). Bist du im Haus, ist die Hülle weg und du schaust von oben hinein.
+  if (welt.huelle) welt.huelle.visible = Z.imAuto || !imWachHaus(spieler.x, spieler.z, 0.7);
+  const aufWache = inWache(spieler.x, spieler.z, 4);
+  for (const s of welt.wachSchilder) s.visible = aufWache && !Z.imAuto;
+  schattenFeld(kam.innen > 0.5 ? 46 : SCHATTEN);       // auf der Wache ein kleineres Feld: Dann sind die Schatten in den Räumen scharf
+  if (bildNr % 20 === 0 && wachFern !== !inWache(spieler.x, spieler.z, WACHE_WEIT)) { wachFern = !wachFern; sichtbarkeit(); }
   // Die Sonne (nachts der Mond) steht immer gleich weit von dir weg, damit ihr Schatten dich begleitet.
   sonne.position.set(spieler.x + himmel.sonneRichtung.x * 300, Math.max(60, himmel.sonneRichtung.y * 300), spieler.z + himmel.sonneRichtung.z * 300);
   sonne.target.position.set(spieler.x, 0, spieler.z);
@@ -726,14 +806,14 @@ function stadtSchritt(dt) {
   if (bildNr % 30 === 0) anzeigen();
 }
 function kartenStand() {
-  const w = Z.ziel && Z.ziel.wo;
+  const w = stelle(Z.ziel && Z.ziel.wo);
   return { x: spieler.x, z: spieler.z, h: Z.imAuto ? Z.auto.h : spieler.h, imAuto: Z.imAuto, ziel: w && w[0] === 'stadt' ? [w[1], w[2]] : null, zielText: Z.ziel && Z.ziel.text,
     wagen: [Z.auto.x, Z.auto.z], autos: verkehr.autos };
 }
 function karteAuf() { if (welt.stadt && !beschaeftigt && !UI.offen()) { if (KARTE.kartOffen()) KARTE.karteZu(); else KARTE.karteAuf(kartenStand()); } }
 
 function wegweiser() {
-  const w = Z.ziel && Z.ziel.wo;
+  const w = stelle(Z.ziel && Z.ziel.wo);
   const da = !!w && w[0] === Z.ort;
   zielSaeule.visible = da && Z.ort === 'stadt';
   if (!da) return UI.pfeil(null);
@@ -1123,7 +1203,7 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal,
+window.__polizei = { get Z() { return Z; }, get gitter() { return gitter; }, wegSuchen, einsteigen, aussteigen, stelle, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal,
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {
@@ -1138,7 +1218,7 @@ async function start() {
   const was = await UI.menue(!!alt);
   KLANG.an();
   if (was === 'weiter') {
-    Z = alt; blaulichtSetzen(AUS); Z.auto.v = 0;
+    Z = altenStand(alt); blaulichtSetzen(AUS); Z.auto.v = 0;
     lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
   } else {
     Z = neuerStand(); blaulichtSetzen(AUS); lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();

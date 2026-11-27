@@ -15,6 +15,8 @@
 // Ein Rechteck ist immer [x1, z1, x2, z2]. Die Stadt ist etwa 1,7 km breit und 950 m tief.
 // Alles hier ist ausgedacht: Straßennamen, Viertel, Häuser.
 
+import { WACHE_BLOCK, WACHE_HAUS, WACHE_TOR, WACHE_X } from './wache.js';
+
 // Ein Würfel, der immer dieselben "Zufalls"-Zahlen liefert – so sieht die Stadt bei jedem Start gleich aus.
 export function wuerfel(start) {
   let s = start;
@@ -559,11 +561,25 @@ function baue() {
   P.deko.push({ art: 'brunnen', x: -40, z: -30 });
   P.hof.push({ r: [-72, -52, -8, -8], art: 'kopfstein' });
 
+  // ---- Die Polizeiwache ist kein Kasten wie die anderen Häuser: Sie hat ein ganzes Grundstück mit Räumen, Hof und Tor (js/wache.js).
+  // Deshalb räumen wir ihren Block leer (Häuser, Gärten, Kleinkram) und tragen nur den Umriss des Hauses ein – für die Karte und den Namen.
+  // "selbst" heißt: stadtbau.js zeichnet dieses Haus nicht, und im Weg stehen nur die Wände aus wache.js.
+  {
+    const B = WACHE_BLOCK, drin = h => h.x > B[0] && h.x < B[2] && h.z > B[1] && h.z < B[3], weg = new Set(P.haeuser.filter(drin));
+    P.haeuser = P.haeuser.filter(h => !weg.has(h));
+    P.gruen = P.gruen.filter(g => !g.haus || !weg.has(g.haus)); P.hof = P.hof.filter(g => !g.haus || !weg.has(g.haus));
+    P.deko = P.deko.filter(d => !imRechteck(d.x, d.z, B, 0.5));
+    // vor dem Schiebetor (Wachstraße) und vor dem Eingang (Speicherstraße) stehen weder Baum noch Laterne
+    const frei = q => !imRechteck(q.x, q.z, B, 0.5) && Math.hypot(q.x - WACHE_TOR[0], q.z - WACHE_TOR[1]) > 7 && Math.hypot(q.x - (WACHE_X + 9.5), q.z - B[1]) > 5;
+    P.baeume = P.baeume.filter(frei); P.laternen = P.laternen.filter(frei);
+    Object.assign(BESONDERE[0], { r: WACHE_HAUS, frei: B, h: 4.4, selbst: true });
+  }
+
   // ---- die besonderen Häuser eintragen
   for (const b of BESONDERE) {
     const r = b.r, h = { x: (r[0] + r[2]) / 2, z: (r[1] + r[3]) / 2, b: r[2] - r[0], t: r[3] - r[1], dreh: 0, seite: 's', stil: b.stil, stock: Math.max(1, Math.round((b.h - 3.5) / 3.05)), h: b.h, farbe: b.farbe || '#ffffff', typ: 'besonders', laden: !!b.laden,
       dach: b.dach ? { art: 'giebel', first: b.first || (r[2] - r[0] > r[3] - r[1] ? 'x' : 'z'), h: Math.min(7, (b.first === 'z' ? r[2] - r[0] : Math.min(r[2] - r[0], r[3] - r[1])) * 0.3), farbe: b.dach } : { art: 'flach', farbe: DACH_GRAU[1] },
-      treppe: !!b.treppe, schild: b.schild, turm: b.turm, bild: b.bild };
+      treppe: !!b.treppe, schild: b.schild, turm: b.turm, bild: b.bild, selbst: !!b.selbst };
     h.ecken = eckenVon(h); h.r = r;
     P.haeuser.push(h);
     if (b.turm) { const [x, z, br] = b.turm; P.sperre.push([x - br / 2, z - br / 2, x + br / 2, z + br / 2]); }
@@ -578,7 +594,7 @@ function baue() {
     q.o = { x, z, hb, ht, c: Math.cos(dreh), s: Math.sin(dreh) };
     return q;
   };
-  P.fest = P.haeuser.map(h => schraeg(h.x, h.z, h.b / 2, h.t / 2, h.dreh)).concat(P.sperre, P.baeume.map(b => [b.x - 0.35, b.z - 0.35, b.x + 0.35, b.z + 0.35]),
+  P.fest = P.haeuser.filter(h => !h.selbst).map(h => schraeg(h.x, h.z, h.b / 2, h.t / 2, h.dreh)).concat(P.sperre, P.baeume.map(b => [b.x - 0.35, b.z - 0.35, b.x + 0.35, b.z + 0.35]),
     P.parker.map(p => { const q = schraeg(p.x, p.z, 0.95, 2.2, p.h); q.park = p; return q; }));      // q.park: Dieses Hindernis ist ein parkendes Auto – der Streifenwagen kann es wegschieben
   return P;
 }

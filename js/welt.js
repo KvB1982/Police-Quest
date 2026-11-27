@@ -8,6 +8,7 @@ import * as MOD from './modelle.js';
 import { baueStadt, radForm, RAD_BREIT } from './stadtbau.js';
 import * as BILD from './bilder.js';
 import { moebelForm, backen } from './einrichtung.js';
+import { WACHE_X, WACHE_Z, WACHE_UMRISS } from './wache.js';
 
 const mat = (farbe, extra = {}) => new THREE.MeshLambertMaterial({ color: farbe, ...extra });
 const kiste = (b, h, t, farbe, extra) => new THREE.Mesh(new THREE.BoxGeometry(b, h, t), mat(farbe, extra));
@@ -380,6 +381,11 @@ function dingModell(d) {
   if (d.art === 'waffenfach') return waffenfach(d);
   if (d.art === 'bus') return busModell(d);
   if (d.art === 'schrank') return schrankModell(d);
+  if (d.art === 'tor') {        // das Schiebetor am Hof: Es dreht sich nicht, es rollt zur Seite (schieb = so viele Meter)
+    const g = moebelForm({ ...d, form: 'tor', nur: 'blatt' });
+    g.userData = { klappe: { teile: [], schieb: d.schiebt, x0: d.x, tempo: 0.75, auto: { x: d.x, z: d.z, r: 11, wagen: true } } };
+    return g;
+  }
   if (d.art === 'tuer') {       // eine Tür im Rahmen, die aufschwingt
     const g = new THREE.Group(), holz = '#6a4a2a';
     for (const x of [-0.97, 0.97]) { const p = kiste(0.14, 2.5, 0.3, '#4a3320'); p.position.set(x, 1.25, 0); g.add(p); }
@@ -404,6 +410,42 @@ function dingModell(d) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Die Hülle der Polizeiwache: alles über 1,5 m – die obere Hälfte der Mauern, Fenster, Dachrand, Dach und das Schild POLIZEI.
+// Von der Straße und vom Hof aus sieht die Wache damit aus wie ein richtiges Haus. Gehst du hinein, blendet main.js die Hülle aus,
+// und du schaust wie in ein Puppenhaus von oben in die Räume. Steht die Wache zwischen dir und der Kamera, wird sie
+// aufgeschnitten wie jedes andere Haus der Stadt (schnitt = die Schnitt-Ebene aus stadtbau.js).
+// ---------------------------------------------------------------------------------------------
+const HUELLE_AB = 1.56, HUELLE_BIS = 4.3;        // von hier bis hier reicht die obere Mauer (Meter über dem Boden)
+function wachHuelle(schnitt) {
+  const g = new THREE.Group(), cp = { clippingPlanes: [schnitt], side: THREE.DoubleSide }, hoch = HUELLE_BIS - HUELLE_AB, D = 0.24;
+  const teil = (x1, z1, x2, z2, y1, y2, material) => { const m = new THREE.Mesh(new THREE.BoxGeometry(x2 - x1, y2 - y1, z2 - z1), material); m.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2); m.castShadow = true; g.add(m); return m; };
+  const glas = new THREE.MeshLambertMaterial({ color: '#34465a', ...cp }), hell = new THREE.MeshLambertMaterial({ color: '#e9e6df', ...cp }), dach = new THREE.MeshLambertMaterial({ color: '#6c7178', ...cp });
+  // Eine Mauer von (x1, z1) nach (x2, z2). aus = [dx, dz]: nach dort ist draußen (dort sitzen die Fenster).
+  const mauer = (x1, z1, x2, z2, aus) => {
+    const lang = Math.hypot(x2 - x1, z2 - z1), quer = x1 === x2, bild = BILD.boden('wand_backstein', '#b0563c').clone(); bild.needsUpdate = true; bild.repeat.set(lang / 2.4, hoch / 2.4);
+    teil(Math.min(x1, x2) - D, Math.min(z1, z2) - D, Math.max(x1, x2) + D, Math.max(z1, z2) + D, HUELLE_AB, HUELLE_BIS, new THREE.MeshLambertMaterial({ color: '#c9866c', map: bild, ...cp }));
+    const n = Math.floor((lang - 1.2) / 3.4);
+    for (let i = 0; i < n; i++) {       // eine Reihe Fenster im oberen Stock
+      const p = (i + 0.5 - n / 2) * 3.4, mx = (x1 + x2) / 2 + (quer ? 0 : p) + aus[0] * (D + 0.02), mz = (z1 + z2) / 2 + (quer ? p : 0) + aus[1] * (D + 0.02);
+      teil(mx - (quer ? 0.03 : 0.95), mz - (quer ? 0.95 : 0.03), mx + (quer ? 0.03 : 0.95), mz + (quer ? 0.95 : 0.03), 2.35, 3.65, glas).castShadow = false;
+      teil(mx - (quer ? 0.05 : 1.05), mz - (quer ? 1.05 : 0.05), mx + (quer ? 0.05 : 1.05), mz + (quer ? 1.05 : 0.05), 2.25, 2.35, hell).castShadow = false;
+    }
+  };
+  mauer(-21, -10, 31.5, -10, [0, -1]); mauer(-21, -10, -21, 6, [-1, 0]); mauer(-21, 6, 43, 6, [0, 1]); mauer(43, -6, 43, 6, [1, 0]); mauer(31.5, -6, 43, -6, [0, -1]); mauer(31.5, -10, 31.5, -6, [1, 0]);
+  for (const r of WACHE_UMRISS) {       // Dachrand (heller Streifen) und flaches Dach
+    teil(r[0] - 0.4, r[1] - 0.4, r[2] + 0.4, r[3] + 0.4, HUELLE_BIS, HUELLE_BIS + 0.28, hell);
+    teil(r[0] - 0.2, r[1] - 0.2, r[2] + 0.2, r[3] + 0.2, HUELLE_BIS + 0.28, HUELLE_BIS + 0.34, dach);
+  }
+  // das Schild POLIZEI über dem Eingang (Speicherstraße) und über der Hoftür
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 192; const x = c.getContext('2d');
+  x.fillStyle = '#1549b5'; x.fillRect(0, 0, 1024, 192); x.fillStyle = '#fff'; x.font = '800 150px "Arial Narrow", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('POLIZEI', 512, 104);
+  const bild = new THREE.CanvasTexture(c); bild.colorSpace = THREE.SRGBColorSpace; bild.anisotropy = 8;
+  for (const [sx, sz, dreh] of [[9.5, -10 - D - 0.03, Math.PI], [0, 6 + D + 0.03, 0]]) { const s = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 1.0), new THREE.MeshBasicMaterial({ map: bild, clippingPlanes: [schnitt] })); s.position.set(sx, 3.0, sz); s.rotation.y = dreh; g.add(s); }
+  g.position.set(WACHE_X, 0, WACHE_Z);
+  return g;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Baut einen ganzen Ort. Zurück kommen die Gruppe für die Szene, alle Dinge und Leute
 // und die Liste der Rechtecke, durch die man nicht laufen oder fahren kann.
 // ---------------------------------------------------------------------------------------------
@@ -421,10 +463,13 @@ export function baueOrt(def) {
     for (const h of def.plan.haeuser) if (h.schild) { const s = schild(h.schild, 6); s.position.set(h.x, h.h + (h.dach.h || 0) + 3.5, h.z); gruppe.add(s); hausSchilder.push(s); }
   } else {
     gruppe.add(flaeche([G[0] - 200, G[1] - 200, G[2] + 200, G[3] + 200], def.aussen || '#5b6166', -0.02, def.aussenArt));       // rund ums Haus: Pflaster statt schwarzer Leere
-    // Jeder Boden liegt ein kleines Stück höher als der davor – lägen zwei genau gleich hoch, würden ihre Farben flackern.
-    // Mit ueber sagt ein Boden selbst, in welcher Schicht er liegt (0 = ganz unten).
-    def.boden.forEach((b, i) => gruppe.add(flaeche(b.r, b.farbe, 0.01 + (b.ueber ?? i) * 0.004, b.art)));
   }
+  // Jeder Boden liegt ein kleines Stück höher als der davor – lägen zwei genau gleich hoch, würden ihre Farben flackern.
+  // Mit ueber sagt ein Boden selbst, in welcher Schicht er liegt (0 = ganz unten), mit y seine genaue Höhe.
+  // In der Stadt sind das die Böden der Polizeiwache: Sie liegen knapp über dem Boden der Stadt.
+  def.boden.forEach((b, i) => gruppe.add(flaeche(b.r, b.farbe, b.y ?? (def.plan ? 0.012 : 0.01) + (b.ueber ?? i) * 0.004, b.art)));
+  const huelle = def.plan && def.klinker ? wachHuelle(stadt.schnitt) : null;
+  if (huelle) gruppe.add(huelle);
 
   const statisch = [];             // alles, was sich nie bewegt: wird am Ende zu einer einzigen Form verschmolzen (backen)
   const fester = (b, h, t, x, y, z, farbe) => { const m = kiste(b, h, t, farbe); m.position.set(x, y, z); gruppe.add(m); statisch.push(m); return m; };
@@ -487,15 +532,16 @@ export function baueOrt(def) {
     }
     klappen['tuer' + i] = { teile, ist: 0, soll: 0, auto: { x: t.x, z: t.z, r: 2.3 } };
   });
-  for (const s of def.schilder || []) { const sp = schild(s.text, s.hoch ? 5 : 1.6); sp.position.set(s.x, s.hoch || 2.3, s.z); gruppe.add(sp); }
-  if (!def.plan) backen(statisch, gruppe);
+  const wachSchilder = [];         // die Namen der Räume in der Wache: Man sieht sie nur, wenn man auf dem Grundstück ist (main.js)
+  for (const s of def.schilder || []) { const sp = schild(s.text, s.hoch ? 5 : 1.6); sp.position.set(s.x, s.hoch || 2.3, s.z); gruppe.add(sp); if (s.wache) wachSchilder.push(sp); }
+  backen(statisch, gruppe);
 
   // Dinge und Leute. Ob man sie gerade sieht, entscheidet das Spiel (Merker "wenn" und "bis").
   const objekte = [];
   for (const d of def.dinge) {
     const m = dingModell(d); m.position.set(d.x, 0, d.z); gruppe.add(m);
     const o = { def: d, mesh: m, typ: 'ding' };
-    if (m.userData.klappe) klappen[d.id] = { ...m.userData.klappe, ist: 0, soll: 0 };
+    if (m.userData.klappe) klappen[d.id] = { ...m.userData.klappe, ist: 0, soll: 0, obj: o };
     if (d.fest) o.fest = [d.x - d.fest[0] / 2, d.z - d.fest[1] / 2, d.x + d.fest[0] / 2, d.z + d.fest[1] / 2];
     objekte.push(o);
   }
@@ -504,5 +550,5 @@ export function baueOrt(def) {
     m.position.set(l.x || 0, l.y || 0, l.z || 0); m.rotation.y = l.h || 0; gruppe.add(m);
     objekte.push({ def: l, mesh: m, typ: 'leut', x: l.x || 0, z: l.z || 0 });
   }
-  return { gruppe, fest, objekte, stadt, hausSchilder, klappen, rollt };
+  return { gruppe, fest, objekte, stadt, hausSchilder, klappen, rollt, huelle, wachSchilder };
 }

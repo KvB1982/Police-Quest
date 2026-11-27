@@ -37,6 +37,8 @@ function wand(x1, z1, x2, z2) {
 }
 
 // Die Polizeiwache Am Deich steht in einer eigenen Datei (js/wache.js), weil sie so viele Räume und Möbel hat.
+// Sie ist kein eigener Ort mehr, sondern ein Stück der Stadt: Ihre Wände, Möbel, Dinge und Leute kommen unten zur Stadt dazu.
+// So kann man ohne Unterbrechung aus der Wache in die Stadt laufen oder vom Hof durch das Tor auf die Straße fahren.
 const wache = wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH });
 
 // ---------------------------------------------------------------------------------------------
@@ -54,17 +56,19 @@ const stadt = {
   kamera: [8.5, 14],
   draussen: true,
   plan: PLAN,                 // der große Stadtplan aus stadtplan.js
-  boden: [],
-  waende: [],
-  moebel: marktStaende,
+  wandFarbe: wache.wandFarbe,
+  boden: wache.boden,
+  waende: wache.waende, glaswaende: wache.glaswaende, klinker: wache.klinker, tueren: wache.tueren,
+  moebel: [...marktStaende, ...wache.moebel],
   // Kisten, Fässer und Tafeln an den Marktständen – dicht am Stand, damit niemand darüber stolpert
-  deko: marktStaende.flatMap((s, i) => [
+  deko: [...wache.deko, ...marktStaende.flatMap((s, i) => [
     { modell: i % 2 ? 'kiste_holz' : 'fischkiste', x: s.x - 2.5, z: s.z + 0.5, dreh: i * 0.7 }, { modell: i % 3 ? 'holzfass' : 'fass', x: s.x + 2.5, z: s.z - 0.4 },
     { modell: 'kiste_holz', x: s.x + 1.2, z: s.z - 1.8, dreh: i * 1.3, mal: 0.8 }, { modell: 'tafel', x: s.x - 2.4, z: s.z + 1.6, dreh: (i % 2 ? 0.5 : -0.4) },
     ...(i % 2 ? [{ modell: 'pflanzkuebel', x: s.x + 2.6, z: s.z + 1.2 }] : [{ modell: 'fischkiste', x: s.x - 1.4, z: s.z - 1.7, dreh: 0.2 }]),
-  ]),
-  schilder: [{ x: -40, z: -30, text: 'Marktplatz', hoch: 7 }],
+  ])],
+  schilder: [{ x: -40, z: -30, text: 'Marktplatz', hoch: 7 }, ...wache.schilder.map(s => ({ ...s, wache: true }))],
   dinge: [
+    ...wache.dinge,
     { id: 'falschparker', x: -44, z: 56.4, name: 'Grauer Kombi vor der Ausfahrt', art: 'auto', farbe: '#8d9196', h: Math.PI / 2, akt: 'falschparker', wenn: 'angemeldet', bis: 'kitaFertig', fest: [4.4, 2], nah: 3.4, verb: 'sieh' },
     // Der Verkehrsunfall in der Marktstraße (gibt es erst, wenn die Leitstelle ihn meldet)
     { id: 'unfallwagen', x: -87.2, z: 99.4, name: 'Dunkelblauer Kombi', art: 'auto', farbe: '#1c2333', h: -0.12, akt: 'unfallwagen', verb: 'sieh', wenn: 'unfall', bis: 'flucht', fest: [2.2, 4.6], nah: 3.6, verkehr: true },
@@ -72,7 +76,7 @@ const stadt = {
     { id: 'museumstuer', x: 74, z: 30, name: 'Tür zum Stadtmuseum', art: 'tuer', akt: 'museumstuer', nah: 2.4, sieh: 'Eine schwere Holztür mit Messinggriff. Daneben ein Schild: Stadtmuseum Möwenbrück, geöffnet 10 bis 17 Uhr.' },
   ],
   leute: [
-    { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, look: OTTO_LOOK },
+    ...wache.leute,       // auch Otto: Er wartet erst in der Wache und ist ab der ersten Abfahrt dein Beifahrer (siehe wache.js)
     { id: 'erzieherin', x: -44, z: 53.4, name: 'Erzieherin der Kita', akt: 'erzieherin', wenn: 'angemeldet', look: { hemd: '#e86a8a', hose: '#3b5a7a', haut: '#e8b890', haar: '#2a1a12', modell: 'erzieherin', art: 'frau' }, sieh: 'Eine Erzieherin der Kita Sonnenhang. Sie sieht alle paar Sekunden auf die Uhr und dann die Straße hinunter.' },
     { id: 'baecker', x: -21, z: 53.6, name: 'Bäcker vor der Bäckerei', akt: 'baecker', look: { hemd: '#ffffff', hose: '#f0f0f0', haut: '#f0c8a0', haar: '#7a5a3a', muetze: '#ffffff', bauch: 1.2, modell: 'baecker', art: 'mann' }, sieh: 'Ein Bäcker ganz in Weiß, Mehl bis zu den Ellbogen. Auf dem Schild über der Tür steht: Bäckerei Kruse.' },
     { id: 'verletzte', x: -90.3, z: 107.6, name: 'Fahrerin im roten Wagen', akt: 'verletzte', wenn: 'unfall', bis: 'flucht', nah: 2.6, sieh: 'Eine Frau um die fünfzig hinter dem Steuer. Blass, eine Hand im Nacken. Der Sicherheitsgurt ist noch angelegt.', look: { hemd: '#3f7f8a', hose: '#444', haut: '#f0c8a0', haar: '#6a4a3a', modell: 'verletzte', art: 'frau' } },
@@ -134,4 +138,5 @@ const museum = {
   ],
 };
 
-export const ORTE = { wache, stadt, museum };
+// Die Wache ist kein eigener Ort mehr (sie gehört zur Stadt). Wo sie steht, sagt WACHE_X / WACHE_Z in js/wache.js.
+export const ORTE = { stadt, museum };
