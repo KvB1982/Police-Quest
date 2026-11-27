@@ -644,40 +644,65 @@ function zonen(dt) {
   else if (zeit > funkPiep) { funkPiep = zeit + 6; KLANG.spiel('funk'); UI.toast(Z.imAuto ? '📻 Funkspruch von der Leitstelle! Halt an und hör zu.' : '📻 Im Wagen piept der Funk. Steig ein!'); }
 }
 
-// ---- Die Kamera drehen, neigen und zoomen (wie auf dem Pferdehof im Reitturnier)
-// Maus: rechte Taste ziehen = drehen und neigen, Mausrad = zoomen. Finger: mit zwei Fingern drehen, neigen und kneifen.
-// Dazu die Knöpfe ⟲ ⟳ ＋ － am rechten Rand und die Tasten Q, R (drehen), + und − (zoomen), Pos1 = wieder wie am Anfang.
+// ---- Die Kamera drehen, neigen und zoomen (übernommen vom Pferdehof im Reitturnier, dort js/hof.js)
+// Finger: Mit zwei Fingern drehen (links/rechts), neigen (hoch/runter) und kneifen (näher/weiter weg) – die Kamera klebt dabei an den Fingern.
+//         Ein Finger, der zieht statt tippt, dreht und neigt auch (im Reitturnier ist das der Steuerknüppel – hier wird mit Tippen gelaufen).
+// Maus:   rechte Taste ziehen = drehen und neigen, Mausrad = zoomen.
+// Knöpfe am rechten Rand (gedrückt halten): ⟲ ⟳ drehen, ＋ － näher und weiter weg, ▲ ▼ steiler und flacher, 🔭 Übersicht von oben, 🎯 wie am Anfang.
+// Tasten: Q, R drehen · + − zoomen · Bild↑ Bild↓ neigen · O Übersicht · Pos1 wie am Anfang.
 // w = Drehung um die Figur (0 = Blick nach Norden), neig = steiler (+) oder flacher (−) als normal, mal = Abstand (1 = normal).
 // Die Werte mit z davor sind das Ziel, die anderen laufen weich hinterher. wAuto = Drehung um den Wagen (geht beim Fahren von selbst zurück).
 const kam = { w: 0, neig: 0, mal: 1, zw: 0, zneig: 0, zmal: 1, wAuto: 0, zwAuto: 0, taste: null, zeiger: new Map(), rechts: null, zog: 0, tipp: null };
-const KAM_MAL = [0.4, 3.2], KAM_NEIG = [-0.75, 0.9];       // so nah und so weit, so flach und so steil geht es
+// Die Grenzen sind die vom Reitturnier: 5 m nah bis 230 m weit, fast flach (0,06) bis fast senkrecht von oben (1,5 im Bogenmaß).
+// Drinnen geht es nicht ganz so weit weg und nicht ganz so flach – sonst schaut man nur gegen Wände oder ins Leere.
+const KAM_NAH = 5, KAM_FERN = 230, KAM_FERN_DRINNEN = 80, KAM_FLACH = 0.06, KAM_FLACH_DRINNEN = 0.12, KAM_STEIL = 1.5;
+const KAM_WEIT = { e: 1.0, d: 150, dDrinnen: 60 };       // die Übersicht (Knopf 🔭): so steil und so weit weg
+const KAM_WEIT_AB = 45;        // ab so vielen Metern Abstand werden die Häuser vor der Kamera nicht mehr aufgeschnitten
+const ZIEH_DREH = 0.008, ZIEH_NEIG = 0.006;       // ein Finger oder die rechte Maustaste: so viel dreht und neigt ein Bildpunkt
+const ZWEI_DREH = 0.004, ZWEI_NEIG = 0.003;       // zwei Finger: jeder Finger zählt halb so viel
+// Wie die Kamera steht, wenn man nichts verstellt hat: e0 = wie steil, d0 = wie weit weg (kommt vom Ort oder vom Auto).
+function kamBasis() {
+  const [hoch, weg] = Z.imAuto ? [KAMERA_AUTO[1], KAMERA_AUTO[0]] : ORTE[Z.ort].kamera;
+  return { e0: Math.atan2(hoch - 1, weg), d0: Math.hypot(hoch - 1, weg), drinnen: !Z.imAuto && !ORTE[Z.ort].draussen };
+}
 function kamGrenzen() {
-  kam.zmal = Math.max(KAM_MAL[0], Math.min(KAM_MAL[1], kam.zmal)); kam.zneig = Math.max(KAM_NEIG[0], Math.min(KAM_NEIG[1], kam.zneig));
+  const B = kamBasis();
+  kam.zmal = Math.max(KAM_NAH / B.d0, Math.min((B.drinnen ? KAM_FERN_DRINNEN : KAM_FERN) / B.d0, kam.zmal));
+  kam.zneig = Math.max((B.drinnen ? KAM_FLACH_DRINNEN : KAM_FLACH) - B.e0, Math.min(KAM_STEIL - B.e0, kam.zneig));
 }
 function kamNormal() { kam.zw = Math.round(kam.zw / (Math.PI * 2)) * Math.PI * 2; kam.zneig = 0; kam.zmal = 1; kam.zwAuto = 0; }
+// Übersicht: weit weg und steil von oben. Noch einmal gedrückt: wieder wie vorher am Anfang.
+function kamUebersicht() {
+  const B = kamBasis(), ziel = B.drinnen ? KAM_WEIT.dDrinnen : KAM_WEIT.d;
+  if (B.d0 * kam.zmal > ziel * 0.4) { kamNormal(); return; }
+  kam.zmal = ziel / B.d0; kam.zneig = KAM_WEIT.e - B.e0; kamGrenzen();
+}
 function kamDrehen(dw, dn) { if (Z.imAuto) kam.zwAuto += dw; else kam.zw += dw; kam.zneig += dn; kamGrenzen(); }
+// Beim Ziehen mit Finger oder Maus klebt die Kamera an der Hand: kein weiches Hinterherlaufen.
+function kamSofort() { kam.w = kam.zw; kam.wAuto = kam.zwAuto; kam.neig = kam.zneig; kam.mal = kam.zmal; }
 function kamSchritt(dt) {
   const t = kam.taste;
   if (t === 'links') kamDrehen(dt * 1.6, 0); else if (t === 'rechts') kamDrehen(-dt * 1.6, 0);
   else if (t === 'nah') kam.zmal *= Math.exp(-dt * 1.4); else if (t === 'fern') kam.zmal *= Math.exp(dt * 1.4);
+  else if (t === 'hoch') kam.zneig += dt * 0.9; else if (t === 'flach') kam.zneig -= dt * 0.9;
   kamGrenzen();
   // Im Auto dreht sich die Kamera von selbst wieder hinter den Wagen, sobald man fährt und nicht gerade an ihr zieht.
   if (Z.imAuto && !kam.zeiger.size && !t && Math.abs(Z.auto.v) > 2) kam.zwAuto *= Math.exp(-dt * 1.5);
   const k = Math.min(1, dt * 8);
   kam.w += (kam.zw - kam.w) * k; kam.neig += (kam.zneig - kam.neig) * k; kam.mal += (kam.zmal - kam.mal) * k; kam.wAuto += (kam.zwAuto - kam.wAuto) * k;
 }
-// Wie steil schaut die Kamera gerade (Winkel über dem Boden) und wie weit ist sie weg?
+// Wie steil schaut die Kamera gerade (Winkel über dem Boden) und wie weit ist sie weg? weit = so weit, dass man die Übersicht hat.
 function kamLage() {
-  const [hoch, weg] = Z.imAuto ? [KAMERA_AUTO[1], KAMERA_AUTO[0]] : ORTE[Z.ort].kamera;
-  const e = Math.max(0.12, Math.min(1.5, Math.atan2(hoch - 1, weg) + kam.neig));
+  const B = kamBasis();
+  const e = Math.max(B.drinnen ? KAM_FLACH_DRINNEN : KAM_FLACH, Math.min(KAM_STEIL, B.e0 + kam.neig));
   // Drinnen schaut die Kamera mit einem engeren Blickwinkel von weiter weg: Dann kippen die Leute am Bildrand nicht so schief zur Seite.
-  const drinnen = !Z.imAuto && !ORTE[Z.ort].draussen, winkel = drinnen ? WINKEL_DRINNEN : WINKEL;
+  const winkel = B.drinnen ? WINKEL_DRINNEN : WINKEL;
   if (kamera.fov !== winkel) { kamera.fov = winkel; kamera.updateProjectionMatrix(); }
-  return { e, d: Math.hypot(hoch - 1, weg) * kam.mal * Math.tan(WINKEL * Math.PI / 360) / Math.tan(winkel * Math.PI / 360) };
+  return { e, d: B.d0 * kam.mal * Math.tan(WINKEL * Math.PI / 360) / Math.tan(winkel * Math.PI / 360), weit: B.d0 * kam.mal > KAM_WEIT_AB };
 }
 
 function kameraSetzen(staerke) {
-  let px, py, pz, bx, bz;
+  let px, py, pz, bx, bz, by = 1;
   const frei = window.__polizei.frei;       // zum Testen: Kamera an eine feste Stelle setzen, frei = { von: [x, y, z], nach: [x, y, z] }
   if (frei) { kamera.position.set(...frei.von); kamera.lookAt(...frei.nach); return; }
   if (Z.imAuto) {
@@ -695,9 +720,10 @@ function kameraSetzen(staerke) {
     const L = kamLage(), c = Math.cos(L.e);
     px = spieler.x + Math.sin(kam.w) * c * L.d; py = 1 + Math.sin(L.e) * L.d; pz = spieler.z + Math.cos(kam.w) * c * L.d;
     bx = spieler.x - Math.sin(kam.w) * 0.5; bz = spieler.z - Math.cos(kam.w) * 0.5;
+    by = 1 + Math.max(0, 0.6 - L.e) * 2.2;       // eine flache Kamera schaut etwas höher, sonst sieht man nur Boden
   }
   kamera.position.lerp(new THREE.Vector3(px, py, pz), staerke);
-  blick.lerp(new THREE.Vector3(bx, 1, bz), staerke);
+  blick.lerp(new THREE.Vector3(bx, by, bz), staerke);
   kamera.lookAt(blick);
 }
 
@@ -705,10 +731,11 @@ function kameraSetzen(staerke) {
 let bildNr = 0;
 function stadtSchritt(dt) {
   const S = welt.stadt;
-  // Die Schnitt-Ebene steht immer quer vor der Kamera – dreht man die Kamera, dreht sie sich mit. Von steil oben braucht man sie nicht.
-  const sw = Math.sin(kam.w), cw = Math.cos(kam.w);
+  // Die Schnitt-Ebene steht immer quer vor der Kamera – dreht man die Kamera, dreht sie sich mit. Von steil oben und von weit weg
+  // (Übersicht) braucht man sie nicht: Dann sieht man die ganzen Häuser mit Dach.
+  const sw = Math.sin(kam.w), cw = Math.cos(kam.w), L = kamLage();
   S.schnitt.normal.set(-sw, 0, -cw);
-  S.schnitt.constant = Z.imAuto || window.__polizei.frei || kamLage().e > 1.2 ? 1e9 : spieler.x * sw + spieler.z * cw + SCHNITT_VOR;
+  S.schnitt.constant = Z.imAuto || window.__polizei.frei || L.e > 1.2 || L.weit ? 1e9 : spieler.x * sw + spieler.z * cw + SCHNITT_VOR;
   S.schritt(dt, spieler.x, spieler.z);
   // Die Sonne (nachts der Mond) steht immer gleich weit von dir weg, damit ihr Schatten dich begleitet.
   sonne.position.set(spieler.x + himmel.sonneRichtung.x * 300, Math.max(60, himmel.sonneRichtung.y * 300), spieler.z + himmel.sonneRichtung.z * 300);
@@ -783,7 +810,7 @@ function schritt(dt) {
 }
 
 // ------------------------------------------------------------------ Steuerung
-const KAM_TASTE = { q: 'links', r: 'rechts', '+': 'nah', '-': 'fern' };
+const KAM_TASTE = { q: 'links', r: 'rechts', '+': 'nah', '-': 'fern', PageUp: 'hoch', PageDown: 'flach' };
 const TASTE = { ArrowUp: 'hoch', w: 'hoch', ArrowDown: 'runter', s: 'runter', ArrowLeft: 'links', a: 'links', ArrowRight: 'rechts', d: 'rechts' };
 addEventListener('keydown', e => {
   KLANG.an();
@@ -799,7 +826,7 @@ addEventListener('keydown', e => {
   else if (k === 'f') funkAuf(); else if (k === 'n') notizbuchAuf(); else if (k === 't') tascheAuf();
   else if (k === 'b' && Z.imAuto) blaulichtWeiter();
   else if (k === 'm') karteAuf();
-  else if (k === 'Home') kamNormal();
+  else if (k === 'Home') kamNormal(); else if (k === 'o') kamUebersicht();
   else if (k === 'h') markenBis = zeit + MARKEN_ZEIT;
   else if (!Z.imAuto && VERB_TASTE[k]) verbSetzen(VERB_TASTE[k]);
 });
@@ -885,12 +912,14 @@ function weltTipp(x, y, maus) {
   spieler.tap = weg ? { weg, obj: null, zeit: 0 } : null;
 }
 // Die Maus tippt sofort beim Drücken. Ein Finger tippt erst beim Loslassen – so stört es nicht, wenn ein zweiter Finger dazukommt
-// (zwei Finger drehen und zoomen die Kamera). Die rechte Maustaste: kurz drücken = nächste Tätigkeit, ziehen = Kamera drehen.
+// (zwei Finger drehen und zoomen die Kamera) oder wenn der Finger zieht (dann dreht er die Kamera).
+// Die rechte Maustaste: kurz drücken = nächste Tätigkeit, ziehen = Kamera drehen.
 const ZUG_AB = 10;       // ab so vielen Bildpunkten ist es kein Tipp mehr, sondern ein Ziehen
+const FINGER_AB = 16;    // ein Finger wackelt beim Tippen mehr als die Maus: erst ab hier zieht er
 canvas.addEventListener('pointerdown', e => {
   KLANG.an();
   if (KARTE.kartOffen()) return;
-  kam.zeiger.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+  kam.zeiger.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, zieht: false });
   try { canvas.setPointerCapture(e.pointerId); } catch (f) { /* geht nicht überall */ }
   if (e.pointerType === 'mouse') {
     if (e.button === 2) { kam.rechts = e.pointerId; kam.zog = 0; }
@@ -903,13 +932,16 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   const p = kam.zeiger.get(e.pointerId); if (!p) return;
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
-  if (kam.rechts === e.pointerId) { kam.zog += Math.abs(dx) + Math.abs(dy); if (kam.zog > ZUG_AB) { kamDrehen(-dx * 0.008, dy * 0.006); kam.w = kam.zw; kam.wAuto = kam.zwAuto; kam.neig = kam.zneig; } }
+  if (kam.rechts === e.pointerId) { kam.zog += Math.abs(dx) + Math.abs(dy); if (kam.zog > ZUG_AB) { kamDrehen(-dx * ZIEH_DREH, dy * ZIEH_NEIG); kamSofort(); } }
   else if (kam.zeiger.size >= 2) {
     let o = null; for (const [id, q] of kam.zeiger) if (id !== e.pointerId) { o = q; break; }
     const alt = Math.hypot(p.x - o.x, p.y - o.y), neu = Math.hypot(e.clientX - o.x, e.clientY - o.y);
     if (alt > 8 && neu > 8) kam.zmal *= alt / neu;
-    kamDrehen(-dx * 0.004, dy * 0.003);
-    kam.w = kam.zw; kam.wAuto = kam.zwAuto; kam.neig = kam.zneig; kam.mal = kam.zmal;
+    kamDrehen(-dx * ZWEI_DREH, dy * ZWEI_NEIG); kamSofort();
+  } else if (e.pointerType !== 'mouse' && kam.tipp === e.pointerId) {
+    // Ein Finger allein: Zieht er (statt zu tippen), dreht und neigt er die Kamera.
+    if (!p.zieht && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > FINGER_AB) p.zieht = true;
+    else if (p.zieht) { kamDrehen(-dx * ZIEH_DREH, dy * ZIEH_NEIG); kamSofort(); }
   }
   p.x = e.clientX; p.y = e.clientY;
 });
@@ -919,7 +951,7 @@ function zeigerEnde(e, abbruch) {
   if (kam.rechts === e.pointerId) {
     kam.rechts = null;
     if (kam.zog <= ZUG_AB && !abbruch && !Z.imAuto && !beschaeftigt && !UI.offen()) { const v = Object.keys(VERBEN); verbSetzen(v[(v.indexOf(verb) + 1) % v.length]); }
-  } else if (kam.tipp === e.pointerId && !abbruch && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < ZUG_AB * 1.6) weltTipp(e.clientX, e.clientY, false);
+  } else if (kam.tipp === e.pointerId && !abbruch && !p.zieht) weltTipp(e.clientX, e.clientY, false);
   if (kam.tipp === e.pointerId) kam.tipp = null;
 }
 canvas.addEventListener('pointerup', e => zeigerEnde(e, false));
@@ -1102,9 +1134,10 @@ for (const id of ['neuesSpiel', 'weiterSpielen']) document.getElementById(id).ad
   if (mitFingern() && wunsch !== 'aus' && !neigung.an) neigSchalten(true, false);
 });
 
-// Die vier Kamera-Knöpfe am rechten Rand (gedrückt halten)
+// Die Kamera-Knöpfe am rechten Rand (drehen, zoomen, neigen: gedrückt halten)
 for (const b of document.querySelectorAll('#kamKnoepfe button')) {
   if (b.dataset.k === 'normal') { b.addEventListener('click', kamNormal); continue; }
+  if (b.dataset.k === 'weit') { b.addEventListener('click', kamUebersicht); continue; }
   b.addEventListener('pointerdown', e => { e.preventDefault(); kam.taste = b.dataset.k; });
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => { kam.taste = null; });
   b.addEventListener('contextmenu', e => e.preventDefault());
@@ -1123,7 +1156,7 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal,
+window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal, kamUebersicht, kamLage,
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {
