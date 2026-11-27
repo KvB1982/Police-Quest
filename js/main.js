@@ -9,8 +9,10 @@ import * as STORY from './story.js';
 import * as UI from './oberflaeche.js';
 import * as KLANG from './klang.js';
 import { Neigung } from './neigung.js';
+import { baueMarkt } from './marktbau.js';
 import { baueOrt, figur, figurBewegen, figurLeben, autoModell, autoRaeder, spiegelBild } from './welt.js';
-import { ladePolizist, polizistSpiele, polizistBewegen, polizistSitz } from './polizist.js';
+import { ladePolizist, polizistSpiele, polizistBewegen, polizistSitz, polizistArme } from './polizist.js';
+import * as HATZ from './hatz.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as BILD from './bilder.js';
 import * as KARTE from './karte.js';
@@ -126,7 +128,7 @@ function tempoMessen(dt) {
   gemessen = langsam = 0;
 }
 // Himmel, Umland und Verkehr gibt es nur draußen in der Stadt. Sie werden beim Start einmal gebaut.
-let himmel = null, umland = null, verkehr = null, verkehrBild = null;
+let himmel = null, umland = null, verkehr = null, verkehrBild = null, markt = null;
 let wetter = null;               // Regen, Wind, Nebel, Gewitter (wetter.js) – legt sich über das Licht von Tag, Abend und Nacht
 
 const kim = figur({ hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#7a4a22', muetze: '#f4f4f4' });
@@ -201,7 +203,7 @@ function lichtSetzen(name) {
   if (draussen && himmel) {
     // In der Stadt: echter Himmel mit Wolken, Dunst in der Ferne, Fenster und Laternen an oder aus
     const lampen = wetter ? wetter.lampen(name) : name;         // bei Gewitter gehen auch am Tag die Lichter an
-    himmel.setze(name); umland.licht(lampen); verkehrBild.licht(lampen); welt.stadt.licht(lampen);
+    himmel.setze(name); umland.licht(lampen); verkehrBild.licht(lampen); welt.stadt.licht(lampen); markt.licht(lampen);
     szene.background = new THREE.Color(himmel.dunst);
     szene.fog = new THREE.Fog(himmel.dunst, name === 'tag' ? 260 : 160, name === 'tag' ? SICHT : SICHT * 0.75);
     oben.color.set(name === 'nacht' ? '#8fa4d8' : name === 'abend' ? '#ffd9c0' : '#ffffff'); oben.groundColor.set(name === 'nacht' ? '#1a2238' : '#8a8a7a');
@@ -225,7 +227,7 @@ function ortLaden(name, x, z) {
     welt = name === 'stadt' && stadtWelt ? stadtWelt : baueOrt(ORTE[name]);
     if (welt.stadt) stadtWelt = welt;
     szene.add(welt.gruppe);
-    for (const g of [himmel, umland, verkehrBild]) if (g) { if (welt.stadt) szene.add(g.gruppe); else szene.remove(g.gruppe); }
+    for (const g of [himmel, umland, verkehrBild, markt]) if (g) { if (welt.stadt) szene.add(g.gruppe); else szene.remove(g.gruppe); }
     rasterBauen();
   }
   Z.ort = name;
@@ -293,7 +295,9 @@ const S = {
     return i;
   },
   schloss: titel => UI.schloss(titel),
-  flag: n => { Z.flags[n] = true; },
+  flag: (n, sofort) => { Z.flags[n] = true; if (sofort) sichtbarkeit(); },       // sofort = gleich zeigen oder verstecken, was an diesem Merker hängt (sonst erst am Ende der Stelle)
+  // Kim steht wieder neben dem Streifenwagen (nach einer Verfolgung zu Fuß, während ein Bild über dem Spiel liegt).
+  zumWagen() { const a = Z.auto; if (Z.imAuto) return; spieler.x = a.x + Math.cos(a.h) * 2; spieler.z = a.z - Math.sin(a.h) * 2; spieler.h = a.h; kameraSetzen(1); },
   hat: n => !!Z.flags[n],
   wo: () => Z.ort === 'stadt' && inWache(spieler.x, spieler.z) ? 'wache' : Z.ort,       // 'wache' = auf dem Grundstück der Polizeiwache (sie gehört zur Stadt)
   hinweis: text => UI.toast(text),                 // ein kurzer Hinweis am Bildrand (ohne Stimme)
@@ -330,7 +334,15 @@ const S = {
   // Zurück kommt ein Versprechen, das erfüllt ist, sobald der Wagen steht (man muss nicht darauf warten).
   kommt: (art, ziel, wie) => gastRufen(art, ziel, wie),
   // Verfolgung zu Fuß: Die Person id rennt den Weg [[x, z], …] entlang, du läufst hinterher. Zurück kommt true (gefangen) oder false (entwischt).
-  verfolge: (id, weg, wie) => laufStart(id, weg, wie),
+  // Zurück kommt 'stoss' (zu Boden gestoßen), 'halt' (festgehalten), 'gestellt' (er hat aufgegeben) oder false (entwischt).
+  // was = die Beschreibung der Verfolgung (siehe js/hatz.js): Runde, Tempo, Knopf, Kisten, wohin Otto und die Kollegen laufen.
+  verfolge: (id, was) => laufStart(id, was),
+  // Die Person rennt schon los, während noch erzählt wird (sie wartet nach ein paar Metern, bis du mit S.verfolge hinterherdarfst).
+  renn: (id, was) => laufVor(id, was),
+  // Ein Bild über das Spiel legen, solange erzählt wird, was man im Spiel nicht sehen kann (assets/szenen/<name>.jpg). Ohne Namen: Bild weg.
+  bild: name => UI.bild(name || null),
+  // Ist Möwe 12 gerade in der Nähe (höchstens weit Meter weg)?
+  streifeDa: (weit = 150) => gaeste.some(G => G.art === 'streife' && abstand(G.x, G.z, spieler.x, spieler.z) < weit),
   // Eine Person geht einen Weg entlang ([[x, z], …]) und bleibt am Ende stehen – zum Beispiel der Festgenommene in seine Zelle.
   // Bei Leuten aus der Wache ist der Weg in Wache-Maßen gemeint (wie in js/wache.js).
   fuehre(id, weg) { const o = welt.objekte.find(q => q.def.id === id && q.da); if (!o) return Promise.resolve();
@@ -345,7 +357,7 @@ const S = {
 async function tu(akt, def) {
   if (beschaeftigt || !STORY.AKT[akt]) return;
   beschaeftigt = true; spieler.tap = null; aktiv = def || null;
-  try { return await STORY.AKT[akt](S, def); } finally { beschaeftigt = false; aktiv = null; sprecher = ''; sichtbarkeit(); anzeigen(); }
+  try { return await STORY.AKT[akt](S, def); } finally { beschaeftigt = false; aktiv = null; sprecher = ''; UI.bild(null); sichtbarkeit(); anzeigen(); }
 }
 
 function anzeigen() {
@@ -376,7 +388,10 @@ function musikWahl() {
   if (UI.menueOffen()) return 'titel';
   if (UI.schlossOffen()) return 'raetsel';
   const stadt = Z.ort === 'stadt';
+  if (lauf && !lauf.H.vorlauf) return 'jagd';       // Verfolgung zu Fuß
   if (stadt && Z.flags.flucht && !Z.flags.jagdFertig) return 'jagd';
+  // Es liegt etwas in der Luft: der Fahrer ohne Papiere neben dem kurzgeschlossenen Wagen, der Dieb irgendwo zwischen den Ständen
+  if (stadt && ((Z.flags.uPapiere && !Z.flags.flucht) || (Z.flags.opfer && !Z.flags.marktFertig))) return 'spannung';
   if (Z.ort === 'museum') return 'museum';
   if (Z.ort === 'wohnung') return 'hafen';       // zu Hause: das ruhige Stück
   if (wacheNah()) return 'wache';
@@ -635,6 +650,8 @@ function zuFuss(dt) {
   if (vx || vz) {       // mit den Tasten läuft man in Bildschirm-Richtung: "hoch" ist von der Kamera weg, auch wenn sie gedreht ist
     spieler.tap = null;
     const c = Math.cos(kam.w), si = Math.sin(kam.w); [vx, vz] = [vx * c + vz * si, -vx * si + vz * c];
+  } else if (laufAktiv() && lauf.finger && fingerZiel(lauf.finger)) {       // Verfolgung: Solange der Finger auf dem Boden liegt, rennt Kim dorthin
+    spieler.tap = null; vx = treffer.x - spieler.x; vz = treffer.z - spieler.z; if (Math.hypot(vx, vz) < 0.7) vx = vz = 0;
   } else if (spieler.tap) {
     const t = spieler.tap;
     if (t.obj && nahGenug(t.obj)) { spieler.tap = null; benutze(t.obj); return; }
@@ -642,13 +659,13 @@ function zuFuss(dt) {
     if (!t.weg.length || (t.zeit += dt) > 60) spieler.tap = null;
     else { const dx = t.weg[0][0] - spieler.x, dz = t.weg[0][1] - spieler.z, d = Math.hypot(dx, dz); vx = dx / d; vz = dz / d; }
   }
-  const n = Math.hypot(vx, vz), tempo = ORTE[Z.ort].tempo || LAUF_TEMPO;
+  const n = Math.hypot(vx, vz), tempo = (ORTE[Z.ort].tempo || LAUF_TEMPO) * (lauf ? lauf.H.kimMal : 1);       // drinnen langsamer; wer bei einer Verfolgung stolpert, ist kurz langsamer
   spieler.tempo = n ? tempo : 0;
   if (!n) return;
   spieler.h = Math.atan2(vx, vz);
   const ax = spieler.x, az = spieler.z;
   [spieler.x, spieler.z] = schieben(spieler.x + vx / n * tempo * dt, spieler.z + vz / n * tempo * dt, ORTE[Z.ort].tempo ? 0.3 : 0.4);
-  if (spieler.tap && abstand(ax, az, spieler.x, spieler.z) < tempo * dt * 0.2) spieler.tap.zeit += dt * 40;   // hängt fest: bald aufgeben
+  if (spieler.tap && abstand(ax, az, spieler.x, spieler.z) < (ORTE[Z.ort].tempo || LAUF_TEMPO) * dt * 0.2) spieler.tap.zeit += dt * 40;   // hängt fest: bald aufgeben
 }
 
 function fahren(dt) {
@@ -676,6 +693,9 @@ function fahren(dt) {
   UI.tacho(kmh);
 }
 
+// Wo auf dem Boden liegt der Finger? Das Ergebnis steht in "treffer".
+function fingerZiel(f) { strahl.setFromCamera(new THREE.Vector2(f.x / innerWidth * 2 - 1, -(f.y / innerHeight) * 2 + 1), kamera); return !!strahl.ray.intersectPlane(ebene, treffer); }
+
 const FUEHR_TEMPO = 1.5;      // so schnell geht jemand, den die Geschichte führt (m/s)
 function ottoFolgt(dt) {
   for (const o of welt.objekte) {
@@ -687,9 +707,16 @@ function ottoFolgt(dt) {
         else { o.x += dx / d * weg; o.z += dz / d * weg; o.mesh.rotation.y = Math.atan2(dx, dz); } }
       o.mesh.position.set(o.x, 0, o.z); o.mesh.userData.selbst = true; figurBewegen(o.mesh, dt, p ? FUEHR_TEMPO : 0); o.geht = !!p; continue;
     }
+    if (lauf && !lauf.H.vorlauf && lauf.ottoWeg) {       // Verfolgung zu Fuß: Otto läuft zu seiner Stelle und schneidet den Weg ab – oder bleibt beim Wagen
+      const p = lauf.ottoWeg[0]; let t = 0;
+      if (p) { const dx = p[0] - o.x, dz = p[1] - o.z, d = Math.hypot(dx, dz), weit = OTTO_RENNT * dt; t = OTTO_RENNT;
+        if (d <= weit) { o.x = p[0]; o.z = p[1]; lauf.ottoWeg.shift(); } else { o.x += dx / d * weit; o.z += dz / d * weit; o.mesh.rotation.y = Math.atan2(dx, dz); } }
+      else o.mesh.rotation.y = Math.atan2(lauf.o.x - o.x, lauf.o.z - o.z);
+      o.mesh.position.set(o.x, 0, o.z); o.mesh.userData.selbst = true; figurBewegen(o.mesh, dt, t); o.geht = true; continue;
+    }
     const zx = spieler.x - Math.sin(spieler.h) * 1.4 + Math.cos(spieler.h) * 0.9, zz = spieler.z - Math.cos(spieler.h) * 1.4 - Math.sin(spieler.h) * 0.9;
     const dx = zx - o.x, dz = zz - o.z, d = Math.hypot(dx, dz);
-    const tempo = d > 12 ? 40 : d > 1.2 ? LAUF_TEMPO * 1.05 : 0;      // zu weit weg: hinterherspringen
+    const tempo = d > 70 ? 40 : d > 1.2 ? LAUF_TEMPO * 1.05 : 0;      // viel zu weit weg: hinterherspringen (nach einer Verfolgung kommt Otto angelaufen)
     if (tempo) { o.x += dx / d * Math.min(d, tempo * dt); o.z += dz / d * Math.min(d, tempo * dt); o.mesh.rotation.y = Math.atan2(dx, dz); }
     o.mesh.position.set(o.x, 0, o.z);
     o.mesh.userData.selbst = true; figurBewegen(o.mesh, dt, tempo ? 4 : 0); o.geht = !!tempo;
@@ -863,13 +890,18 @@ function kameraSetzen(staerke) {
   } else {
     // Zu Fuß kreist die Kamera um die Figur: w = von wo, e = wie steil, d = wie weit weg.
     const L = kamLage(), c = Math.cos(L.e);
-    px = spieler.x + Math.sin(kam.w) * c * L.d; py = 1 + Math.sin(L.e) * L.d; pz = spieler.z + Math.cos(kam.w) * c * L.d;
+    // Bei einer Verfolgung rückt die Kamera näher heran und schaut ein Stück zum Flüchtenden hinüber.
+    kam.hatz = (kam.hatz || 0) + ((laufAktiv() ? 1 : 0) - (kam.hatz || 0)) * Math.min(1, staerke * 0.5);
+    const nah = 1 - 0.24 * kam.hatz;
+    px = spieler.x + Math.sin(kam.w) * c * L.d * nah; py = 1 + Math.sin(L.e) * L.d * nah; pz = spieler.z + Math.cos(kam.w) * c * L.d * nah;
     bx = spieler.x - Math.sin(kam.w) * 0.5; bz = spieler.z - Math.cos(kam.w) * 0.5;
+    if (lauf && kam.hatz > 0.01) { const hx = lauf.o.x - spieler.x, hz = lauf.o.z - spieler.z, hd = Math.hypot(hx, hz) || 1, k = Math.min(4.5, hd * 0.3) / hd * kam.hatz; bx += hx * k; bz += hz * k; px += hx * k; pz += hz * k; }
     by = 1 + Math.max(0, 0.6 - L.e) * 2.2;       // eine flache Kamera schaut etwas höher, sonst sieht man nur Boden
   }
   kamera.position.lerp(new THREE.Vector3(px, py, pz), staerke);
   blick.lerp(new THREE.Vector3(bx, by, bz), staerke);
   kamera.lookAt(blick);
+  if (ruck > 0) { kamera.position.x += Math.sin(zeit * 71) * 0.16 * ruck; kamera.position.y += Math.sin(zeit * 93) * 0.12 * ruck; }       // Stoß, Sturz: Das Bild wackelt kurz
 }
 
 // Alles, was nur in der Stadt läuft: Häuser vor der Kamera aufschneiden, Schatten, Himmel, Verkehr, Radar.
@@ -899,6 +931,8 @@ function stadtSchritt(dt) {
   if (!Z.imAuto) imWeg.push({ x: Z.auto.x, z: Z.auto.z, r: 1.3 });       // dein abgestellter Streifenwagen
   verkehr.schritt(dt, { x: spieler.x, z: spieler.z, r: Z.imAuto ? 1.2 : 0.4, h: Z.imAuto ? Z.auto.h : undefined, v: Z.imAuto ? Z.auto.v : 0 }, Z.imAuto && Z.blaulicht > AUS, imWeg);
   verkehrBild.schritt(dt, spieler.x, spieler.z);
+  markt.leben.scheu = lauf ? [lauf.o] : null;       // vor dem Flüchtenden springen die Leute zur Seite
+  markt.schritt(dt, spieler.x, spieler.z, Z.imAuto ? null : spieler, sparsam);       // Trubel auf dem Marktplatz
   for (const s of welt.hausSchilder) s.visible = abstand(s.position.x, s.position.z, spieler.x, spieler.z) < 150;
   if (++bildNr % 2 === 0) KARTE.radar(kartenStand());
   if (bildNr % 30 === 0) anzeigen();
@@ -925,8 +959,9 @@ function wegweiser() {
 }
 
 function schritt(dt) {
+  if (zeitlupe > 0) { zeitlupe -= dt; dt *= 0.3; }       // der Moment, in dem der Flüchtende fällt, läuft kurz langsam
   zeit += dt;
-  const frei = (!beschaeftigt || !!lauf) && !UI.offen() && !KARTE.kartOffen();       // bei einer Verfolgung zu Fuß läuft man weiter, obwohl die Geschichte gerade „dran“ ist
+  const frei = (!beschaeftigt || laufAktiv()) && !UI.offen() && !KARTE.kartOffen();       // bei einer Verfolgung zu Fuß läuft man weiter, obwohl die Geschichte gerade „dran“ ist
   if (frei) { if (Z.imAuto) fahren(dt); else { zuFuss(dt); UI.tacho(null); } }
   else spieler.tempo = 0;
   if (frei && !lauf) zonen(dt);
@@ -965,6 +1000,9 @@ function schritt(dt) {
   rundenSchritt(dt); klappenSchritt(dt); leuteLeben(dt);
   wegweiser();
   UI.knoepfe(lauf ? [] : moeglich(), k => k.tun());
+  const E = einsatz();
+  if (E && !Z.flags.verstTipp && !beschaeftigt && !UI.offen() && !Z.imAuto) { Z.flags.verstTipp = true; UI.toast('Neu im Einsatz: Mit 📻 Verstärkung rufst du die Kollegen von Möwe 12'); }
+  UI.verst(!!E && !KARTE.kartOffen() && !UI.offen() && !UI.bildOffen() && (!beschaeftigt || laufAktiv()), E && Z.flags['verst_' + E]);
   UI.fahrKnoepfe(Z.imAuto, !Z.privat);       // im eigenen Auto gibt es keinen Blaulicht-Knopf
   markenZeigen();
 }
@@ -981,6 +1019,8 @@ addEventListener('keydown', e => {
   if (k === 'u') { musikWeiter(); return; }          // Musik geht immer, auch mitten im Gespräch
   if (k === 'v') { stimmeWeiter(); return; }         // Stimmen an oder aus, auch mitten im Gespräch
   if (KAM_TASTE[k]) { kam.taste = KAM_TASTE[k]; e.preventDefault(); return; }
+  if (laufAktiv() && (k === ' ' || k === 'e' || k === 'Enter')) { laufGriff(); e.preventDefault(); return; }       // Verfolgung zu Fuß: zugreifen
+  if (k === 'x') { verstDruck(); return; }
   if (beschaeftigt) return;
   if (k === 'e' || k === 'Enter') { const m = moeglich(); if (m.length) m[0].tun(); }
   else if (k === 'f') funkAuf(); else if (k === 'n') notizbuchAuf(); else if (k === 't') tascheAuf();
@@ -1086,6 +1126,7 @@ canvas.addEventListener('pointerdown', e => {
   KLANG.an();
   if (KARTE.kartOffen()) return;
   kam.zeiger.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, zieht: false });
+  if (laufAktiv() && e.button !== 2 && !lauf.finger) lauf.finger = { id: e.pointerId, x: e.clientX, y: e.clientY };       // Verfolgung: Finger (oder Maustaste) halten = dorthin rennen
   try { canvas.setPointerCapture(e.pointerId); } catch (f) { /* geht nicht überall */ }
   if (e.pointerType === 'mouse') {
     if (e.button === 2) { kam.rechts = e.pointerId; kam.zog = 0; }
@@ -1097,6 +1138,7 @@ canvas.addEventListener('pointerdown', e => {
 });
 canvas.addEventListener('pointermove', e => {
   const p = kam.zeiger.get(e.pointerId); if (!p) return;
+  if (lauf && lauf.finger && lauf.finger.id === e.pointerId) { lauf.finger.x = p.x = e.clientX; lauf.finger.y = p.y = e.clientY; return; }       // bei einer Verfolgung lenkt der Finger die Figur, nicht die Kamera
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
   if (kam.rechts === e.pointerId) { kam.zog += Math.abs(dx) + Math.abs(dy); if (kam.zog > ZUG_AB) { kamDrehen(-dx * ZIEH_DREH, dy * ZIEH_NEIG); kamSofort(); } }
   else if (kam.zeiger.size >= 2) {
@@ -1114,6 +1156,7 @@ canvas.addEventListener('pointermove', e => {
 function zeigerEnde(e, abbruch) {
   const p = kam.zeiger.get(e.pointerId); if (!p) return;
   kam.zeiger.delete(e.pointerId);
+  if (lauf && lauf.finger && lauf.finger.id === e.pointerId) lauf.finger = null;
   if (kam.rechts === e.pointerId) {
     kam.rechts = null;
     if (kam.zog <= ZUG_AB && !abbruch && !Z.imAuto && !beschaeftigt && !UI.offen()) { const v = Object.keys(VERBEN); verbSetzen(v[(v.indexOf(verb) + 1) % v.length]); }
@@ -1155,7 +1198,7 @@ function jagdLauf(dt, frei) {
     if (Z.imAuto && jagd.abstand > 150 && zeit > schimpfZeit) { schimpfZeit = zeit + 10; UI.toast('Otto: „Wir verlieren ihn! Gib Gas!“'); }
     if (jagd.fertig) KLANG.spiel('rumms');
   }
-  if (Z.ziel && !Z.flags.jagdFertig) Z.ziel.wo = ['stadt', jagd.x, jagd.z];       // der Wegweiser zeigt immer auf den Fluchtwagen
+  if (Z.ziel && !Z.flags.jagdFertig) Z.ziel.wo = lauf ? null : ['stadt', jagd.x, jagd.z];       // der Wegweiser zeigt immer auf den Fluchtwagen (nicht, wenn der Fahrer zu Fuß flieht)
   // Am Ende steht der Wagen quer am Bordstein. Kommt man nah heran, geht die Geschichte weiter.
   fluchtwagen.position.set(jagd.x, 0, jagd.z); fluchtwagen.rotation.y = jagd.h + (jagd.fertig ? 0.7 : 0); autoRaeder(fluchtwagen, jagd.s);
   // Am Ziel geht es erst weiter, wenn man in der Nähe angehalten hat.
@@ -1166,30 +1209,153 @@ function jagdLauf(dt, frei) {
 }
 
 // ------------------------------------------------------------------ Verfolgung zu Fuß
-// Jemand rennt weg – und zwar wirklich: Die Figur läuft ihren Weg entlang, du rennst hinterher (Tasten oder Tippen).
-// Kommst du auf Armlänge heran, hast du sie. Kommt sie am Ende ihres Wegs an oder ist sie zu weit weg, ist sie entwischt.
-const LAUF_FLUCHT = 4.0, LAUF_FANG = 1.4, LAUF_WEIT = 42;       // Tempo des Flüchtenden (du: 4,6 m/s), so nah = gefangen, so weit = entwischt
-let lauf = null;
-function laufStart(id, weg, { tempo = LAUF_FLUCHT } = {}) {
-  const o = welt.objekte.find(o => o.def.id === id && o.da);
-  if (!o) return Promise.resolve(true);
-  const x0 = o.x ?? o.def.x, z0 = o.z ?? o.def.z;
-  o.x = x0; o.z = z0; spieler.tap = null;
-  return new Promise(fertig => { lauf = { o, weg: weg.map(p => [...p]), tempo, x0, z0, h0: o.mesh.rotation.y, fertig, zeit: 0 }; });
+// Jemand rennt weg – und zwar wirklich: Die Figur läuft ihre Runde entlang, schlägt Haken und reißt Kisten um (das rechnet js/hatz.js),
+// du rennst hinterher (Tasten, Tippen oder den Finger auf dem Boden halten). Bist du nah genug, erscheint der große Knopf:
+// zu Boden stoßen oder festhalten. Otto und die Kollegen von Möwe 12 schneiden ihm den Weg ab, wenn du sie rufst.
+const OTTO_RENNT = 3.3, HELFER_TEMPO = 4.3;       // so schnell laufen Otto und die Kollegen bei einer Verfolgung (m/s)
+const GRIFF_TEXT = { stoss: '💥 Zu Boden stoßen', halt: '✋ Festhalten', gestellt: '✋ Festnehmen' };
+const KAM_SCHWENK = 1.6;       // so schnell dreht sich die Kamera bei einer Verfolgung zu Fuß höchstens hinter Kim (Bogenmaß je Sekunde)
+let lauf = null, zeitlupe = 0, ruck = 0;       // zeitlupe = so viele Sekunden läuft alles noch langsam · ruck = so stark wackelt die Kamera gerade
+const hatzDinge = [];                          // umgerissene Kisten und Tonnen (bleiben liegen, bis die nächste Verfolgung anfängt)
+const laufFigur = id => welt.objekte.find(o => o.def.id === id && o.da);
+const laufAktiv = () => !!lauf && !lauf.H.vorlauf && !lauf.ende;       // wird gerade wirklich gerannt?
+
+function laufNeu(o, def, vor) {
+  for (const d of hatzDinge) szene.remove(d.g); hatzDinge.length = 0;
+  for (const G of gaeste) for (const c of G.leute) c.hilft = false;
+  o.x = o.def.x; o.z = o.def.z; spieler.tap = null; o.rennt = true;
+  polizistArme(o.mesh, null); o.mesh.userData.einmal = null;
+  const H = HATZ.neueHatz(def, [o.x, o.z]); H.vorlauf = vor; H.h = o.mesh.rotation.y;
+  lauf = { o, H, def, fertig: null, h0: o.mesh.userData.grund ?? o.mesh.rotation.y, ende: 0, helfer: [], finger: null, ottoWeg: null, nachher: null };
+  if (!vor) laufLos();
+}
+// Jetzt zählt es: Otto und die Kollegen, die schon da sind, laufen los.
+function laufLos() {
+  const L = lauf, otto = welt.objekte.find(q => q.def.folgt && q.da && !q.fuehrt);
+  UI.toast(document.body.classList.contains('finger') ? 'Hinterher! Finger auf den Boden halten = dorthin rennen' : 'Hinterher! Pfeiltasten = rennen · Leertaste = zugreifen');
+  if (otto) {
+    if (abstand(otto.x, otto.z, spieler.x, spieler.z) > 14) { otto.x = Z.auto.x - Math.cos(Z.auto.h) * 2; otto.z = Z.auto.z + Math.sin(Z.auto.h) * 2; }       // er saß noch im Wagen: Er steigt auf seiner Seite aus
+    L.ottoWeg = L.def.otto ? (wegSuchen(otto.x, otto.z, L.def.otto[0], L.def.otto[1]) || [L.def.otto]) : [];
+    if (L.def.otto) L.helfer.push({ wer: otto, halb: true });
+  }
+  helferSchicken();
+}
+// Die Kollegen von Möwe 12 (wenn ihr Wagen schon steht) rennen zu ihren Stellen und schneiden dem Flüchtenden den Weg ab.
+function helferSchicken() {
+  const L = lauf; if (!L || L.H.vorlauf || !L.def.sperren) return;
+  let k = 0;
+  for (const G of gaeste) if (G.art === 'streife' && G.steht && abstand(G.x, G.z, L.o.x, L.o.z) < 220) for (const c of G.leute) {
+    const p = L.def.sperren[k++ % L.def.sperren.length]; if (c.hilft) continue;
+    c.hilft = true; c.ziel = null; c.eile = HELFER_TEMPO; c.pfad = wegSuchen(c.x, c.z, p[0], p[1]) || [p]; L.helfer.push({ wer: c });
+  }
+}
+function laufVor(id, def) { const o = laufFigur(id); if (o) laufNeu(o, def, true); }
+function laufStart(id, def) {
+  if (Array.isArray(def)) def = { weg: def };
+  const o = laufFigur(id); if (!o) return Promise.resolve('halt');
+  if (lauf && lauf.o === o && lauf.H.vorlauf) { HATZ.hatzLos(lauf.H); laufLos(); } else laufNeu(o, def, false);
+  return new Promise(fertig => { lauf.fertig = fertig; });
+}
+// Etwas Umgerissenes hinstellen: ein paar Kisten mit Obst (Markt) oder eine Mülltonne (Garten). Die Teile purzeln kurz und bleiben liegen.
+function hatzDing(x, z, art) {
+  const g = new THREE.Group(), teile = [];
+  const holz = new THREE.MeshStandardMaterial({ color: art === 'tonne' ? '#2f6b3a' : '#b98a4e', roughness: 0.85 });
+  if (art === 'tonne') { const t = new THREE.Mesh(new THREE.BoxGeometry(0.58, 1.05, 0.7), holz); const d = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.07, 0.76), new THREE.MeshStandardMaterial({ color: '#23502b', roughness: 0.8 })); teile.push([t, 0.3], [d, 0.05]); }
+  else { for (let i = 0; i < 4; i++) teile.push([new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.32, 0.42), holz), 0.17]);
+    const bunt = ['#e8892a', '#d8261c', '#e9c53a', '#7fb23a'];
+    for (let i = 0; i < 14; i++) teile.push([new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), new THREE.MeshStandardMaterial({ color: bunt[i % 4], roughness: 0.6 })), 0.075]); }
+  const liste = teile.map(([m, y], i) => { m.castShadow = true; g.add(m); const w = Math.random() * 6.28, r = (i < 4 ? 0.25 : 0.5) + Math.random() * (i < 4 ? 0.6 : 1.5);
+    return { m, y, zx: Math.sin(w) * r, zz: Math.cos(w) * r, dreh: [(Math.random() - 0.5) * 3, Math.random() * 6, art === 'tonne' && i === 0 ? 1.571 : (Math.random() - 0.5) * 1.2] }; });
+  g.position.set(x, 0, z); szene.add(g); hatzDinge.push({ g, liste, t: 0 });
+}
+function hatzDingeSchritt(dt) {
+  for (const D of hatzDinge) { if (D.t >= 1) continue; D.t = Math.min(1, D.t + dt * 2.2); const k = 1 - (1 - D.t) * (1 - D.t);
+    for (const q of D.liste) { q.m.position.set(q.zx * k, q.y + Math.sin(D.t * Math.PI) * 0.55 + (q.dreh[2] > 1.5 ? 0.0 : 0), q.zz * k); q.m.rotation.set(q.dreh[0] * k, q.dreh[1] * k, q.dreh[2] * k); }
+    for (const q of D.liste) if (D.t >= 1 && q.dreh[2] > 1.5) q.m.position.y = 0.3; }
 }
 function laufSchritt(dt) {
-  const L = lauf; if (!L) return;
-  const o = L.o, ziel = L.weg[0]; L.zeit += dt;
-  if (ziel) {
-    const dx = ziel[0] - o.x, dz = ziel[1] - o.z, d = Math.hypot(dx, dz), v = Math.min(L.tempo, 1.5 + L.zeit * 6);       // er kommt erst in Schwung
-    if (d < 0.5) L.weg.shift(); else { o.x += dx / d * v * dt; o.z += dz / d * v * dt; o.mesh.rotation.y = Math.atan2(dx, dz); }
+  hatzDingeSchritt(dt);
+  const L = lauf; if (!L) { if (ruck > 0) ruck = Math.max(0, ruck - dt * 2.5); return; }
+  const H = L.H, o = L.o;
+  const was = HATZ.hatzSchritt(H, dt, spieler, L.helfer.map(h => ({ x: h.wer.x, z: h.wer.z, halb: h.halb })));
+  for (const e of was) {
+    if (e.art === 'wurf') { hatzDing(e.x, e.z, L.def.wurfArt); KLANG.spiel('rumms', 0.8); UI.toast(L.def.wurfArt === 'tonne' ? 'Er reißt eine Tonne um – lauf außen herum!' : 'Er reißt Kisten um – lauf außen herum!'); }
+    else if (e.art === 'stolper') { KLANG.spiel('rumms', 0.6); ruck = 0.7; UI.toast('Gestolpert! Weiter!'); }
+    else if (e.art === 'haken') UI.toast('Er schlägt einen Haken!');
+    else if (e.art === 'gestellt') { polizistArme(o.mesh, 'hoch'); UI.toast('Er sitzt in der Falle! Lauf hin und nimm ihn fest'); }
   }
-  o.mesh.position.set(o.x, 0, o.z); o.mesh.userData.selbst = true; o.rennt = true; figurBewegen(o.mesh, dt, ziel ? L.tempo : 0);
-  const ab = abstand(spieler.x, spieler.z, o.x, o.z), gefangen = ab < LAUF_FANG;
-  if (!gefangen && ziel && ab < LAUF_WEIT) return;
-  lauf = null; o.rennt = false; o.mesh.userData.selbst = false; spieler.tap = null;
-  if (!gefangen) { o.x = L.x0; o.z = L.z0; o.mesh.position.set(o.x, 0, o.z); o.mesh.rotation.y = L.h0; }       // entwischt: Er steht wieder am Anfang, für den nächsten Versuch
-  L.fertig(gefangen);
+  // Die Figur an ihren Platz. Beim Wenden dreht sie sich schnell, aber nicht in einem Bild.
+  let w = H.h - o.mesh.rotation.y; while (w > Math.PI) w -= 2 * Math.PI; while (w < -Math.PI) w += 2 * Math.PI; o.mesh.rotation.y += w * Math.min(1, dt * 12);
+  o.x = H.x; o.z = H.z; o.mesh.position.set(o.x, 0, o.z); o.mesh.userData.selbst = true; o.rennt = true;
+  if (L.schub > 0.05) { const [nx, nz] = schieben(H.x + Math.sin(H.h) * L.schub * dt, H.z + Math.cos(H.h) * L.schub * dt, 0.4); H.x = nx; H.z = nz; L.schub *= Math.max(0, 1 - dt * 3.2); }
+  figurBewegen(o.mesh, dt, H.phase === 'lauf' ? H.v : 0);
+  ruck = Math.max(0, ruck - dt * 2.5);
+  if (L.nachher && (L.nachher.zeit -= dt) <= 0) { L.nachher.tun(); L.nachher = null; }
+  // Die Kamera schwenkt hinter Kim, sodass der Flüchtende immer vor dir im Bild ist (nicht ruckartig, und nicht, wenn er direkt neben dir läuft).
+  if (!H.vorlauf && !L.ende && H.abstand > 3.5) {
+    let kw = Math.atan2(spieler.x - o.x, spieler.z - o.z) - kam.zw; while (kw > Math.PI) kw -= 2 * Math.PI; while (kw < -Math.PI) kw += 2 * Math.PI;
+    const mehr = Math.max(-KAM_SCHWENK * dt, Math.min(KAM_SCHWENK * dt, kw * 2.5 * dt)); kam.zw += mehr; kam.w += mehr;
+  }
+  // Anzeige: Abstand, roter Rand und Herzschlag (je näher, desto schneller), großer Knopf
+  if (H.vorlauf) { UI.hatz(null); UI.griff(null); return; }
+  const nahK = Math.max(0, 1 - H.abstand / 22);
+  if (!L.ende) {
+    UI.hatz({ text: H.phase === 'gestellt' ? 'Er gibt auf – hin zu ihm!' : H.nah ? 'JETZT zugreifen!' : `🏃 Noch ${Math.round(H.abstand)} m`, nah: H.nah, anteil: 1 - H.abstand / (HATZ.WEG_WEIT * 1.3), rand: nahK * (0.3 + 0.25 * Math.sin(zeit * (5 + nahK * 9))) });
+    const art = H.phase === 'gestellt' ? 'gestellt' : L.def.griff === 'halt' ? 'halt' : 'stoss';
+    UI.griff(H.nah ? GRIFF_TEXT[art] + (document.body.classList.contains('finger') ? '' : '  (Leertaste)') : null, laufGriff);
+    KLANG.herz(dt, 0.25 + nahK * 0.75);
+  }
+  // Zugegriffen: kurz zusehen, dann geht die Geschichte weiter.
+  if (L.ende && (L.ende -= dt) <= 0) { laufAus(); L.fertig && L.fertig(H.wie); return; }
+  if (H.phase === 'weg') {       // entwischt: Er steht wieder am Anfang, für den nächsten Versuch
+    laufAus(); o.rennt = false; o.mesh.userData.selbst = false; o.x = o.def.x; o.z = o.def.z; o.mesh.position.set(o.x, 0, o.z); o.mesh.rotation.y = L.h0;
+    L.fertig && L.fertig(false);
+  }
+}
+function laufAus() { for (const h of lauf.helfer) if (h.wer.pfad) h.wer.pfad = null; lauf = null; spieler.tap = null; UI.hatz(null); UI.griff(null); polizistArme(kim, null); }
+// Der große Knopf (oder die Leertaste): zugreifen.
+function laufGriff() {
+  const L = lauf; if (!laufAktiv()) return;
+  const H = L.H, o = L.o, v0 = H.v, wie = HATZ.hatzGriff(H); H.v0 = v0;
+  if (!wie) { if (H.phase === 'lauf') { UI.toast('Daneben! Noch näher ran.'); polizistArme(kim, 'griff'); L.nachher = { zeit: 0.35, tun: () => polizistArme(kim, null) }; } return; }
+  UI.hatz(null); UI.griff(null); spieler.tap = null; spieler.h = Math.atan2(o.x - spieler.x, o.z - spieler.z);
+  if (wie === 'stoss') {       // mit beiden Händen in den Rücken: Er schlägt lang hin
+    const d = Math.max(0.1, H.abstand - 0.9); spieler.x += Math.sin(spieler.h) * d * 0.6; spieler.z += Math.cos(spieler.h) * d * 0.6;
+    polizistArme(kim, 'stoss'); polizistSpiele(o.mesh, 'fallen', { halten: true, mal: 3 });
+    KLANG.spiel('rumms'); zeitlupe = 0.6; ruck = 1; L.ende = 2.3; L.schub = Math.max(2.5, H.v0 || 0);       // er rutscht im Fallen noch ein Stück weiter
+    L.nachher = { zeit: 0.5, tun: () => polizistArme(kim, null) };
+  } else if (wie === 'halt') {       // an der Jacke gepackt: Beide bleiben stehen, er sinkt auf den Boden
+    polizistArme(kim, 'griff'); ruck = 0.4; L.ende = 2.8;
+    L.nachher = { zeit: 0.55, tun: () => polizistSpiele(o.mesh, 'fallen', { halten: true, mal: 1.3 }) };
+  } else { polizistArme(kim, 'griff'); L.ende = 1.3; }
+}
+
+// ------------------------------------------------------------------ Verstärkung anfordern
+// In welchem Einsatz steckst du gerade? Nur dann gibt es den Knopf "📻 Verstärkung".
+function einsatz() {
+  const f = Z.flags;
+  if (!Z.sachen.includes('funk') || Z.ort === 'wache' || (Z.ort === 'stadt' && wacheNah())) return null;
+  if (f.unfall && !f.flucht) return 'unfall';
+  if (f.flucht && !f.jagdFertig) return 'jagd';
+  if (f.markt && !f.marktFertig) return 'markt';
+  if (f.alarm && !f.museumFertig) return 'museum';
+  return null;
+}
+function verstDruck() {
+  KLANG.an();
+  const E = einsatz(); if (!E) return;
+  if (laufAktiv()) {       // mitten in der Verfolgung zu Fuß: kein langes Gespräch, ein Ruf ins Funkgerät
+    KLANG.spiel('funk');
+    if (Z.flags['verst_' + E]) { UI.toast('📻 Möwe 12: „Sind gleich bei euch!“'); helferSchicken(); return; }
+    Z.flags['verst_' + E] = true; S.punkte(1, 'Verstärkung gerufen');
+    UI.toast('📻 Kim: „Möwe 12, er läuft uns weg! Schneidet ihm den Weg ab!“');
+    const A = lauf.def.anfahrt;
+    if (A && !gaeste.some(G => G.art === 'streife' && abstand(G.x, G.z, lauf.o.x, lauf.o.z) < 220)) gastRufen('streife', A.ziel, { ...A, tempo: 22 });
+    helferSchicken();
+    return;
+  }
+  if (beschaeftigt || UI.offen() || KARTE.kartOffen()) return;
+  tu('verstaerkung');
 }
 
 // ------------------------------------------------------------------ Einsatzwagen, die zu Hilfe kommen
@@ -1207,12 +1373,14 @@ function gastBauen(art) {
   g.userData.blau = blau; g.userData.blitz = blitz;
   return g;
 }
-function gastRufen(art, ziel, { aus = [0, 1], zu = null, bis = null } = {}) {
+function gastRufen(art, ziel, { aus = [0, 1], zu = null, bis = null, tempo = GAST_TEMPO } = {}) {
   if (!welt || !welt.stadt || !GAST_LEUTE[art]) return Promise.resolve();
   const T = JAGD.anfahrt(ziel, aus); if (!T) return Promise.resolve();
+  // Möwe 12 gibt es nur einmal: Steht der Wagen noch an einem anderen Einsatzort, ist er dort jetzt weg.
+  for (let i = gaeste.length - 1; i >= 0; i--) { const G = gaeste[i]; if (G.art === art && abstand(G.x, G.z, ziel[0], ziel[1]) > 60) { szene.remove(G.mesh); for (const c of G.leute) szene.remove(c.g); if (G.da) G.da(); gaeste.splice(i, 1); } }
   const mesh = gastBauen(art); mesh.traverse(o => { if (o.isMesh) o.castShadow = true; }); szene.add(mesh);
   const leute = GAST_LEUTE[art].map(([datei, gerüst, weste], i) => { const g = new THREE.Group(); g.visible = false; szene.add(g); ladePolizist(g, datei, gerüst, null, weste || null); return { g, x: 0, z: 0, h: 0, ziel: zu && zu[i] || null, tempo: 0 }; });
-  return new Promise(da => { gaeste.push({ art, T, s: 0, v: 0, weg: 0, x: T.pts[0][0], z: T.pts[0][1], h: 0, mesh, leute, bis, da, steht: false }); });
+  return new Promise(da => { gaeste.push({ art, T, s: 0, v: 0, weg: 0, x: T.pts[0][0], z: T.pts[0][1], h: 0, mesh, leute, bis, da, steht: false, tempo }); });
 }
 function gaesteWeg() { for (const G of gaeste) { szene.remove(G.mesh); for (const c of G.leute) szene.remove(c.g); if (G.da) G.da(); } gaeste.length = 0; }
 function gastSchritt(dt) {
@@ -1222,17 +1390,23 @@ function gastSchritt(dt) {
     // Ist der Einsatz vorbei und du bist weit weg, verschwindet der Wagen wieder.
     if (G.bis && Z.flags[G.bis] && abstand(spieler.x, spieler.z, G.x, G.z) > 90) { szene.remove(G.mesh); for (const c of G.leute) szene.remove(c.g); gaeste.splice(i, 1); continue; }
     if (!G.steht) {
-      const rest = G.T.l - G.s, soll = Math.min(GAST_TEMPO, Math.max(1.5, rest * 0.45));
+      const rest = G.T.l - G.s, soll = Math.min(G.tempo, Math.max(1.5, rest * 0.45));
       G.v += Math.max(-9 * dt, Math.min(5 * dt, soll - G.v)); G.s = Math.min(G.T.l, G.s + G.v * dt); G.weg += G.v * dt;
       [G.x, G.z, G.h] = JAGD.ortAufStrecke(G.T, G.s);
       if (rest < 0.1) {       // angekommen: Die beiden steigen links und rechts aus
         G.steht = true; G.v = 0; KLANG.spiel('tuer', 0.5);
         G.leute.forEach((c, k) => { const seite = k ? 1.7 : -1.7; c.x = G.x + Math.cos(G.h) * seite + Math.sin(G.h) * 0.6; c.z = G.z - Math.sin(G.h) * seite + Math.cos(G.h) * 0.6; c.h = G.h; c.g.visible = true; });
         if (G.da) { G.da(); G.da = null; }
+        helferSchicken();       // läuft gerade eine Verfolgung zu Fuß, rennen die beiden gleich los
       }
     } else for (const c of G.leute) {
       c.tempo = 0;
-      if (c.ziel) { const dx = c.ziel[0] - c.x, dz = c.ziel[1] - c.z, d = Math.hypot(dx, dz);
+      if (c.pfad && c.pfad.length) {       // bei einer Verfolgung: im Laufschritt den Weg entlang zu der Stelle, an der sie den Flüchtenden abfangen
+        const p = c.pfad[0], dx = p[0] - c.x, dz = p[1] - c.z, d = Math.hypot(dx, dz), weit = c.eile * dt;
+        if (d <= weit) { c.x = p[0]; c.z = p[1]; c.pfad.shift(); } else { c.x += dx / d * weit; c.z += dz / d * weit; c.h = Math.atan2(dx, dz); }
+        c.tempo = c.eile;
+      } else if (c.hilft && lauf) c.h = Math.atan2(lauf.o.x - c.x, lauf.o.z - c.z);       // angekommen: dem Flüchtenden entgegenschauen
+      else if (c.ziel) { const dx = c.ziel[0] - c.x, dz = c.ziel[1] - c.z, d = Math.hypot(dx, dz);
         if (d > 0.3) { const f = Math.min(1, GAST_GEHT * dt / d); c.x += dx * f; c.z += dz * f; c.h = Math.atan2(dx, dz); c.tempo = GAST_GEHT; } else c.ziel = null; }
       c.g.position.set(c.x, 0, c.z); c.g.rotation.y = c.h; polizistBewegen(c.g, dt, c.tempo);
     }
@@ -1310,7 +1484,7 @@ for (const b of document.querySelectorAll('#kamKnoepfe button')) {
   b.addEventListener('contextmenu', e => e.preventDefault());
 }
 document.getElementById('radar').addEventListener('click', karteAuf);
-UI.verbinde({ notizbuch: notizbuchAuf, tasche: tascheAuf, funk: funkAuf, blaulicht: blaulichtWeiter, verb: verbSetzen, lupe: () => { markenBis = zeit + MARKEN_ZEIT; } });
+UI.verbinde({ notizbuch: notizbuchAuf, tasche: tascheAuf, funk: funkAuf, blaulicht: blaulichtWeiter, verb: verbSetzen, lupe: () => { markenBis = zeit + MARKEN_ZEIT; }, verstaerkung: verstDruck });
 
 // ------------------------------------------------------------------ Start und Schleife
 function bild() {
@@ -1327,14 +1501,14 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, get gitter() { return gitter; }, wegSuchen, einsteigen, aussteigen, stelle, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal, kamUebersicht, kamLage, cockpit, FAHR, sichtWeiter, get sicht() { return sicht; },
+window.__polizei = { get Z() { return Z; }, get gitter() { return gitter; }, wegSuchen, einsteigen, aussteigen, stelle, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, get umland() { return umland; }, get markt() { return markt; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal, kamUebersicht, kamLage, cockpit, FAHR, sichtWeiter, get sicht() { return sicht; },
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {
   let alt = null;
   try { alt = JSON.parse(localStorage.getItem(SPEICHER)); } catch (e) { alt = null; }
   await BILD.ladeBilder();           // Bodenbilder (Asphalt, Pflaster, Gras …) zuerst laden
-  himmel = baueHimmel(); umland = baueUmland(); verkehr = neuerVerkehr(); verkehrBild = baueVerkehr(verkehr);
+  himmel = baueHimmel(); umland = baueUmland(); verkehr = neuerVerkehr(); verkehrBild = baueVerkehr(verkehr); markt = baueMarkt();
   wetter = baueWetter({ szene, kamera, oben, sonne, himmel, melde: UI.toast, neuesLicht: () => lichtSetzen(Z.licht) });
   if (WUNSCH.get('wetter')) wetter.setze(WUNSCH.get('wetter'), true);       // zum Ausprobieren: ?wetter=gewitter
   lichtSetzen('tag'); ortLaden('wache', 0, 3.5); anzeigen();

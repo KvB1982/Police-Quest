@@ -111,6 +111,37 @@ export function knoepfe(liste, druck) {
   liste.forEach((l, i) => { const b = document.createElement('button'); b.textContent = (i === 0 && !finger ? 'E  ' : '') + l.text; b.onclick = () => druck(l); k.appendChild(b); });
 }
 
+// ----------------------------------------------------------------------------- Bild zur Geschichte
+// Zeigt ein Bild über dem ganzen Spiel (die Sprechblase liegt darüber). Ohne Namen verschwindet es wieder.
+// Die Bilder liegen in assets/szenen/. Fehlt eines, sieht man einfach weiter das Spiel.
+export function bild(name) {
+  const s = $('szene'), b = $('szeneBild');
+  if (!name) { s.hidden = true; return; }
+  b.onerror = () => { s.hidden = true; };
+  b.onload = () => { s.hidden = false; b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; };
+  b.src = `assets/szenen/${name}.jpg`;
+}
+export const bildOffen = () => !$('szene').hidden;
+
+// ----------------------------------------------------------------------------- Verfolgung zu Fuß
+// Oben der Abstand zum Flüchtenden, am Rand ein rotes Pochen (je näher, desto stärker). null = Anzeige weg.
+export function hatz(stand) {
+  $('hatz').hidden = !stand; $('hatzRand').hidden = !stand;
+  if (!stand) return;
+  $('hatzText').textContent = stand.text; $('hatz').classList.toggle('nah', !!stand.nah);
+  $('hatzStand').style.width = `${Math.round(Math.max(0.04, Math.min(1, stand.anteil)) * 100)}%`;
+  $('hatzRand').style.opacity = stand.rand.toFixed(2);
+}
+// Der große Knopf zum Zugreifen. text = null: weg. druck wird beim Drücken aufgerufen (schon beim Berühren, nicht erst beim Loslassen).
+let griffDruck = null, griffText = null;
+export function griff(text, druck) {
+  griffDruck = druck || null;
+  if (text === griffText) return;
+  griffText = text; const b = $('kGriff'); b.hidden = !text; if (text) b.textContent = text;
+}
+// Der Knopf "Verstärkung": an = zu sehen, da = die Kollegen sind schon gerufen
+export function verst(an, da) { const b = $('kVerst'); if (b.hidden === an) b.hidden = !an; b.classList.toggle('da', !!da); b.textContent = da ? '📻 Verstärkung kommt' : '📻 Verstärkung'; }
+
 let toastZeit = null;
 export function toast(text) {
   const t = $('toast'); t.textContent = text; t.hidden = false; t.classList.remove('weg'); void t.offsetWidth; t.classList.add('weg');
@@ -172,7 +203,9 @@ export function ende(titel, text, punkte, max, notizen) {
   });
 }
 
-export function verbinde({ notizbuch, tasche, funk, blaulicht, verb: verbWahl, lupe }) {
+export function verbinde({ notizbuch, tasche, funk, blaulicht, verb: verbWahl, lupe, verstaerkung }) {
+  $('kGriff').addEventListener('pointerdown', e => { e.preventDefault(); if (griffDruck) griffDruck(); });
+  $('kVerst').onclick = verstaerkung;
   $('weiter').onclick = () => weiter && weiter();
   $('dialog').onclick = e => { if (e.target.tagName !== 'BUTTON' && weiter) weiter(); };
   $('fensterZu').onclick = fensterZu;

@@ -23,6 +23,7 @@
 import { PLAN, GROSS } from './stadtplan.js';
 import { wacheDaten } from './wache.js';
 import { WOHNUNG, HAUSTUER } from './wohnung.js';
+import { hindernisse as marktHindernisse } from './markt.js';
 
 const OTTO_SIEH = 'Otto Brandl, dein Ausbilder. Grauer Bart, breite Schultern, die Mütze gerade. Seine Stiefel sind die saubersten der ganzen Wache.';
 const POLIZEI = { hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#5a3b22', muetze: '#f4f4f4' };
@@ -47,10 +48,8 @@ const wache = wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH });
 // ---------------------------------------------------------------------------------------------
 // Die ganze Stadt (Straßen, Häuser, Viertel, Kanal, Hafen …) wird in stadtplan.js ausgerechnet.
 // Hier steht nur, was die Geschichte in der Stadt braucht: Marktstände, Dinge und Leute.
-const STAND = ['#d9534f', '#f0ad4e', '#5cb85c', '#5bc0de', '#d9534f', '#f0ad4e'];
-const marktStaende = [[-60, -40], [-48, -42], [-30, -44], [-20, -36], [-62, -20], [-50, -14], [-28, -16], [-18, -24]]
-  .map(([x, z], i) => ({ x, z, b: 4, t: 2.4, h: 1, farbe: '#c9a777', dach: STAND[i % STAND.length] }));
-
+// Der Marktplatz selbst (Stände, Karussell, Bänke, Besucher …) steht in markt.js und wird in marktbau.js gebaut.
+// Hier kommen nur seine Hindernisse an: Rechtecke [x von, z von, x bis, z bis], um die Kim herumgehen muss.
 const stadt = {
   name: 'Möwenbrück',
   gross: GROSS,
@@ -60,13 +59,9 @@ const stadt = {
   wandFarbe: wache.wandFarbe,
   boden: wache.boden,
   waende: wache.waende, glaswaende: wache.glaswaende, klinker: wache.klinker, tueren: wache.tueren,
-  moebel: [...marktStaende, ...wache.moebel],
-  // Kisten, Fässer und Tafeln an den Marktständen – dicht am Stand, damit niemand darüber stolpert
-  deko: [...wache.deko, ...marktStaende.flatMap((s, i) => [
-    { modell: i % 2 ? 'kiste_holz' : 'fischkiste', x: s.x - 2.5, z: s.z + 0.5, dreh: i * 0.7 }, { modell: i % 3 ? 'holzfass' : 'fass', x: s.x + 2.5, z: s.z - 0.4 },
-    { modell: 'kiste_holz', x: s.x + 1.2, z: s.z - 1.8, dreh: i * 1.3, mal: 0.8 }, { modell: 'tafel', x: s.x - 2.4, z: s.z + 1.6, dreh: (i % 2 ? 0.5 : -0.4) },
-    ...(i % 2 ? [{ modell: 'pflanzkuebel', x: s.x + 2.6, z: s.z + 1.2 }] : [{ modell: 'fischkiste', x: s.x - 1.4, z: s.z - 1.7, dreh: 0.2 }]),
-  ])],
+  moebel: wache.moebel,
+  marktFest: marktHindernisse(),
+  deko: wache.deko,
   schilder: [{ x: -40, z: -30, text: 'Marktplatz', hoch: 7 }, ...wache.schilder.map(s => ({ ...s, wache: true }))],
   dinge: [
     ...wache.dinge,
@@ -84,6 +79,8 @@ const stadt = {
     { id: 'verletzte', x: -90.3, z: 107.6, name: 'Fahrerin im roten Wagen', akt: 'verletzte', wenn: 'unfall', bis: 'flucht', nah: 2.6, sieh: 'Eine Frau um die fünfzig hinter dem Steuer. Blass, eine Hand im Nacken. Der Sicherheitsgurt ist noch angelegt.', look: { hemd: '#3f7f8a', hose: '#444', haut: '#f0c8a0', haar: '#6a4a3a', modell: 'verletzte', art: 'frau' } },
     { id: 'unfallfahrer', x: -85.4, z: 100.2, name: 'Fahrer des dunklen Kombi', akt: 'unfallfahrer', wenn: 'unfall', bis: 'flucht', sieh: 'Ein junger Mann, höchstens zwanzig. Kapuzenjacke, an der rechten Hand ein frischer Kratzer. Er wippt auf den Fußballen wie einer, der gleich losrennt.', look: { hemd: '#4a4f57', hose: '#2a2a2a', haut: '#f0c8a0', haar: '#3a2a1a', modell: 'unfallfahrer', art: 'mann' } },
     { id: 'zeugin', x: -78.6, z: 104.5, name: 'Radfahrerin', akt: 'zeugin', wenn: 'unfall', bis: 'flucht', sieh: 'Eine Frau in Sportsachen. Sie hält ihr Rad am Lenker fest, die Knöchel sind weiß.', look: { hemd: '#e0b030', hose: '#2a3a5a', haut: '#e8b890', haar: '#2a1a12', muetze: '#d23a2a', modell: 'zeugin', art: 'frau' } },
+    // Timo springt am Ende der Verfolgungsfahrt aus dem Kombi und rennt zu Fuß weiter (story.js: jagd_ende, TIMO_HATZ)
+    { id: 'timo', x: -349.6, z: 591, h: 2.4, name: 'Der flüchtige Fahrer', wenn: 'timoRaus', bis: 'jagdFertig', look: { hemd: '#4a4f57', hose: '#2a2a2a', haut: '#f0c8a0', haar: '#3a2a1a', modell: 'unfallfahrer', art: 'mann' } },
     { id: 'opfer', x: -40, z: -22, name: 'Bestohlene Frau', akt: 'opfer', wenn: 'markt', look: { hemd: '#8a6fa8', hose: '#444', haut: '#f0c8a0', haar: '#d8d2c4', modell: 'opfer', art: 'frau' }, sieh: 'Eine ältere Frau mit einer offenen Handtasche. Sie hält sie mit beiden Händen fest und sieht sich immer wieder um.' },
     { id: 'w1', x: -57, z: -37, name: 'Mann am Gemüsestand', akt: 'verdacht', look: { hemd: '#3f9a4a', hose: '#444', haut: '#f0c8a0', haar: '#3a2a1a', rucksack: '#d23a2a', modell: 'w1', art: 'mann' }, sieh: 'Ein Mann am Gemüsestand. Grüne Jacke, roter Rucksack. Er wiegt in Ruhe Tomaten ab.' },
     { id: 'w2', x: -25, z: -13.5, name: 'Mann am Käsestand', akt: 'verdacht', bis: 'marktFertig', look: { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', rucksack: '#2a5ad2', modell: 'w2', art: 'mann' }, sieh: 'Ein junger Mann am Käsestand. Grüne Jacke, blauer Rucksack. Er kauft nichts – er schaut den Leuten auf die Taschen.' },

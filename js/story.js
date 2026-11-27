@@ -22,7 +22,7 @@ const OTTO = 'Otto Brandl', SELIN = 'Selin Aydin', FUNK = 'Leitstelle (Frau Pete
 
 // Der Tag beginnt zu Hause: Kim wacht in der Wohnung am Fleetufer 7 auf.
 export const START = { ort: 'wohnung', x: -2.9, z: -2.4, licht: 'frueh', uhr: '05:10' };
-export const MAX_PUNKTE = 70;
+export const MAX_PUNKTE = 72;
 // Der Satz, wenn man sein eigenes Auto ansieht (👁)
 export const PRIVATWAGEN_SIEH = 'Dein eigener Wagen: klein, dunkelblau und zwölf Jahre alt. Auf der Rückbank liegt die Sporttasche, am Spiegel baumelt ein kleiner Handball.';
 
@@ -31,7 +31,16 @@ export const PRIVATWAGEN_SIEH = 'Dein eigener Wagen: klein, dunkelblau und zwöl
 export const JAGD = { start: [-87.2, 99.4], erst: [-88, 125], ziel: [-348, 589] };
 
 // Der Fluchtweg des Taschendiebs über den Markt: im Zickzack zwischen den Ständen durch und in einem Bogen zurück.
-const DIEB_WEG = [[-24, -20], [-25, -30], [-34, -36], [-40, -28], [-45, -20], [-56, -17.5], [-56, -8], [-45, -6], [-34, -8]];
+export const DIEB_WEG = [[-24, -20], [-25, -30], [-34, -36], [-40, -28], [-45, -20], [-56, -17.5], [-56, -8], [-45, -6], [-34, -8], [-22, -9.5], [-20, -17]];
+// Die Verfolgungen zu Fuß (was die Zahlen bedeuten, steht oben in js/hatz.js). Die Wege sind Runden: Nach dem letzten Punkt geht es wieder zum ersten.
+// Der Taschendieb: am Anfang schneller als du, reißt an drei Stellen Kisten um. Otto läuft zur Marktmitte und schneidet ihm den Weg ab.
+export const DIEB_HATZ = { weg: DIEB_WEG, tempo: 5.3, tempoMin: 3.8, muede: 0.04, griff: 'stoss', wurf: [2, 5, 8], vorlauf: 13, zeit: 60,
+  otto: [-45, -20], sperren: [[-45, -6], [-34, -36]], anfahrt: { ziel: [-58, -1.5], aus: [-1, 0], bis: 'abgabe2' } };
+// Timo: Er humpelt (das Knie), deshalb ist er langsamer und wird schnell müde. Er rennt eine Runde durch die Gärten am Finkenstieg.
+const M12_FINK = [-334.7, 557.7];       // hier hält Möwe 12 im Finkenstieg
+export const TIMO_HATZ = { weg: [[-349, 592], [-356, 603], [-352, 617], [-342, 625], [-327, 611], [-321, 598], [-316.5, 587], [-320.5, 581.5], [-328.5, 577], [-336, 569], [-346, 566], [-352, 578]],
+  tempo: 4.55, tempoMin: 3.3, muede: 0.04, griff: 'halt', wurf: [3, 9], wurfArt: 'tonne', spurt: false,
+  sperren: [[-321, 598], [-346, 566]], anfahrt: { ziel: M12_FINK, aus: [0.45, -0.89], bis: 'abgabe1' } };
 
 // Was in der Tasche sein kann.
 export const SACHEN = {
@@ -331,8 +340,9 @@ export const AKT = {
     await S.sag(KIM, 'Möwe 14 an Leitstelle: Halterabfrage. MÖ-TR 388, dunkelblauer Kombi, beteiligt am Unfall Marktstraße.');
     await S.sag(FUNK, 'Möwe 14, Vorsicht: Das Fahrzeug ist seit heute Nacht als gestohlen gemeldet. Es stand am Güterbahnhof.');
     S.punkte(2, 'Kennzeichen über Funk abgefragt');
-    S.klang('rumms');
+    S.klang('rumms'); S.bild('stoss_otto');
     await S.sag('', 'Der junge Mann hat mitgehört. Er rammt Otto die Schulter in die Seite, Otto prallt gegen den Kotflügel. Der Mann reißt die Fahrertür auf und greift unter das Lenkrad. Zwei Kabel, ein Funke – der Motor heult auf.');
+    S.bild();
     for (;;) {
       const a = await S.wahl(KIM, 'Der Kombi setzt mit durchdrehenden Reifen zurück. Was tust du?', [
         'Dich vor den Wagen stellen: „Halt! Polizei!“',
@@ -343,14 +353,43 @@ export const AKT = {
       if (a === 0) await S.sag(OTTO, 'Weg da! Niemand stellt sich vor ein Auto, das flieht. Blech hält man nicht mit dem Körper auf. Was macht man stattdessen?');
       else { S.flag('waffeFalsch3'); S.zeig('ziehen', true); await S.sag(OTTO, 'Nein! Mitten in der Stadt, mit Leuten auf dem Gehweg? Hier wird nicht geschossen. Was macht man stattdessen?'); S.zeig('wegstecken'); }
     }
+    S.bild('kombi_flieht');
     await S.sag('', 'Der Kombi schrammt am roten Wagen entlang und jagt die Marktstraße hinunter nach Süden. Glassplitter rieseln auf den Asphalt.');
+    S.bild();
     await S.sag(KIM, 'Möwe 14 an alle: Fahrerflucht nach Unfall! Gestohlener dunkelblauer Kombi, MÖ-TR 388, Marktstraße Richtung Süden. Wir nehmen die Verfolgung auf.');
-    S.kommt('streife', [-87.5, 68], { aus: [0, -1], zu: [[-88.5, 95], [-83, 98]], bis: 'jagdFertig' });       // die Kollegen von Möwe 12 kommen von Norden
+    if (!S.hat('verst_unfall')) S.kommt('streife', [-87.5, 68], { aus: [0, -1], zu: [[-88.5, 95], [-83, 98]], bis: 'jagdFertig' });       // die Kollegen von Möwe 12 kommen von Norden (wenn du sie nicht schon gerufen hast)
     await S.sag(OTTO, 'Mir fehlt nichts, nur die Rippen. Die Sanitäter kümmern sich um Frau Jansen, und da hinten kommt Möwe 12 und übernimmt die Unfallstelle. In den Wagen, Kim! Blaulicht UND Sirene – jetzt brauchen wir beides.');
     S.flag('flucht'); S.uhr('09:05');
     S.notiz('Unfall Marktstraße: Der dunkle Kombi MÖ-TR 388 ist gestohlen (Güterbahnhof). Fahrer hat Otto gestoßen und ist geflohen.');
     S.ziel('Steig ein und verfolge den dunkelblauen Kombi – mit Blaulicht und Sirene!', null);
     S.speichern();
+  },
+  // Der Knopf "📻 Verstärkung" (im Einsatz immer zu sehen): Die Kollegen von Möwe 12 kommen. Bei einer Verfolgung zu Fuß schneiden sie
+  // dem Flüchtenden den Weg ab (das macht main.js selbst, ohne Gespräch – hier steht, was man vorher und nachher über Funk hört).
+  async verstaerkung(S) {
+    const schon = n => S.hat('verst_' + n) ? S.sag(FUNK, 'Möwe 12 ist schon unterwegs, Möwe 14.') : null;
+    if (S.hat('unfall') && !S.hat('flucht')) {
+      if (schon('unfall')) return schon('unfall');
+      await S.sag(KIM, 'Möwe 14 an Leitstelle: Wir brauchen einen zweiten Wagen an der Unfallstelle Marktstraße.');
+      await S.sag(FUNK, 'Verstanden, Möwe 14. Möwe 12 kommt zu euch.');
+      S.flag('verst_unfall'); S.kommt('streife', [-87.5, 68], { aus: [0, -1], zu: [[-88.5, 95], [-83, 98]], bis: 'jagdFertig' });
+    } else if (S.hat('flucht') && !S.hat('jagdFertig')) {
+      if (schon('jagd')) return schon('jagd');
+      await S.sag(KIM, 'Möwe 14 an alle: Wir brauchen Verstärkung bei der Verfolgung! Dunkelblauer Kombi, MÖ-TR 388.');
+      await S.sag(FUNK, 'Möwe 12 fährt euch hinterher, Möwe 14. Bleibt dran und passt auf euch auf.');
+      S.flag('verst_jagd'); S.punkte(1, 'Verstärkung gerufen');
+    } else if (S.hat('markt') && !S.hat('marktFertig')) {
+      if (schon('markt')) return schon('markt');
+      await S.sag(KIM, 'Möwe 14 an Leitstelle: Wir brauchen einen zweiten Wagen am Wochenmarkt. Ohne Blaulicht.');
+      await S.sag(FUNK, 'Verstanden. Möwe 12 kommt leise von der Südseite.');
+      S.flag('verst_markt'); S.punkte(1, 'Verstärkung gerufen');
+      S.kommt('streife', DIEB_HATZ.anfahrt.ziel, { aus: DIEB_HATZ.anfahrt.aus, zu: [[-52, -7], [-48, -7.5]], bis: 'abgabe2' });
+    } else if (S.hat('alarm') && !S.hat('museumFertig')) {
+      if (schon('museum')) return schon('museum');
+      await S.sag(KIM, 'Möwe 14 an Leitstelle: Wir brauchen Verstärkung am Stadtmuseum.');
+      await S.sag(FUNK, 'Möwe 12 sichert die Rückseite zum Wall, Möwe 14.');
+      S.flag('verst_museum');
+    }
   },
   async f_beschreibung(S) {
     await S.sag(KIM, 'Möwe 14 an Leitstelle: Taschendieb auf dem Markt. Männlich, Mitte zwanzig, grüne Jacke, blauer Rucksack.');
@@ -479,7 +518,8 @@ export const AKT = {
   // Die Verfolgung ist zu Ende: Der Fluchtwagen sitzt in der Sackgasse fest. (Das Spiel ruft diese Stelle von selbst auf.)
   async jagd_ende(S) {
     if (S.hat('jagdFertig')) return;
-    S.kommt('streife', [-334.7, 557.7], { aus: [0.45, -0.89], zu: [[-343.5, 580], [-340.5, 577.5]], bis: 'abgabe1' });       // Verstärkung: Möwe 12 ist hinter uns hergefahren
+    const m12 = () => S.kommt('streife', M12_FINK, { aus: [0.45, -0.89], zu: [[-343.5, 580], [-340.5, 577.5]], bis: 'abgabe1' });
+    if (S.hat('verst_jagd')) m12();       // Verstärkung gerufen: Möwe 12 ist hinter uns hergefahren
     await S.sag('', 'Finkenstieg – eine Sackgasse. Der Kombi rutscht über den Wendeplatz, schlägt mit dem Vorderrad gegen den Bordstein und bleibt quer stehen. Aus der Motorhaube steigt Dampf.');
     for (;;) {
       const a = await S.wahl(KIM, 'Er sitzt noch im Wagen. Wie gehst du vor?', [
@@ -491,7 +531,19 @@ export const AKT = {
       if (a === 0) await S.sag(OTTO, 'Zu nah. Du weißt nicht, was er vorhat. Abstand halten, Deckung nehmen, ansprechen. Nochmal.');
       else { S.flag('waffeFalsch3'); await S.sag(OTTO, 'Siehst du bei ihm eine Waffe? Ich auch nicht. Ein Autodieb, der festsitzt. Die Pistole bleibt im Holster. Nochmal.'); }
     }
-    await S.sag('', 'Sekundenlang passiert nichts. Dann fliegt die Fahrertür auf. Der Junge rennt los, auf den Gartenzaun am Ende der Straße zu – und knickt nach drei Schritten weg. Er hat sich beim Aufprall das Knie angeschlagen.');
+    // Er rennt – und zwar wirklich: Timo läuft durch die Gärten, du hinterher. Entwischt er, geht es von vorn los.
+    S.flag('timoRaus', true); S.bild('tuer_auf');
+    await S.sag('', 'Sekundenlang passiert nichts. Dann fliegt die Fahrertür auf. Der Junge springt heraus und rennt los, zwischen den Häusern hindurch in die Gärten. Er humpelt – beim Aufprall hat er sich das Knie angeschlagen.');
+    S.bild(); S.auto(false);
+    let wie;
+    for (;;) {
+      S.ziel('Fang den Fahrer! Lauf ihm nach und halt ihn fest', null);
+      wie = await S.verfolge('timo', TIMO_HATZ);
+      if (wie) break;
+      await S.sag(OTTO, 'Du hast ihn aus den Augen verloren! Aber weit kommt er mit dem Knie nicht. Da – er ist wieder am Kombi. Nochmal, und schneid ihm den Weg ab!');
+    }
+    if (wie === 'gestellt') await S.sag('', 'Vor ihm stehen die Kollegen von Möwe 12, hinter ihm du. Der Junge bleibt stehen, hebt die Hände und lässt sich auf den Rasen sinken.');
+    else await S.sag('', 'Du bekommst seine Kapuze zu fassen. Er strauchelt, das Knie gibt nach, und er geht auf dem Rasen zu Boden.');
     for (;;) {
       const a = await S.wahl(KIM, 'Er liegt halb auf dem Rasen und versucht hochzukommen. Was tust du?', [
         'Dich auf ihn werfen und ihm das Knie in den Rücken drücken',
@@ -505,17 +557,21 @@ export const AKT = {
     S.klang('schloss');
     S.punkte(3, 'Flüchtigen nach Vorschrift gestellt');
     if (!S.hat('waffeFalsch3')) S.punkte(1, 'Die Waffe im Holster gelassen');
-    const wie = S.jagd();
-    if (wie.rumms === 0) S.punkte(2, 'Verfolgt, ohne etwas zu rammen');
-    if (wie.sirene) S.punkte(1, 'Mit Blaulicht und Sirene verfolgt');
+    const fahrt = S.jagd();
+    if (fahrt.rumms === 0) S.punkte(2, 'Verfolgt, ohne etwas zu rammen');
+    if (fahrt.sirene) S.punkte(1, 'Mit Blaulicht und Sirene verfolgt');
     else await S.sag(OTTO, 'Eins noch: Bei einer Verfolgung läuft die Sirene. Die Leute müssen hören, dass da etwas angerast kommt. Blaulicht allein sieht keiner, der um die Ecke biegt.');
+    S.bild('festnahme_timo');
     await S.sag('', 'Die Handschellen rasten ein. Der Junge heißt Timo Reents, neunzehn Jahre, kein Führerschein. Er zittert am ganzen Körper.');
     await S.sag('Timo', 'Ich hab den nicht geklaut! Also … nicht für mich. Einer hat mir fünfzig Euro gegeben. Ich sollte den Wagen heute Abend am Ostring abstellen, Schlüssel auf den Hinterreifen, fertig.');
     await S.sag(KIM, 'Wer?');
     await S.sag('Timo', 'Kenn ich nicht. So ein Großer mit Lederjacke. Der hat beim Gehen ein Bein nachgezogen. Mit dem legt man sich nicht an.');
     S.notiz('Timo Reents (19) sollte den gestohlenen Kombi heute Abend am Ostring abstellen, für 50 Euro. Auftraggeber: großer Mann, Lederjacke, zieht ein Bein nach.');
     await S.sag(OTTO, 'Ein gestohlener Wagen, der abends am Ostring bereitstehen soll. Das ist kein Jugendstreich, Kim. Schreib es genau so in den Bericht.');
-    await S.sag('', 'Hinter euch hält Möwe 12. Die beiden Kollegen sichern den Kombi, bis der Abschleppwagen kommt. Du merkst erst jetzt, wie fest du das Lenkrad gehalten hast.');
+    if (S.hat('verst_jagd')) await S.sag('', 'Die Kollegen von Möwe 12 sichern den Kombi, bis der Abschleppwagen kommt. Du merkst erst jetzt, wie schnell dein Herz schlägt.');
+    else { m12(); await S.sag('', 'Hinter euch hält Möwe 12. Die beiden Kollegen sichern den Kombi, bis der Abschleppwagen kommt. Du merkst erst jetzt, wie fest du das Lenkrad gehalten hast.'); }
+    await S.sag('', 'Ihr bringt Timo zurück zum Streifenwagen. Er humpelt, Otto stützt ihn.');
+    S.zumWagen(); S.bild();
     S.blaulichtAn(0);
     await S.sag(OTTO, 'Wer festnimmt, liefert auch ab. Timo kommt hinten in unseren Wagen, und wir bringen ihn zur Wache. Blaulicht bleibt aus – er läuft uns nicht mehr weg.');
     S.flag('jagdFertig'); S.flag('gefangen1'); S.uhr('09:40');
@@ -744,8 +800,9 @@ export const AKT = {
       else { S.flag('waffeFalsch'); S.zeig('ziehen', true); await S.sag(OTTO, 'Lass die stecken, Berger! Ein Taschendieb, mitten zwischen hundert Leuten? Die ziehst du, wenn ein Leben in Gefahr ist. Sonst nie. Nochmal.'); S.zeig('wegstecken'); }
     }
     await S.sag('Mann', 'Ich? Wieso ich? Ich hab nichts gemacht.');
-    S.klang('rumms');
+    S.klang('rumms'); S.bild('stoss_markt');
     await S.sag('', 'Im nächsten Moment stößt er dich mit beiden Händen gegen den Käsestand und rennt los. Kisten fallen, jemand schreit.');
+    S.bild(); S.renn('w2', DIEB_HATZ);       // er rennt schon, während du überlegst
     for (;;) {
       const a = await S.wahl(KIM, 'Er rennt zwischen den Ständen davon. Was jetzt?', [
         'Waffe ziehen: „Stehen bleiben!“',
@@ -757,12 +814,16 @@ export const AKT = {
       else await S.sag(OTTO, 'Der hat dich gerade gestoßen und die Rente einer alten Frau in der Tasche. Lauf!');
     }
     // Jetzt wird wirklich gerannt: Der Dieb läuft zwischen den Ständen davon, du hinterher. Entwischt er, geht es von vorn los.
+    // Er reißt Kisten um und schlägt Haken. Otto schneidet ihm den Weg ab; wer Verstärkung ruft, bekommt Hilfe von Möwe 12.
+    let wie;
     for (;;) {
-      S.ziel('Fang den Taschendieb! Lauf ihm nach, bis du ihn greifen kannst', null);
-      if (await S.verfolge('w2', DIEB_WEG)) break;
+      S.ziel('Fang den Taschendieb! Lauf ihm nach und stoß ihn zu Boden', null);
+      wie = await S.verfolge('w2', DIEB_HATZ);
+      if (wie) break;
       await S.sag(OTTO, 'Er ist uns zwischen den Ständen durch! Da – am Käsestand taucht er wieder auf. Nochmal, und lauf nicht nur hinterher: Schneid ihm den Weg ab!');
     }
-    await S.sag('', 'Du bekommst seinen Arm zu fassen. Der Mann schlägt nach dir, du drehst dich weg. Otto kommt keuchend dazu.');
+    if (wie === 'gestellt') await S.sag('', 'Vor ihm die Kollegen von Möwe 12, hinter ihm du. Der Mann bleibt schwer atmend stehen und hebt die Hände. Als du nach seinem Arm greifst, reißt er sich noch einmal los.');
+    else await S.sag('', 'Der Mann schlägt der Länge nach auf das Pflaster. Du bist sofort bei ihm und packst seinen Arm. Er schlägt nach dir, du drehst dich weg. Otto kommt keuchend dazu.');
     for (;;) {
       const a = await S.wahl(KIM, 'Du hast seinen Arm. Er zerrt und tritt. Was tust du?', [
         'Ihm eine verpassen, damit er Ruhe gibt',
@@ -777,6 +838,7 @@ export const AKT = {
     S.punkte(3, 'Festnahme nach Vorschrift');
     if (!S.hat('falschGefragt')) S.punkte(1, 'Genau hingeschaut');
     if (!S.hat('waffeFalsch')) S.punkte(1, 'Die Waffe im Holster gelassen');
+    S.bild('festnahme_markt');
     await S.sag('', 'Die Handschellen rasten ein. In seiner Jacke stecken drei Portemonnaies. Dein Ellbogen ist aufgeschürft, deine Hände zittern ein bisschen.');
     await S.sag('', 'Frau Wolters bekommt ihr Portemonnaie zurück. Otto führt den Mann zum Streifenwagen und setzt ihn auf die Rückbank.');
     await S.sag(OTTO, 'Erste Festnahme am ersten Tag. Und das Zittern geht vorbei – bei mir hat es damals bis zum Abend gedauert. Jetzt bringen wir ihn zur Wache.');
@@ -864,7 +926,9 @@ export const AKT = {
       else await S.sag('', 'Otto packt dich am Gürtel. „Allein im Dunkeln hinter einem her, der doppelt so breit ist wie du? Nein. Was macht man stattdessen?“');
     }
     S.punkte(2, 'Im Dunkeln richtig reagiert');
+    S.bild('schatten_fenster');
     await S.sag('', 'Für eine Sekunde steht er im Lichtkegel: groß, dunkle Lederjacke, das Gesicht weggedreht. Dann ist er draußen. Er läuft seltsam – er zieht das rechte Bein nach.');
+    S.bild();
     await S.sag('', 'Lederjacke. Zieht ein Bein nach. Genau so hat Timo heute Morgen den Mann beschrieben, der den Wagen am Ostring bestellt hat.');
     await S.sag(KIM, 'Möwe 14 an alle: Täter flüchtig vom Stadtmuseum Richtung Wallanlagen! Männlich, groß, dunkle Lederjacke, hinkt rechts.');
     await S.sag(FUNK, 'Verstanden, Möwe 14. Alle Wagen: Fahndung im Bereich Ostring und Wall. Bist du verletzt, Kim?');
@@ -1106,9 +1170,9 @@ export const DURCHLAUF = [
   ['einsteigen_hof', null, []], ['f_anmelden', null, []], ['z_kita', null, []],
   ['erzieherin', null, []], ['falschparker', null, []], ['f_kennz', null, []], ['baecker', null, [1, 0, 0]], ['f_kita_fertig', null, []], ['ruf_unfall', null, []],
   ['z_unfall', null, []], ['verletzte', null, [0, 2]], ['zeugin', null, []], ['unfallfahrer', null, [1, 0]], ['unfallwagen', null, []], ['roterwagen', null, []],
-  ['f_unfall', null, [1, 2]], ['eingestiegen', null, []], ['jagd_ende', null, [1, 2, 0, 1]], ['z_abgabe1', null, []], ['z_hof1', null, []],
+  ['f_unfall', null, [1, 2]], ['eingestiegen', null, []], ['verstaerkung', null, []], ['verstaerkung', null, [], true], ['jagd_ende', null, [1, 2, 0, 1]], ['z_abgabe1', null, []], ['z_hof1', null, []],
   ['zelle', 'zelle1', [], true], ['waffenfach', null, []], ['gewahrsam', 'harms_g', [0, 2, 1]], ['zelle', 'zelle2', [], true], ['zelle', 'zelle1', []], ['einsteigen_hof', null, [], true], ['waffenfach', null, []], ['einsteigen_hof', null, []], ['ruf_markt', null, []],
-  ['z_markt', null, []], ['opfer', null, [1, 0]], ['f_beschreibung', null, []],
+  ['z_markt', null, []], ['opfer', null, [1, 0]], ['f_beschreibung', null, []], ['verstaerkung', null, []],
   ['verdacht', 'w1', [], true], ['verdacht', 'w2', [1, 2, 0, 1, 0, 1]],
   ['z_abgabe2', null, []], ['z_hof2', null, []], ['waffenfach', null, []], ['gewahrsam', 'harms_g', [2, 1]], ['zelle', 'zelle2', []], ['waffenfach', null, []], ['einsteigen_hof', null, []],
   ['ruf_museum', null, []], ['z_museum', null, []], ['museumstuer', null, []], ['brinkmann', null, [0, 2]], ['thomsen', null, []],

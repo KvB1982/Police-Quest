@@ -102,3 +102,17 @@ Selbst gemalt (in `js/bilder.js`, keine Datei): alle Hausfassaden mit Fenstern, 
 - `p1.glb` … `p8.glb` (Passanten), `aerztin.glb`, `sani.glb` (Rettungswagen) – ausgedachte Menschen aus MakeHuman / MPFB wie oben (dazu das Paket mit dem Arbeitsanzug `male_worksuit01`, rot umgefärbt). Rezepte in `tools/figur/leute.py`.
 - `kim_zivil.glb` – Kim Berger in Zivil (Jeans, roter Pulli): ausgedachter Mensch aus MakeHuman / MPFB wie oben (Pakete makehuman_system_assets, hair01, suits01, shoes01, alle CC0), Anzug `male_casualsuit02` mit weinrot umgefärbtem Oberteil. Rezept: `{"brauen":"eyebrow006","sparen":0.5,"gender":1.0,"age":0.42,"weight":0.42,"muscle":0.62,"height":0.56,"haut":"young_caucasian_male","haare":"short04","augenfarbe":"brown","kleidung":["male_casualsuit02","shoes06"],"stoff":{"casualsuit02":"male_casualsuit02/kim_pulli.png"},"toenen":{"short04":{"farbe":[0.42,0.27,0.16],"hell":2.2}}}`, danach `gltf-transform resize 1024` und `webp --quality 80`. Gerüst und Bewegungen wie die anderen Männer (`art: 'mann'`).
 - `pol1.glb` … `pol4.glb` (Kolleginnen und Kollegen der Wache) – ausgedachte Menschen aus MakeHuman / MPFB wie oben, Arbeitsanzug `male_worksuit01` dunkelblau umgefärbt. Die Schutzweste baut das Spiel selbst (`js/polizist.js`).
+
+## Besucher des Wochenmarkts (7 Dateien, seit 27.11.2026)
+
+`besucher/b1.glb` … `b7.glb`, kopiert aus `Powershot/assets/besucher/`. Menschen aus MakeHuman / MPFB2 (nur CC0-Pakete, Herkunft in
+`Powershot/assets/QUELLEN_MENSCHEN.md`), dort mit `tools/mensch/menge.mjs` auf etwa 1.800 Dreiecke verkleinert und in 13 Haltungen gebacken.
+Benutzt in `js/marktbau.js`.
+
+## Szenen-Bilder (`assets/szenen/`)
+
+- `stoss_markt.jpg`, `festnahme_markt.jpg`, `stoss_otto.jpg`, `kombi_flieht.jpg`, `tuer_auf.jpg`, `festnahme_timo.jpg`, `schatten_fenster.jpg` – am 27.11.2026 mit 3D AI Studio erzeugt (Bild-Modell „Nano Banana 2“), auf 1280 Bildpunkte Breite verkleinert. Keine echten Menschen, keine Fotos als Vorlage.
+
+## Zusatz-Bewegung
+
+- `modelle/bewegungen_mann_plus.glb` – Bewegung `fallen`: Mixamo (Adobe) „Start Plank“, von Kristian heruntergeladen, mit `tools/figur/uebertragen.js` umgerechnet. Die FBX-Datei liegt nicht im Repository.

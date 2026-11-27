@@ -505,12 +505,9 @@ export function baueOrt(def) {
       if (!mo) return;
       const n = new THREE.Mesh(mo.geo, mo.mat); n.position.set(q.x, 0, q.z); n.rotation.y = q.dreh || 0; if (q.mal) n.scale.setScalar(q.mal); n.castShadow = n.receiveShadow = true; m.visible = false; gruppe.add(n);
     });
-    if (q.dach) { const d = kiste(q.b + 0.8, 0.15, q.t + 1, q.dach); d.position.y = q.h / 2 + 1.6; m.add(d);
-      for (const sx of [-1, 1]) { const st = kiste(0.1, 1.6, 0.1, '#666'); st.position.set(sx * q.b / 2, q.h / 2 + 0.8, q.t / 2); m.add(st); }
-      // Marktstand: das geladene Modell ersetzt die Kisten
-      MOD.lade('stand').then(mo => { if (!mo) return; const n = new THREE.Mesh(mo.geo, mo.mat); n.position.set(q.x, 0, q.z); n.castShadow = true; m.visible = false; gruppe.add(n); }); }
     if (!q.durch) fest.push([q.x - q.b / 2, q.z - q.t / 2, q.x + q.b / 2, q.z + q.t / 2]);
   }
+  for (const r of def.marktFest || []) fest.push(r);       // Stände und Buden des Marktes (gebaut in marktbau.js) – hier nur als Hindernis
   // Fertige Modelle als Schmuck (ohne Hindernis): { modell, x, z, y (Höhe), dreh, mal (größer/kleiner) }
   // "rollt" = ein Stuhl, der sich bewegt: Er rollt zurück, wenn jemand aufsteht, und wieder an den Tisch, wenn sich jemand setzt (main.js)
   const rollt = [];
