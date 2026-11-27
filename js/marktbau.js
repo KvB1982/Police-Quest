@@ -345,8 +345,8 @@ export function baueMarkt() {
   // ---- Tauben: eine Form, viele Male hingestellt
   const netz = { rechtecke: hindernisse() }, belegt = (x, z) => netz.rechtecke.some(r => x > r[0] - 0.4 && x < r[2] + 0.4 && z > r[1] - 0.4 && z < r[3] + 0.4) || Math.hypot(x - MARKT.mx, z - MARKT.mz) < 3.6;
   const taubenIM = new THREE.InstancedMesh(taubenForm(), new THREE.MeshLambertMaterial({ vertexColors: true }), TAUBEN); taubenIM.castShadow = true; taubenIM.frustumCulled = false; gruppe.add(taubenIM);
-  const tw = zufall(31), landeplatz = (mx, mz, r) => { for (let v = 0; v < 30; v++) { const a = tw() * 6.283, d = tw() * r, x = mx + Math.sin(a) * d, z = mz + Math.cos(a) * d; if (x > MARKT.x1 + 1 && x < MARKT.x2 - 1 && z > MARKT.z1 + 1 && z < MARKT.z2 - 1 && !belegt(x, z)) return [x, z]; } return [mx, mz]; };
-  const SCHWARM = [[-44, -25], [-36.5, -36], [-27, -30], [-48, -18.5], [-63, -47]];
+  const tw = zufall(31), landeplatz = (mx, mz, r) => { for (let v = 0; v < 30; v++) { const a = tw() * 6.283, d = tw() * r, x = mx + Math.sin(a) * d, z = mz + Math.cos(a) * d; if (x > MARKT.innen[0] + 1 && x < MARKT.innen[2] - 1 && z > MARKT.innen[1] + 1 && z < MARKT.innen[3] - 1 && !belegt(x, z)) return [x, z]; } return [mx, mz]; };
+  const SCHWARM = [[-44, -24.5], [-37, -36.5], [-27, -25.5], [-49, -20], [-58, -24]];
   const tauben = Array.from({ length: TAUBEN }, (_, i) => { const [mx, mz] = SCHWARM[i % SCHWARM.length], [x, z] = landeplatz(mx, mz, 2.6); return { x, z, y: 0, h: tw() * 6.283, zx: x, zz: z, warte: tw() * 4, flug: 0, takt: tw() * 9, ax: x, az: z }; });
 
   // ---- Menschen

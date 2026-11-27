@@ -61,7 +61,7 @@ const stadt = {
   moebel: wache.moebel,
   marktFest: marktHindernisse(),
   deko: wache.deko,
-  schilder: [{ x: -40, z: -30, text: 'Marktplatz', hoch: 7 }, ...wache.schilder.map(s => ({ ...s, wache: true }))],
+  schilder: [{ x: -40, z: -30, text: 'Marktplatz', hoch: 17 }, ...wache.schilder.map(s => ({ ...s, wache: true }))],
   dinge: [
     ...wache.dinge,
     { id: 'falschparker', x: -44, z: 56.4, name: 'Grauer Kombi vor der Ausfahrt', art: 'auto', farbe: '#8d9196', h: Math.PI / 2, akt: 'falschparker', wenn: 'angemeldet', bis: 'kitaFertig', fest: [4.4, 2], nah: 3.4, verb: 'sieh' },
@@ -80,9 +80,9 @@ const stadt = {
     // Timo springt am Ende der Verfolgungsfahrt aus dem Kombi und rennt zu Fuß weiter (story.js: jagd_ende, TIMO_HATZ)
     { id: 'timo', x: -349.6, z: 591, h: 2.4, name: 'Der flüchtige Fahrer', wenn: 'timoRaus', bis: 'jagdFertig', look: { hemd: '#4a4f57', hose: '#2a2a2a', haut: '#f0c8a0', haar: '#3a2a1a', modell: 'unfallfahrer', art: 'mann' } },
     { id: 'opfer', x: -40, z: -22, name: 'Bestohlene Frau', akt: 'opfer', wenn: 'markt', look: { hemd: '#8a6fa8', hose: '#444', haut: '#f0c8a0', haar: '#d8d2c4', modell: 'opfer', art: 'frau' }, sieh: 'Eine ältere Frau mit einer offenen Handtasche. Sie hält sie mit beiden Händen fest und sieht sich immer wieder um.' },
-    { id: 'w1', x: -57, z: -37, name: 'Mann am Gemüsestand', akt: 'verdacht', look: { hemd: '#3f9a4a', hose: '#444', haut: '#f0c8a0', haar: '#3a2a1a', rucksack: '#d23a2a', modell: 'w1', art: 'mann' }, sieh: 'Ein Mann am Gemüsestand. Grüne Jacke, roter Rucksack. Er wiegt in Ruhe Tomaten ab.' },
-    { id: 'w2', x: -25, z: -13.5, name: 'Mann am Käsestand', akt: 'verdacht', bis: 'marktFertig', look: { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', rucksack: '#2a5ad2', modell: 'w2', art: 'mann' }, sieh: 'Ein junger Mann am Käsestand. Grüne Jacke, blauer Rucksack. Er kauft nichts – er schaut den Leuten auf die Taschen.' },
-    { id: 'w3', x: -17, z: -40, name: 'Mann am Obststand', akt: 'verdacht', look: { hemd: '#c9772e', hose: '#2a3a5a', haut: '#f0c8a0', haar: '#c9a24a', rucksack: '#2a5ad2', modell: 'w3', art: 'mann' }, sieh: 'Ein Mann am Obststand. Orange Jacke, blauer Rucksack. Er probiert eine Weintraube.' },
+    { id: 'w1', x: -59.2, z: -37.6, name: 'Mann am Gemüsestand', akt: 'verdacht', look: { hemd: '#3f9a4a', hose: '#444', haut: '#f0c8a0', haar: '#3a2a1a', rucksack: '#d23a2a', modell: 'w1', art: 'mann' }, sieh: 'Ein Mann am Gemüsestand. Grüne Jacke, roter Rucksack. Er wiegt in Ruhe Tomaten ab.' },
+    { id: 'w2', x: -24.6, z: -19.4, name: 'Mann am Käsestand', akt: 'verdacht', bis: 'marktFertig', look: { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', rucksack: '#2a5ad2', modell: 'w2', art: 'mann' }, sieh: 'Ein junger Mann am Käsestand. Grüne Jacke, blauer Rucksack. Er kauft nichts – er schaut den Leuten auf die Taschen.' },
+    { id: 'w3', x: -17.6, z: -37.6, name: 'Mann am Obststand', akt: 'verdacht', look: { hemd: '#c9772e', hose: '#2a3a5a', haut: '#f0c8a0', haar: '#c9a24a', rucksack: '#2a5ad2', modell: 'w3', art: 'mann' }, sieh: 'Ein Mann am Obststand. Orange Jacke, blauer Rucksack. Er probiert eine Weintraube.' },
     { id: 'm1', x: -46, z: -30, name: 'Mann mit Einkaufskorb', akt: 'marktmann', look: { hemd: '#7a8a5a', hose: '#5a4a3a', haut: '#d8a878', haar: '#222', modell: 'm1', art: 'mann' }, sieh: 'Ein Mann mit Einkaufskorb. Obenauf liegt eine Tüte Krabben.' },
   ],
 };

@@ -297,7 +297,7 @@ export const BESONDERE = [
   { r: [52, 18, 73, 42], h: 11, stil: 'sandstein', dach: '#5a6a62', schild: 'Stadtmuseum', bild: '🏛️', frei: [48, 16, 75, 44] },
   // die anderen Häuser der Altstadt
   { r: [-150, -50, -92, -18], h: 13, stil: 'backstein', dach: '#3f6b5a', schild: 'Rathaus', bild: '🏰', turm: [-121, -34, 9, 34], treppe: true },
-  { r: [104, 82, 152, 108], h: 17, stil: 'backstein', dach: '#3f6b5a', schild: 'Nikolaikirche', bild: '⛪', turm: [101.5, 95, 12, 52], first: 'x', frei: [93, 78, 155, 121] },
+  { r: [104, 82, 152, 108], h: 17, stil: 'backstein', dach: '#3f6b5a', schild: 'Nikolaikirche', bild: '⛪', kirche: true, turm: [101.5, 95, 12, 52], first: 'x', frei: [93, 78, 155, 121] },
   { r: [90, -50, 120, -34], h: 12, stil: 'backstein', dach: '#7a3a2c', schild: 'Gildehaus der Fischer', bild: '⚓', treppe: true, first: 'z' },
   { r: [-70, 8, -54, 20], h: 9, stil: 'putz', farbe: '#ffe3ea', dach: '#a8553c', schild: 'Eisdiele', bild: '🍦', laden: true, first: 'z' },
   { r: [311, 78, 336, 92], h: 16, stil: 'putz', farbe: '#e9eef2', dach: null, schild: 'Fleetufer 7 – hier wohnst du', bild: '🏠' },
@@ -311,8 +311,16 @@ export const BESONDERE = [
   { um: [-120, 372], gr: [50, 32], h: 21, stil: 'modern', dach: null, schild: 'Krankenhaus', bild: '🏥', farbe: '#f4f6f6', platz: 'gruen' },
   { um: [468, 196], gr: [52, 22], h: 11, stil: 'klinker', dach: null, schild: 'Schule am Sonnenhang', bild: '🏫', farbe: '#f0d9a8', platz: 'pflaster', vor: 16 },
   { um: [560, 150], gr: [54, 28], h: 6.5, stil: 'halle', dach: null, schild: 'Supermarkt', bild: '🛒', farbe: '#f2f2ee', platz: 'asphalt', vor: 24, parkplatz: true },
-  { um: [392, 372], gr: [58, 24], h: 13, stil: 'putz', farbe: '#f6e3c4', dach: '#a8553c', schild: 'Seniorenheim Abendsonne', bild: '🌻', first: 'x', platz: 'gruen' },
+  { um: [392, 372], gr: [58, 24], h: 13, stil: 'putz', farbe: '#f6e3c4', dach: '#a8553c', schild: 'Seniorenheim Abendsonne', bild: '🌻', first: 'x', platz: 'gruen' },  // die Marktkirche: Sie steht an der Nordseite des Marktplatzes, ihr Turm schaut über alle Dächer
+  { r: [-56.5, -52, -24, -42], h: 13, stil: 'backstein', dach: '#3f6b5a', schild: 'Marienkirche', bild: '⛪', kirche: true, turm: [-61, -47, 9, 38], first: 'x' },
 ];
+// Der Ring aus Häusern um den Marktplatz. aussen = bis hierhin reichen die Häuser (dahinter kommt der Gehweg der Straße),
+// tief = so tief ist ein Haus, westOst / sued / nord = von wo bis wo die einzelnen Häuser reichen (die Lücken sind die Durchgänge).
+// Innen bleibt der Platz frei: MARKT_RING.innen. An der Nordseite steht die Marienkirche (siehe BESONDERE).
+export const MARKT_RING = { aussen: [-72, -52, -8, -8], tief: 6, innen: [-66, -42, -14, -14],
+  westOst: [[-52, -45.5], [-45.5, -39], [-39, -32], [-28, -21.5], [-21.5, -15], [-15, -8]],       // Durchgang bei z = −32 … −28
+  sued: [[-66, -59], [-59, -51.5], [-51.5, -44], [-36, -28.5], [-28.5, -21], [-21, -14]],          // der breite Zugang von der Wachstraße: x = −44 … −36
+  nord: [[-21, -14]] };                                                                            // zwischen diesem Haus und der Kirche: der Kirchgang
 // Orte ohne Haus, die auf der Karte stehen sollen
 export const KARTEN_ORTE = [
   { x: -40, z: -30, name: 'Marktplatz', bild: '🧺' }, { x: 108, z: 420, name: 'Stadtpark', bild: '🌳' },
@@ -512,7 +520,6 @@ function baue() {
   P.baeume = P.baeume.filter(b => !P.teiche.some(t => Math.hypot((b.x - t.x) / (t.rx + 3), (b.z - t.z) / (t.rz + 3)) < 1) && !(b.z > 416 && b.z < 423 && b.x > 18 && b.x < 198) && !(b.x > 102 && b.x < 109 && b.z > 298 && b.z < 522));
   // Bäume, die es schon an Tag 1 gab: am Rand vom Markt, hinter der Kita, am Museum
   const w2 = wuerfel(77);
-  for (let i = 0; i < 14; i++) P.baeume.push({ x: -72 + w2() * 64, z: -52 + (i % 2 ? 0 : 44) + w2() * 3, h: 7, art: 'laub' });
   for (let i = 0; i < 6; i++) P.baeume.push({ x: -56 + i * 4.2, z: 35.5, h: 6, art: 'laub' });
   for (let i = 0; i < 5; i++) P.baeume.push({ x: 50, z: 19 + i * 5.5, h: 6.5, art: 'laub' });
 
@@ -575,11 +582,32 @@ function baue() {
     Object.assign(BESONDERE[0], { r: WACHE_HAUS, frei: B, h: 4.4, selbst: true });
   }
 
+  // ---- Die Häuser rund um den Marktplatz (seit 27.11.2026): Der Markt liegt nicht mehr offen an vier Straßen, sondern mitten
+  // in einem Ring aus alten Giebelhäusern, wie in Stralsund, Wismar oder Lüneburg. Autos kommen nicht hinein: Es gibt nur
+  // schmale Durchgänge (im Süden einen breiten, dort kommt man von der Wachstraße auf den Markt). Die Häuser werden als Letzte
+  // eingetragen und haben ihren eigenen Würfel – so bleibt der Rest der Stadt genau, wie er war.
+  {
+    const wm = wuerfel(4711), T = MARKT_RING.tief, [mx1, mz1, mx2, mz2] = MARKT_RING.aussen, zeile = (liste, baue) => liste.forEach(([a, b]) => baue(a, b));
+    const haus = (x, z, b, t, dreh, stock) => {
+      const stil = ['backstein', 'putz', 'backstein', 'dunkel', 'putz'][Math.floor(wm() * 5)], backstein = stil !== 'putz';
+      const h = { x, z, b, t, dreh, typ: 'alt', seite: 's', stil, stock, laden: wm() < 0.7, h: 3.5 + stock * 3.05, markt: true,
+        farbe: backstein ? BACKSTEIN[Math.floor(wm() * BACKSTEIN.length)] : PASTELL[Math.floor(wm() * PASTELL.length)],
+        dach: { art: 'giebel', first: 'z', h: 3.4 + wm() * 1.8, farbe: DACH_ROT[Math.floor(wm() * DACH_ROT.length)] }, treppe: wm() < 0.45, schornstein: wm() < 0.6 };
+      h.ecken = eckenVon(h); h.r = huelle(h.ecken); P.haeuser.push(h);
+    };
+    const hoch = () => 3 + Math.floor(wm() * 2);       // drei oder vier Stockwerke
+    zeile(MARKT_RING.westOst, (a, b) => { haus(mx1 + T / 2, (a + b) / 2, b - a, T, Math.PI / 2, hoch()); haus(mx2 - T / 2, (a + b) / 2, b - a, T, -Math.PI / 2, hoch()); });
+    zeile(MARKT_RING.sued, (a, b) => haus((a + b) / 2, mz2 - T / 2, b - a, T, Math.PI, 2 + Math.floor(wm() * 2)));       // im Süden niedriger: Von dort scheint die Sonne auf den Platz
+    zeile(MARKT_RING.nord, (a, b) => haus((a + b) / 2, mz1 + 4, b - a, 8, 0, hoch()));
+    const imRing = q => P.haeuser.some(h => h.markt && imRechteck(q.x, q.z, h.r, 1.2));
+    P.baeume = P.baeume.filter(q => !imRing(q) && !imRechteck(q.x, q.z, MARKT_RING.aussen)); P.deko = P.deko.filter(q => q.art === 'brunnen' || !imRechteck(q.x, q.z, MARKT_RING.aussen, 0.5));
+  }
+
   // ---- die besonderen Häuser eintragen
   for (const b of BESONDERE) {
     const r = b.r, h = { x: (r[0] + r[2]) / 2, z: (r[1] + r[3]) / 2, b: r[2] - r[0], t: r[3] - r[1], dreh: 0, seite: 's', stil: b.stil, stock: Math.max(1, Math.round((b.h - 3.5) / 3.05)), h: b.h, farbe: b.farbe || '#ffffff', typ: 'besonders', laden: !!b.laden,
       dach: b.dach ? { art: 'giebel', first: b.first || (r[2] - r[0] > r[3] - r[1] ? 'x' : 'z'), h: Math.min(7, (b.first === 'z' ? r[2] - r[0] : Math.min(r[2] - r[0], r[3] - r[1])) * 0.3), farbe: b.dach } : { art: 'flach', farbe: DACH_GRAU[1] },
-      treppe: !!b.treppe, schild: b.schild, turm: b.turm, bild: b.bild, selbst: !!b.selbst };
+      treppe: !!b.treppe, schild: b.schild, turm: b.turm, bild: b.bild, selbst: !!b.selbst, kirche: !!b.kirche };
     h.ecken = eckenVon(h); h.r = r;
     P.haeuser.push(h);
     if (b.turm) { const [x, z, br] = b.turm; P.sperre.push([x - br / 2, z - br / 2, x + br / 2, z + br / 2]); }
