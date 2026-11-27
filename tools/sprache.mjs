@@ -60,6 +60,7 @@ export function kennung(wer, text) {
 
 // So wird ein Satz gesprochen: ohne Bildchen, Zahlen und Kürzel ausgeschrieben.
 const ERSETZEN = [
+  [/^Waffe ziehen: „Stehen bleiben!“$/, '[shouting] STEHEN BLEIBEN!'],    // Kim ruft nur den Ruf, laut
   [/\s*\((🎒|📻|📓)\)/gu, ''], [/ auf 🚨/gu, ' auf den Knopf'], [/[🎒📻📓🚨👁💬✋🔍]/gu, ''],
   [/\b(\d{1,2}):00 Uhr/g, '$1 Uhr'], [/\b(\d{1,2}):(\d\d) Uhr/g, '$1 Uhr $2'],
   [/MB-0417/g, 'M B, null vier eins sieben'], [/MB-0471/g, 'M B, null vier sieben eins'], [/MÖ-KB 512/g, 'M Ö, K B, fünf eins zwei'],

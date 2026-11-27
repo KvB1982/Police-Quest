@@ -667,7 +667,7 @@ export const AKT = {
     await S.sag('', 'Im nächsten Moment stößt er dich mit beiden Händen gegen den Käsestand und rennt los. Kisten fallen, jemand schreit.');
     for (;;) {
       const a = await S.wahl(KIM, 'Er rennt zwischen den Ständen davon. Was jetzt?', [
-        'Waffe ziehen: „Stehen bleiben, oder ich schieße!“',
+        'Waffe ziehen: „Stehen bleiben!“',
         'Hinterher – und Otto zurufen, dass er ihm den Weg abschneidet',
         'Laufen lassen, es ist ja nur ein Portemonnaie',
       ]);
