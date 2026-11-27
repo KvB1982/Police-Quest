@@ -57,7 +57,7 @@ self.addEventListener('fetch', (event) => {
   if (!gehoertDazu(url)) return;
   const eigene = url.origin === self.location.origin;
 
-  const gross = !eigene || /\/(assets|sounds|musik|icons)\//.test(url.pathname);
+  const gross = !eigene || /\/(assets|sounds|musik|icons)\//.test(url.pathname) || /\/sprache\/.*\.mp3$/.test(url.pathname);
   event.respondWith((async () => {
     // ignoreVary: Die gemerkte Datei passt auch dann, wenn der Browser beim Nachfragen andere Kopfzeilen mitschickt
     // (sonst findet er three.js ohne Internet nicht wieder).

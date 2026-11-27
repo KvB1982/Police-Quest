@@ -32,7 +32,7 @@ const DIEB_WEG = [[-24, -20], [-25, -30], [-34, -36], [-40, -28], [-45, -20], [-
 
 // Was in der Tasche sein kann.
 export const SACHEN = {
-  ausweis: { name: 'Dienstausweis', text: 'Kim Berger, Polizeianwärter/in, Polizei Möwenbrück. Dienstnummer: 4172' },
+  ausweis: { name: 'Dienstausweis', text: 'Kim Berger, Polizeianwärter, Polizei Möwenbrück. Dienstnummer: 4172' },
   funk: { name: 'Funkgerät', text: 'Damit sprichst du mit der Leitstelle. Dein Funkname: Möwe 14.' },
   notizbuch: { name: 'Notizbuch', text: 'Hier steht alles Wichtige, das du gesehen oder gehört hast.' },
   lampe: { name: 'Taschenlampe', text: 'Geht von allein an, wenn es dunkel ist. Spuren sieht man nur im Lichtkegel.' },
@@ -704,7 +704,7 @@ export const AKT = {
     S.ziel('Bring den Taschendieb zur Wache (halte in der Wachstraße vor der Wache an)', ['stadt', 40, -2.5]);
     S.speichern();
   },
-  async marktmann(S) { await S.sag('Mann', 'Die Krabben vom Hein sind die besten. Aber mit dem redet ja keiner mehr, seit der Sache mit der Glocke damals.'); },
+  async marktmann(S) { await S.sag('Mann am Stand', 'Die Krabben vom Hein sind die besten. Aber mit dem redet ja keiner mehr, seit der Sache mit der Glocke damals.'); },
 
   // ------------------------------------------------------------------ Abend: Alarm im Museum
   async eingestiegen(S) {

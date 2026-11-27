@@ -155,4 +155,48 @@ export function musik(name) {
   spielt = { name, q, g };
 }
 
+// ------------------------------------------------------------------ Stimmen
+//
+// Zu den Sätzen in den Sprechblasen gibt es Aufnahmen im Ordner sprache/ (eine feste Stimme je Figur, dazu ein Erzähler).
+// sprache/liste.json sagt, welcher Satz welche Datei hat (geschrieben von tools/sprache.mjs). Hat ein Satz keine
+// Aufnahme, bleibt es still und man liest wie bisher. Geladen wird eine Aufnahme erst, wenn ihr Satz dran ist.
+const STIMME_LAUT = 1;                  // Lautstärke der Stimmen
+const STIMME_MERKEN = 'blaulicht.stimme.v1';
+let stimmeAn = true, stimmen = null, spricht = null, sprichNr = 0;
+try { stimmeAn = localStorage.getItem(STIMME_MERKEN) !== 'aus'; } catch (e) { stimmeAn = true; }
+const stimmenListe = () => stimmen || (stimmen = fetch('sprache/liste.json').then(a => a.json()).catch(() => ({})));
+
+// Schalter 🗣: Stimmen an oder aus. Gibt zurück, ob sie jetzt an sind.
+export function stimmeSchalter(an) {
+  stimmeAn = an === undefined ? !stimmeAn : an;
+  try { localStorage.setItem(STIMME_MERKEN, stimmeAn ? 'an' : 'aus'); } catch (e) { /* dann merkt es sich das Spiel eben nicht */ }
+  if (!stimmeAn) schweig();
+  return stimmeAn;
+}
+export const stimmeStand = () => ({ an: stimmeAn, spricht: spricht && spricht.datei });
+
+// Was gerade gesprochen wird, hört auf (der Spieler hat weitergeklickt).
+export function schweig() {
+  sprichNr++;
+  if (!spricht) return;
+  const s = spricht; spricht = null;
+  try { s.g.gain.setTargetAtTime(0, ton.currentTime, 0.03); s.q.stop(ton.currentTime + 0.15); } catch (e) { /* war schon zu Ende */ }
+}
+
+// Einen Satz sprechen, wenn es eine Aufnahme dazu gibt. wer = Name in der Sprechblase ('' = Erzähler).
+export async function sprich(wer, text) {
+  schweig();
+  if (!ton || !stimmeAn || still) return;
+  const nr = sprichNr;
+  const datei = (await stimmenListe())[wer + '|' + text];
+  if (!datei || nr !== sprichNr) return;
+  let a = null;
+  try { a = await ton.decodeAudioData(await (await fetch('sprache/' + datei)).arrayBuffer()); } catch (e) { return; }
+  if (nr !== sprichNr) return;                    // inzwischen ist schon der nächste Satz dran
+  const q = ton.createBufferSource(), g = ton.createGain();
+  q.buffer = a; g.gain.value = STIMME_LAUT; q.connect(g).connect(ton.destination); q.start();
+  spricht = { q, g, datei };
+  q.onended = () => { if (spricht && spricht.q === q) spricht = null; };
+}
+
 export function alleAus() { for (const n of Object.keys(laufend)) schleife(n, 0); }
