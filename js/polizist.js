@@ -25,6 +25,8 @@ const SCHLEIFEN = ['stehen', 'gehen', 'laufen', 'zielen', 'sitzen'];      // die
 const WAFFE_ORT = [-0.045, 0.03, 0.0];   // wo der Griff der Pistole in der rechten Hand liegt, gemessen vom ersten Finger-Gelenk: zurück zum Handgelenk, in die Handfläche hinein, zum Daumen hin (Meter)
 const WAFFE_DA = { ziehen: [1.0, 99], zielen: [0, 99], wegstecken: [0, 2.0] };      // in welchen Sekunden einer Bewegung die Pistole in der Hand ist
 
+// Zusätzliche Bewegungen, die es nur für manche Gerüste gibt: 'fallen' = nach vorn zu Boden gehen (wer bei einer Verfolgung gestoßen wird)
+const ZUSATZ = { mann: 'bewegungen_mann_plus' };
 const lader = new GLTFLoader(), lager = {};
 const hole = datei => lager[datei] || (lager[datei] = new Promise((ok, nein) => lader.load(`assets/modelle/${datei}.glb`, ok, undefined, nein)));
 
@@ -51,7 +53,7 @@ function polizeiSchrift() {       // weiße Schrift POLIZEI als Bild (einmal gem
   schriftBild = new THREE.CanvasTexture(c); schriftBild.colorSpace = THREE.SRGBColorSpace; return schriftBild;
 }
 export function ladePolizist(gruppe, datei = 'polizist', art = 'polizei', haltung = null, rucksack = null) {
-  Promise.all([hole(datei), hole('bewegungen_' + art)]).then(([gltf, bew]) => {
+  Promise.all([hole(datei), hole('bewegungen_' + art), ZUSATZ[art] ? hole(ZUSATZ[art]).catch(() => null) : null]).then(([gltf, bew, plus]) => {
     const modell = kopiere(gltf.scene), polizei = art === 'polizei';
     let hoch = MODELL_HOCH, gross = GROSS;
     if (!polizei) { const kasten = new THREE.Box3().setFromObject(modell); hoch = kasten.max.y - kasten.min.y; gross = hoch * MENSCH_MAL; }
@@ -85,7 +87,7 @@ export function ladePolizist(gruppe, datei = 'polizist', art = 'polizei', haltun
     let huefte, vorbild; modell.traverse(o => { if (o.isBone && /Hips$/.test(o.name)) huefte = o; }); bew.scene.traverse(o => { if (/Hips$/.test(o.name)) vorbild = o; });
     const mal = polizei ? 1 : huefte.position.length() / vorbild.position.length();
     const mixer = new THREE.AnimationMixer(modell), teile = {};
-    for (const vorlage of bew.animations) {
+    for (const vorlage of bew.animations.concat(plus ? plus.animations : [])) {
       const clip = vorlage.clone(); if (mal !== 1) for (const s of clip.tracks) if (s.name.endsWith('.position')) for (let i = 0; i < s.values.length; i++) s.values[i] *= mal;
       const a = mixer.clipAction(clip), name = clip.name, kreis = SCHLEIFEN.includes(name);
       if (!kreis) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
@@ -110,9 +112,10 @@ export function ladePolizist(gruppe, datei = 'polizist', art = 'polizei', haltun
 }
 // Eine Bewegung genau einmal spielen ('umsehen', 'ziehen', 'wegstecken', 'aufstehen'). halten = danach in der letzten Haltung bleiben, bis etwas anderes kommt.
 // dann = Haltung, die danach gilt (zum Beispiel null nach 'aufstehen'). Gibt zurück, wie viele Sekunden die Bewegung dauert (0 = Figur hat keine solche).
-export function polizistSpiele(gruppe, name, { halten = false, dann } = {}) {
+// mal = so viel schneller als in der Aufnahme (2 = doppelt so schnell)
+export function polizistSpiele(gruppe, name, { halten = false, dann, mal = 1 } = {}) {
   const u = gruppe.userData, t = u.teile && u.teile[name]; if (!t) return 0;
-  t.a.reset(); t.a.paused = false; t.a.setEffectiveWeight(t.stark);
+  t.a.reset(); t.a.paused = false; t.a.setEffectiveWeight(t.stark); t.a.timeScale = mal;
   if (dann === null) gruppe.userData.haltung = null;
   u.einmal = { name, halten, dann }; return t.lang;
 }
@@ -146,8 +149,23 @@ function dreheWelt(kn, q, k = 1) {
   kn.getWorldQuaternion(_w); _w.premultiply(q); kn.parent.getWorldQuaternion(_p); _w.premultiply(_p.invert());
   kn.quaternion.slerp(_w, k); kn.updateMatrixWorld(true);
 }
+// Die Arme von Hand stellen (dafür gibt es keine Aufnahmen): 'hoch' = Hände hoch (aufgegeben), 'stoss' = beide Arme nach vorn (jemanden stoßen),
+// 'griff' = die rechte Hand greift nach vorn (festhalten). null = wieder normal. Der Rest des Körpers macht weiter, was er gerade tut.
+const ARM_TEMPO = 9;
+export function polizistArme(gruppe, art) { const u = gruppe.userData; u.armSoll = art || null; if (art) u.armArt = art; }
+function knochenVon(gruppe, u) { if (!u.kn) { u.kn = {}; gruppe.traverse(o => { if (o.isBone) u.kn[o.name.replace(/^mixamorig\d*:?_?/, '')] = o; }); u.sitzT = Math.random() * 30; } return u.kn; }
+function armPose(gruppe, u, k) {
+  const K = knochenVon(gruppe, u), dreh = gruppe.rotation.y, art = u.armArt, R = (x, y, z) => _z.set(x, y, z).normalize().applyAxisAngle(HOCH, dreh);
+  gruppe.updateMatrixWorld(true);
+  for (const [n, s] of [['Left', 1], ['Right', -1]]) {
+    const ober = K[n + 'Arm'], unter = K[n + 'ForeArm'], hand = K[n + 'Hand']; if (!ober || !unter || !hand) continue;
+    if (art === 'hoch') { richte(ober, unter, R(s * 0.75, 0.75, 0.15), k); richte(unter, hand, R(s * 0.08, 1, 0.12), k); }
+    else if (art === 'stoss') { richte(ober, unter, R(s * 0.22, 0.05, 1), k); richte(unter, hand, R(-s * 0.1, 0.12, 1), k); }
+    else if (art === 'griff' && s < 0) { richte(ober, unter, R(s * 0.25, -0.25, 1), k); richte(unter, hand, R(-s * 0.05, 0.05, 1), k); }
+  }
+}
 function sitzPose(gruppe, u, k, dt) {
-  if (!u.kn) { u.kn = {}; gruppe.traverse(o => { if (o.isBone) u.kn[o.name.replace(/^mixamorig\d*:?_?/, '')] = o; }); u.sitzT = Math.random() * 30; }
+  knochenVon(gruppe, u);
   const K = u.kn, art = u.sitzArt, dreh = gruppe.rotation.y; if (!K.Hips || !K.LeftUpLeg) return;
   const t = (u.sitzT += dt), R = (x, y, z) => _z.set(x, y, z).normalize().applyAxisAngle(HOCH, dreh);       // eine Richtung, von der Figur aus gesehen: x = nach links, y = hoch, z = nach vorn
   gruppe.updateMatrixWorld(true);
@@ -209,6 +227,8 @@ export function polizistBewegen(gruppe, dt, tempo) {
   // Sitzt die Figur auf einem Stuhl (oder setzt sich gerade, oder steht auf)? Dann nach der Aufnahme die Sitz-Haltung darüberlegen.
   u.sitzK = (u.sitzK || 0) + ((u.sitzSoll && tempo <= 0.1 ? 1 : 0) - (u.sitzK || 0)) * Math.min(1, dt * SITZ_TEMPO); if (u.sitzK < 0.003) u.sitzK = 0;
   if (u.sitzK) { const k = u.sitzK; sitzPose(gruppe, u, k * k * (3 - 2 * k), dt); }
+  u.armK = (u.armK || 0) + ((u.armSoll ? 1 : 0) - (u.armK || 0)) * Math.min(1, dt * ARM_TEMPO); if (u.armK < 0.003) u.armK = 0;
+  if (u.armK) armPose(gruppe, u, u.armK);
   if (u.sackOffen) { gruppe.updateMatrixWorld(true);                                 // der Rucksack: so groß wie die Figur, auf Höhe der Brust, dann am Knochen festmachen
     const ort = gruppe.worldToLocal(u.sackOffen.getWorldPosition(new THREE.Vector3())), k = ort.y / 1.33;
     const [tief, hinter] = u.sackOrt || [0.06, 0.2]; u.sack.scale.setScalar(k); u.sack.position.set(ort.x, ort.y - tief * k, ort.z - hinter * k); gruppe.updateMatrixWorld(true); u.sackOffen.attach(u.sack); u.sackOffen = null; }

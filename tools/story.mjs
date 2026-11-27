@@ -44,7 +44,7 @@ function spiele(durchlauf) {
     flag: n => { Z.flags[n] = true; }, hat: n => !!Z.flags[n], wo: () => Z.ort,
     punkte: n => { Z.punkte += n; }, notiz: t => Z.notizen.push(t), gib: s => Z.sachen.push(s),
     ziel: () => {}, ort: n => { if (!ORTE[n] && n !== 'wache') melde(`Ort „${n}“ gibt es nicht`); Z.ort = n; }, auto: () => {}, licht: () => {}, uhr: () => {},
-    klang: () => {}, blaulicht: () => 1, blaulichtAn: () => {}, oeffne: async () => {}, fuehre: async () => {}, zeig: () => {}, verfolge: async () => true, kommt: async () => {}, streife: (akt) => { if (!STORY.AKT[akt]) melde(`Streife: Stelle „${akt}“ gibt es nicht`); }, jagd: () => ({ rumms: 0, sirene: true }), imWagen: () => true, hinweis: () => {}, speichern: () => {}, ende: async () => { Z.ende = true; },
+    klang: () => {}, blaulicht: () => 1, blaulichtAn: () => {}, oeffne: async () => {}, fuehre: async () => {}, zeig: () => {}, verfolge: async () => 'stoss', renn: () => {}, bild: () => {}, zumWagen: () => {}, streifeDa: () => false, kommt: async () => {}, streife: (akt) => { if (!STORY.AKT[akt]) melde(`Streife: Stelle „${akt}“ gibt es nicht`); }, jagd: () => ({ rumms: 0, sirene: true }), imWagen: () => true, hinweis: () => {}, speichern: () => {}, ende: async () => { Z.ende = true; },
   };
   return (async () => {
     await STORY.beginn(S);

@@ -76,6 +76,22 @@ export function spiel(name, laut = 1) {
   q.start();
 }
 
+// Herzschlag bei einer Verfolgung zu Fuß (selbst erzeugt: zwei dumpfe Schläge kurz hintereinander). In jedem Bild aufrufen.
+// stark = 0…1: je näher du dem Flüchtenden bist, desto schneller und lauter schlägt es.
+let herzZeit = 0;
+function bumm(wann, laut) {
+  const o = ton.createOscillator(), g = ton.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(74, wann); o.frequency.exponentialRampToValueAtTime(38, wann + 0.13);
+  g.gain.setValueAtTime(0.0001, wann); g.gain.exponentialRampToValueAtTime(laut, wann + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, wann + 0.2);
+  o.connect(g).connect(ton.destination); o.start(wann); o.stop(wann + 0.22);
+}
+export function herz(dt, stark) {
+  if (!ton || still) return;
+  if ((herzZeit -= dt) > 0) return;
+  herzZeit = 0.95 - stark * 0.5;       // von etwa 60 bis über 130 Schläge in der Minute
+  const laut = 0.25 + stark * 0.45; bumm(ton.currentTime + 0.01, laut); bumm(ton.currentTime + 0.17, laut * 0.7);
+}
+
 // Ein Dauer-Geräusch ein- oder ausschalten. laut = 0…1 (0 schaltet es aus), tempo = wie schnell es abgespielt wird.
 export function schleife(name, laut, tempo = 1) {
   if (!ton) return;
