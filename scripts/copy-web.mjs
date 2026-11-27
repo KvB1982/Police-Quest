@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'www');
 // Kein sw.js nötig: in der App liegt sowieso alles auf dem Gerät.
-const FILES = ['index.html', 'manifest.webmanifest', 'css', 'js', 'assets', 'sounds', 'musik', 'icons', 'LIZENZEN.md'];
+const FILES = ['index.html', 'manifest.webmanifest', 'css', 'js', 'assets', 'sounds', 'sprache', 'musik', 'icons', 'LIZENZEN.md'];
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out);

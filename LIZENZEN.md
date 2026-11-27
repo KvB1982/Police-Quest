@@ -59,6 +59,12 @@ Für das Spiel wurde aus jedem Stück eine Schleife von 80 Sekunden geschnitten 
 Neue Musik: Pixabay sperrt Programme, im Browser geht es. Stück als MP3 laden, mit ffmpeg die ersten 84,5 Sekunden als WAV
 speichern, `python3 tools/musik_schleife.py ein.wav aus.wav`, als MP3 nach `musik/`, in `MUSIK` eintragen und hier eine Zeile ergänzen.
 
+## Stimmen (`sprache/`)
+
+Alle Stimmen sind mit [3D AI Studio](https://www.3daistudio.com) erzeugt (Text zu Sprache, eingebaute Stimmen, über das
+Konto des Nutzers; laut Anbieter für eigene Projekte frei nutzbar). Keine echte Person wird nachgemacht.
+Welche Person welche Stimme hat, steht in `STIMMEN` in `tools/sprache.mjs`. Neue Aufnahmen: `tools/sprache_LIESMICH.md`.
+
 ## Programme
 
 - [three.js](https://threejs.org) r160, MIT-Lizenz, geladen von jsDelivr.

@@ -175,7 +175,7 @@ function sichtbarkeit() {
 // ------------------------------------------------------------------ Werkzeug für die Geschichte (siehe story.js)
 let sprecher = '', aktiv = null;       // wer gerade spricht und mit wem oder was man gerade zu tun hat (für die kleinen Bewegungen der Figuren)
 const S = {
-  sag: (wer, text) => { sprecher = wer; return UI.dialog(wer, text).then(() => { sprecher = ''; }); },
+  sag: (wer, text) => { sprecher = wer; KLANG.sprich(wer, text); return UI.dialog(wer, text).then(() => { sprecher = ''; KLANG.schweig(); }); },
   // Etwas aufgehen (oder zugehen) lassen: eine Tür, den Spind, den Stahlschrank. Wartet, bis es offen ist.
   // Kim macht eine Bewegung vor ('ziehen', 'wegstecken' …). Im Auto passiert nichts.
   zeig(name, halten = false) { if (Z.imAuto || !kim.userData.mixer) return;
@@ -187,7 +187,13 @@ const S = {
     k.soll = auf ? 1 : 0; KLANG.spiel('tuer', 0.6);
     return new Promise(fertig => { k.wartet = fertig; });
   },
-  wahl: (wer, frage, antworten) => UI.wahl(wer, frage, antworten),
+  // Nach der Auswahl spricht Kim die gewählte Antwort; erst danach geht es weiter.
+  wahl: async (wer, frage, antworten) => {
+    KLANG.sprich(wer, frage);
+    const i = await UI.wahl(wer, frage, antworten);
+    sprecher = 'Kim'; await KLANG.sprich('Kim', antworten[i]); sprecher = '';
+    return i;
+  },
   schloss: titel => UI.schloss(titel),
   flag: n => { Z.flags[n] = true; },
   hat: n => !!Z.flags[n],
@@ -268,6 +274,14 @@ function musikKnopf(stufe) {
 function musikWeiter() { KLANG.an(); const s = KLANG.musikSchalter(); musikKnopf(s); UI.toast(MUSIK_KNOPF[s][0] + ' ' + MUSIK_KNOPF[s][1]); }
 musikKnopf(KLANG.musikStand().stufe);
 document.getElementById('kMusik').onclick = musikWeiter;
+// Schalter 🗣: Stimmen an oder aus (Taste V)
+function stimmeKnopf(an) {
+  const b = document.getElementById('kStimme'); if (!b) return;
+  b.textContent = an ? '🗣' : '🤐'; b.title = (an ? 'Stimmen: an' : 'Stimmen: aus') + ' (Taste V)';
+}
+function stimmeWeiter() { KLANG.an(); const an = KLANG.stimmeSchalter(); stimmeKnopf(an); UI.toast(an ? '🗣 Stimmen: an' : '🤐 Stimmen: aus'); }
+stimmeKnopf(KLANG.stimmeStand().an);
+document.getElementById('kStimme').onclick = stimmeWeiter;
 addEventListener('pointerdown', () => KLANG.an(), { capture: true });
 // iPhone und iPad erlauben Ton erst beim LOSLASSEN des Fingers, nicht beim Aufsetzen – deshalb auch dort einschalten.
 for (const ev of ['pointerup', 'touchend', 'click']) addEventListener(ev, () => KLANG.an(), { capture: true });
@@ -778,6 +792,7 @@ addEventListener('keydown', e => {
   if (UI.taste(k)) { e.preventDefault(); return; }
   if (TASTE[k]) { tasten[TASTE[k]] = true; e.preventDefault(); return; }
   if (k === 'u') { musikWeiter(); return; }          // Musik geht immer, auch mitten im Gespräch
+  if (k === 'v') { stimmeWeiter(); return; }         // Stimmen an oder aus, auch mitten im Gespräch
   if (KAM_TASTE[k]) { kam.taste = KAM_TASTE[k]; e.preventDefault(); return; }
   if (beschaeftigt) return;
   if (k === 'e' || k === 'Enter') { const m = moeglich(); if (m.length) m[0].tun(); }
@@ -843,7 +858,8 @@ async function ansehen(o) {
   const text = o.wagen ? 'Dein Streifenwagen, Funkname Möwe 14. Blau-silber, mit Blaulicht auf dem Dach. Otto hat ihn heute Morgen noch gewaschen.'
     : o.def.sieh || (o.typ === 'leut' ? `Das ist ${o.def.name}.` : `${o.def.name}. Nichts Auffälliges.`);
   beschaeftigt = true; spieler.tap = null;
-  try { await UI.dialog('', text); } finally { beschaeftigt = false; }
+  KLANG.sprich('', text);
+  try { await UI.dialog('', text); } finally { beschaeftigt = false; KLANG.schweig(); }
 }
 function klickAuf(o) {
   const passt = verbVon(o);
