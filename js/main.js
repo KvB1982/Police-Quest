@@ -187,7 +187,13 @@ const S = {
     k.soll = auf ? 1 : 0; KLANG.spiel('tuer', 0.6);
     return new Promise(fertig => { k.wartet = fertig; });
   },
-  wahl: (wer, frage, antworten) => { KLANG.sprich(wer, frage); return UI.wahl(wer, frage, antworten).then(i => { KLANG.schweig(); return i; }); },
+  // Nach der Auswahl spricht Kim die gewählte Antwort; erst danach geht es weiter.
+  wahl: async (wer, frage, antworten) => {
+    KLANG.sprich(wer, frage);
+    const i = await UI.wahl(wer, frage, antworten);
+    sprecher = 'Kim'; await KLANG.sprich('Kim', antworten[i]); sprecher = '';
+    return i;
+  },
   schloss: titel => UI.schloss(titel),
   flag: n => { Z.flags[n] = true; },
   hat: n => !!Z.flags[n],

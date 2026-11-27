@@ -184,6 +184,7 @@ export function schweig() {
 }
 
 // Einen Satz sprechen, wenn es eine Aufnahme dazu gibt. wer = Name in der Sprechblase ('' = Erzähler).
+// Wer mit await darauf wartet, macht erst weiter, wenn der Satz zu Ende gesprochen ist (ohne Aufnahme: sofort).
 export async function sprich(wer, text) {
   schweig();
   if (!ton || !stimmeAn || still) return;
@@ -196,7 +197,8 @@ export async function sprich(wer, text) {
   const q = ton.createBufferSource(), g = ton.createGain();
   q.buffer = a; g.gain.value = STIMME_LAUT; q.connect(g).connect(ton.destination); q.start();
   spricht = { q, g, datei };
-  q.onended = () => { if (spricht && spricht.q === q) spricht = null; };
+  // Zurück kommt ein Versprechen, das erfüllt ist, wenn der Satz zu Ende ist (oder abgebrochen wurde).
+  return new Promise(fertig => { q.onended = () => { if (spricht && spricht.q === q) spricht = null; fertig(); }; });
 }
 
 export function alleAus() { for (const n of Object.keys(laufend)) schleife(n, 0); }

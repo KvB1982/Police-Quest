@@ -9,7 +9,7 @@
 //
 //  Das Werkzeug liest js/story.js und js/daten.js und sammelt alles, was in einer Sprechblase steht:
 //  S.sag(wer, text), die Frage bei S.wahl(wer, frage, …) und die Sätze zum Ansehen (sieh).
-//  Die Antworten zum Antippen werden nicht vertont (die hat man gerade selbst gelesen).
+//  Auch die Antworten zum Antippen gehören dazu: Kim spricht die gewählte Antwort.
 //  Jeder Satz bekommt die Datei sprache/<ordner>/<kennung>.mp3 – die Kennung wird aus Sprecher und Text
 //  berechnet. Ändert man einen Satz, hat er also keine Aufnahme mehr, bis neu aufgenommen ist.
 //  Die Aufnahmen kommen aus der Sprachausgabe von 3D AI Studio (eingebaute Stimmen, Sprache Deutsch).
@@ -34,7 +34,7 @@ export const STIMMEN = {
   'Junger Mann': ['timo', 'Will', 0.4],            // das ist Timo, bevor man seinen Namen kennt
   'Mann': ['dieb', 'Chris', 0.45],                 // der Taschendieb
   'Herr Brinkmann': ['brinkmann', 'George', 0.45],
-  'Dr. Thomsen': ['thomsen', 'Daniel', 0.5],
+  'Dr. Thomsen': ['thomsen', 'Lily', 0.5],
   'Jan Dirks': ['dirks', 'Roger', 0.5],
   'Meike Tammen': ['tammen', 'Jessica', 0.5],
   'Ben Okafor': ['okafor', 'Eric', 0.5],
@@ -60,9 +60,10 @@ export function kennung(wer, text) {
 
 // So wird ein Satz gesprochen: ohne Bildchen, Zahlen und Kürzel ausgeschrieben.
 const ERSETZEN = [
-  [/\s*\((🎒|📻|📓)\)/gu, ''], [/[🎒📻📓🚨👁💬✋🔍]/gu, ''],
+  [/\s*\((🎒|📻|📓)\)/gu, ''], [/ auf 🚨/gu, ' auf den Knopf'], [/[🎒📻📓🚨👁💬✋🔍]/gu, ''],
   [/\b(\d{1,2}):00 Uhr/g, '$1 Uhr'], [/\b(\d{1,2}):(\d\d) Uhr/g, '$1 Uhr $2'],
-  [/MB-0417/g, 'M B, null vier eins sieben'], [/\b4172\b/g, 'vier eins sieben zwei'],
+  [/MB-0417/g, 'M B, null vier eins sieben'], [/MB-0471/g, 'M B, null vier sieben eins'], [/MÖ-KB 512/g, 'M Ö, K B, fünf eins zwei'],
+  [/\b1702\b/g, 'siebzehnhundertzwei'], [/Möwe 7/g, 'Möwe sieben'], [/fehlen noch 1 Spuren/g, 'fehlt noch eine Spur'], [/\b0417\b/g, 'null vier eins sieben'], [/\b0471\b/g, 'null vier sieben eins'], [/\b35 Euro/g, 'fünfunddreißig Euro'], [/\b4172\b/g, 'vier eins sieben zwei'],
   [/MÖ-TR 388/g, 'M Ö, T R, drei acht acht'], [/Möwe 14/g, 'Möwe vierzehn'], [/Möwe 12/g, 'Möwe zwölf'], [/Möwe 9/g, 'Möwe neun'],
   [/\s–\s/g, ', '], [/„|“/g, ''],
 ];
@@ -84,7 +85,8 @@ function aufruf(i) {
     if (c === "'" || c === '"' || c === '`') {
       let j = i + 1, s = '';
       while (src[j] !== c) { if (src[j] === '\\') { s += src[j + 1]; j += 2; } else s += src[j++]; }
-      texte[texte.length - 1].push(c === '`' && s.includes('${') ? { muster: s } : s);
+      // Merker wie S.hat('halter') oder Vergleiche (=== 'gef2') sind keine Sätze
+      if (!/(\(|[=!]==\s*|\+\s*)$/.test(arg) || /(sag|wahl)\($/.test(arg)) texte[texte.length - 1].push(c === '`' && s.includes('${') ? { muster: s } : s);
       arg += src.slice(i, j + 1); i = j + 1; continue;
     }
     if ('([{'.includes(c)) tiefe++;
@@ -115,7 +117,7 @@ const saetze = new Map();       // Kennung → { wer, text }
 const unklar = [];
 function nimm(wer, text) {
   if (wer === undefined) { unklar.push(text); return; }
-  if (STUMM.includes(wer) || !sprechtext(text)) return;
+  if (STUMM.includes(wer) || !/[a-zäöü]{2}/i.test(sprechtext(text))) return;
   saetze.set(kennung(wer, text), { wer, text });
 }
 function nimmAlle(wer, liste) { for (const t of liste) for (const s of (t.muster ? fuelle(t.muster) : [t])) nimm(wer, s); }
@@ -128,6 +130,7 @@ for (const m of src.matchAll(/S\.wahl\(/g)) {
   if (src.slice(src.lastIndexOf('\n', m.index), m.index).includes('//')) continue;
   const a = aufruf(m.index + m[0].length);
   nimmAlle(werVon(a.args[0]), a.texte[1] || []);
+  nimmAlle('Kim', a.texte.slice(2).flat());          // die Antworten zum Antippen: Kim spricht die gewählte
 }
 // Texte, die über einen Namen geholt werden: die vier Stellen am Wagen und die Spuren im Museum
 const STORY = await import(join(root, 'js/story.js'));
@@ -140,7 +143,7 @@ for (const liste of ['CHECKS', 'SPUREN']) {
 // Sätze zum Ansehen (👁)
 const { ORTE } = await import(join(root, 'js/daten.js'));
 for (const ort of Object.values(ORTE)) for (const d of [...ort.dinge, ...ort.leute]) if (d.sieh) nimm('', d.sieh);
-const haupt = readFileSync(join(root, 'js/main.js'), 'utf8').match(/o\.wagen \? '([^']*)'/);
+const haupt = readFileSync(join(root, 'js/main.js'), 'utf8').match(/const text = o\.wagen ? '([^']*)'/);
 if (haupt) nimm('', haupt[1]);
 void STORY;
 

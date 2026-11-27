@@ -207,7 +207,7 @@ export const AKT = {
   async einsteigen_hof(S) {
     const n = lieferung(S);
     if (n) {       // Wir liefern gerade jemanden ein: Losgefahren wird erst, wenn die Zellentür zu ist und die Waffe wieder im Holster steckt.
-      if (!S.hat('zelle' + n)) return S.sag(OTTO, `Wir fahren erst, wenn ${GEFANGEN[n].wen} in der Zelle sitzt. Der Gewahrsam hat seine eigene Tür: rechts am Gebäude, wo die gelben Streifen auf dem Boden sind.`);
+      if (!S.hat('zelle' + n)) return S.sag(OTTO, `Wir fahren erst, wenn ${n === 1 ? 'Timo' : 'der Taschendieb'} in der Zelle sitzt. Der Gewahrsam hat seine eigene Tür: rechts am Gebäude, wo die gelben Streifen auf dem Boden sind.`);
       if (!S.hat('zurueck' + n)) return S.sag(OTTO, 'Moment. Schau mal an deinen Gürtel, Kim. Fällt dir etwas auf? … Genau. Deine Pistole liegt noch im Schließfach. Ohne die fährst du mir nicht vom Hof.');
       return AKT['abfahrt' + n](S);
     }
