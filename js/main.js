@@ -9,6 +9,7 @@ import * as STORY from './story.js';
 import * as UI from './oberflaeche.js';
 import * as KLANG from './klang.js';
 import { Neigung } from './neigung.js';
+import { baueMarkt } from './marktbau.js';
 import { baueOrt, figur, figurBewegen, figurLeben, autoModell, autoRaeder, spiegelBild } from './welt.js';
 import { ladePolizist, polizistSpiele, polizistBewegen, polizistSitz } from './polizist.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -111,7 +112,7 @@ function tempoMessen(dt) {
   gemessen = langsam = 0;
 }
 // Himmel, Umland und Verkehr gibt es nur draußen in der Stadt. Sie werden beim Start einmal gebaut.
-let himmel = null, umland = null, verkehr = null, verkehrBild = null;
+let himmel = null, umland = null, verkehr = null, verkehrBild = null, markt = null;
 let wetter = null;               // Regen, Wind, Nebel, Gewitter (wetter.js) – legt sich über das Licht von Tag, Abend und Nacht
 
 const kim = figur({ hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#7a4a22', muetze: '#f4f4f4' });
@@ -167,7 +168,7 @@ function lichtSetzen(name) {
   if (draussen && himmel) {
     // In der Stadt: echter Himmel mit Wolken, Dunst in der Ferne, Fenster und Laternen an oder aus
     const lampen = wetter ? wetter.lampen(name) : name;         // bei Gewitter gehen auch am Tag die Lichter an
-    himmel.setze(name); umland.licht(lampen); verkehrBild.licht(lampen); welt.stadt.licht(lampen);
+    himmel.setze(name); umland.licht(lampen); verkehrBild.licht(lampen); welt.stadt.licht(lampen); markt.licht(lampen);
     szene.background = new THREE.Color(himmel.dunst);
     szene.fog = new THREE.Fog(himmel.dunst, name === 'tag' ? 260 : 160, name === 'tag' ? SICHT : SICHT * 0.75);
     oben.color.set(name === 'nacht' ? '#8fa4d8' : name === 'abend' ? '#ffd9c0' : '#ffffff'); oben.groundColor.set(name === 'nacht' ? '#1a2238' : '#8a8a7a');
@@ -188,7 +189,7 @@ function ortLaden(name, x, z) {
     if (welt) szene.remove(welt.gruppe);
     welt = baueOrt(ORTE[name]);
     szene.add(welt.gruppe);
-    for (const g of [himmel, umland, verkehrBild]) if (g) { if (welt.stadt) szene.add(g.gruppe); else szene.remove(g.gruppe); }
+    for (const g of [himmel, umland, verkehrBild, markt]) if (g) { if (welt.stadt) szene.add(g.gruppe); else szene.remove(g.gruppe); }
     rasterBauen();
   }
   Z.ort = name;
@@ -848,6 +849,7 @@ function stadtSchritt(dt) {
   if (!Z.imAuto) imWeg.push({ x: Z.auto.x, z: Z.auto.z, r: 1.3 });       // dein abgestellter Streifenwagen
   verkehr.schritt(dt, { x: spieler.x, z: spieler.z, r: Z.imAuto ? 1.2 : 0.4, h: Z.imAuto ? Z.auto.h : undefined, v: Z.imAuto ? Z.auto.v : 0 }, Z.imAuto && Z.blaulicht > AUS, imWeg);
   verkehrBild.schritt(dt, spieler.x, spieler.z);
+  markt.schritt(dt, spieler.x, spieler.z, Z.imAuto ? null : spieler, sparsam);       // Trubel auf dem Marktplatz
   for (const s of welt.hausSchilder) s.visible = abstand(s.position.x, s.position.z, spieler.x, spieler.z) < 150;
   if (++bildNr % 2 === 0) KARTE.radar(kartenStand());
   if (bildNr % 30 === 0) anzeigen();
@@ -1268,14 +1270,14 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, get gitter() { return gitter; }, wegSuchen, einsteigen, aussteigen, stelle, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, get umland() { return umland; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal, kamUebersicht, kamLage, cockpit, FAHR, sichtWeiter, get sicht() { return sicht; },
+window.__polizei = { get Z() { return Z; }, get gitter() { return gitter; }, wegSuchen, einsteigen, aussteigen, stelle, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, get umland() { return umland; }, get markt() { return markt; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal, kamUebersicht, kamLage, cockpit, FAHR, sichtWeiter, get sicht() { return sicht; },
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {
   let alt = null;
   try { alt = JSON.parse(localStorage.getItem(SPEICHER)); } catch (e) { alt = null; }
   await BILD.ladeBilder();           // Bodenbilder (Asphalt, Pflaster, Gras …) zuerst laden
-  himmel = baueHimmel(); umland = baueUmland(); verkehr = neuerVerkehr(); verkehrBild = baueVerkehr(verkehr);
+  himmel = baueHimmel(); umland = baueUmland(); verkehr = neuerVerkehr(); verkehrBild = baueVerkehr(verkehr); markt = baueMarkt();
   wetter = baueWetter({ szene, kamera, oben, sonne, himmel, melde: UI.toast, neuesLicht: () => lichtSetzen(Z.licht) });
   if (WUNSCH.get('wetter')) wetter.setze(WUNSCH.get('wetter'), true);       // zum Ausprobieren: ?wetter=gewitter
   lichtSetzen('tag'); ortLaden('wache', 0, 3.5); anzeigen();
