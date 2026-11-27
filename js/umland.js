@@ -10,6 +10,7 @@ import * as BILD from './bilder.js';
 import * as MOD from './modelle.js';
 import { Eimer, farbe, instanzen, instanzenGeteilt, baumForm, tanneForm } from './stadtbau.js';
 import { FLEET, STADT_RAND, UFER, wuerfel } from './stadtplan.js';
+import { baueHorizont, DOERFER, fernBelegt } from './horizont.js';
 
 export const INSEL = { x: 720, z: -330 };          // hier steht der Leuchtturm
 const WELT = 5200;                                 // so weit reicht der Boden in jede Richtung
@@ -24,12 +25,7 @@ export function baueUmland() {
   // (dort, wo in der Stadt das Fleet ist, bleibt ein Streifen frei – sonst läge die Wiese über dem Wasser)
   const fx = [FLEET[0] - 1, FLEET[2] + 1], wiese = farbe('#9cc27a');
   gras.boden([-WELT, UFER, fx[0], WELT], -0.07, wiese, 9); gras.boden([fx[1], UFER, WELT, WELT], -0.07, wiese, 9); gras.boden([fx[0], FLEET[3], fx[1], WELT], -0.07, wiese, 9);
-  const FELD = ['#e8d34a', '#b9d46a', '#7fae58', '#c9b47a', '#a8c86a', '#d9c98a', '#8fb85e', '#b08a5a'];
-  for (let i = 0; i < 260; i++) {
-    const x = zw(-3400, 3400), z = zw(UFER + 90, 3400), b = zw(90, 260), t = zw(70, 220);
-    if (inStadt(x - b / 2, z - t / 2, 30) || inStadt(x + b / 2, z + t / 2, 30) || inStadt(x + b / 2, z - t / 2, 30) || inStadt(x - b / 2, z + t / 2, 30)) continue;
-    gras.boden([x - b / 2, z - t / 2, x + b / 2, z + t / 2], -0.05 + i * 0.0001, farbe(FELD[i % FELD.length]), 14);
-  }
+  // Die Felder, Knicks und Gräben legt horizont.js als Flickenteppich darüber.
   // ---- Deich und Strand links und rechts der Stadt
   for (const [a, b] of [[-WELT, X0], [X1, WELT]]) {
     const z1 = UFER + 16, zm = UFER + 30, z2 = UFER + 46, f = farbe('#86b86a');
@@ -50,20 +46,16 @@ export function baueUmland() {
     }
   };
   land(-3600, 152, -826, 152); land(-1500, 56, -826, 56);
-  // Die Autobahn läuft an beiden Enden gerade weiter ins Land hinaus.
-  for (const [x, z, dx, dz] of [[-846, 462, -0.857, -0.515], [866, 552, 0.874, -0.486]]) {
-    const x2 = x + dx * 3200, z2 = z + dz * 3200, nx = -dz * 11, nz = dx * 11;
-    for (const [p, q, r, t] of [[[x + nx, z + nz], [x - nx, z - nz], [x2 - nx, z2 - nz], [x2 + nx, z2 + nz]]]) { strasse.quad([p[0], -0.02, p[1]], [q[0], -0.02, q[1]], [r[0], -0.02, r[1]], [t[0], -0.02, t[1]], asphalt, 0, 0, 4, 600); strasse.quad([q[0], -0.02, q[1]], [p[0], -0.02, p[1]], [t[0], -0.02, t[1]], [r[0], -0.02, r[1]], asphalt, 0, 0, 4, 600); }
-  }
+  // (Die Autobahn läuft draußen in horizont.js im Bogen weiter.)
 
   // ---- Wälder und einzelne Baumgruppen
   for (let k = 0; k < 34; k++) {
     const cx = zw(-3200, 3200), cz = zw(UFER + 160, 3200), r = zw(60, 240), nadel = w() < 0.4, n = Math.round(r * 0.55);
     if (inStadt(cx, cz, r + 40)) continue;
     for (let i = 0; i < n; i++) { const a = w() * 6.2832, d = Math.sqrt(w()) * r, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d * 0.7;
-      (nadel ? tannen : laub).push({ x, z, h: zw(11, 18) }); }
+      if (!fernBelegt(x, z, 8)) (nadel ? tannen : laub).push({ x, z, h: zw(11, 18) }); }
   }
-  for (let i = 0; i < 420; i++) { const x = zw(-2600, 2600), z = zw(UFER + 60, 2600); if (!inStadt(x, z, 14)) laub.push({ x, z, h: zw(7, 13) }); }
+  for (let i = 0; i < 420; i++) { const x = zw(-2600, 2600), z = zw(UFER + 60, 2600); if (!inStadt(x, z, 14) && !fernBelegt(x, z, 8)) laub.push({ x, z, h: zw(7, 13) }); }
   const GRUEN = ['#4f8040', '#5a8c46', '#44763a', '#648f48', '#4c7c42'];
   const baumMat = imWind(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
   gruppe.add(instanzenGeteilt(baumForm(), baumMat, laub, (o, b, i) => { o.position.set(b.x, 0, b.z); o.rotation.y = i * 1.7; o.scale.setScalar(b.h); return GRUEN[i % 5]; }, false, 900).gruppe);
@@ -79,45 +71,18 @@ export function baueUmland() {
       bunt.drei([x1, h, z1], [x1, h, z2], [x1, yr, zm], wf); bunt.drei([x2, h, z2], [x2, h, z1], [x2, yr, zm], wf); }
   };
   const WAND = ['#f4ead6', '#efdcc0', '#c9705a', '#f3d9cf', '#b8644e', '#fff3d6'], DACH = ['#a8452f', '#8f3f2e', '#7c3a2e', '#4c5258'];
-  for (const [dx, dz] of [[-1750, 520], [1900, 420], [-900, 1750], [1100, 1900], [2700, 1500], [-2800, 1400]]) {
+  for (const [dx, dz] of DOERFER) {
     for (let i = 0; i < 26; i++) { const a = w() * 6.2832, d = 30 + Math.sqrt(w()) * 190; haus(dx + Math.cos(a) * d, dz + Math.sin(a) * d * 0.8, zw(9, 13), zw(7, 9), zw(3.5, 6), WAND[Math.floor(w() * 6)], DACH[Math.floor(w() * 4)], w() < 0.5); }
     haus(dx, dz, 26, 12, 9, '#c9705a', '#4c5258', false);       // die Dorfkirche mit Turm
     bunt.kiste(dx - 17, 0, dz - 3, dx - 11, 24, dz + 3, farbe('#c9705a'));
     for (const [a, b] of [[[dx - 17.5, 24, dz + 3.5], [dx - 10.5, 24, dz + 3.5]], [[dx - 10.5, 24, dz + 3.5], [dx - 10.5, 24, dz - 3.5]], [[dx - 10.5, 24, dz - 3.5], [dx - 17.5, 24, dz - 3.5]], [[dx - 17.5, 24, dz - 3.5], [dx - 17.5, 24, dz + 3.5]]]) bunt.drei(a, b, [dx - 14, 38, dz], farbe('#3f6b5a'));
   }
   // Bauernhöfe mit Scheune
-  for (let i = 0; i < 16; i++) { const x = zw(-3000, 3000), z = zw(UFER + 200, 3000); if (inStadt(x, z, 120)) continue;
+  for (let i = 0; i < 16; i++) { const x = zw(-3000, 3000), z = zw(UFER + 200, 3000); if (inStadt(x, z, 120) || fernBelegt(x, z, 30)) continue;
     haus(x, z, 22, 11, 5, '#b8644e', '#7c3a2e', false); haus(x + 20, z + 16, 12, 9, 4.5, '#f4ead6', '#a8452f', true); }
 
-  // ---- Windräder: Turm, Gondel und drei Flügel, die sich drehen
-  const raeder = [], weiss = new THREE.MeshLambertMaterial({ color: '#f1f3f4' });
-  const fluegelGeo = new THREE.BufferGeometry();
-  { const p = []; for (let k = 0; k < 3; k++) { const a = k * 2.0944, c = Math.cos(a), s = Math.sin(a), q = (x, y) => [x * c - y * s, x * s + y * c, 0];
-      p.push(...q(-1.6, 2), ...q(1.9, 2), ...q(0.4, 44), ...q(-1.6, 2), ...q(0.4, 44), ...q(-0.5, 44)); }
-    fluegelGeo.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); fluegelGeo.computeVertexNormals(); }
-  const fluegelMat = new THREE.MeshLambertMaterial({ color: '#f1f3f4', side: THREE.DoubleSide });
-  const blinker = [];
-  for (const [x, z] of [[-1400, 1100], [-1650, 1300], [-1200, 1420], [1500, 950], [1780, 1150], [1380, 1320], [2100, 820], [-2300, 760], [300, 2300], [-150, 2500], [900, 2550]]) {
-    const g = new THREE.Group(); g.position.set(x, 0, z);
-    const turm = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.6, 95, 10).translate(0, 47.5, 0), weiss);
-    const gondel = new THREE.Mesh(new THREE.BoxGeometry(4, 4, 11).translate(0, 96, -1), weiss);
-    const rotor = new THREE.Mesh(fluegelGeo, fluegelMat); rotor.position.set(0, 96, 5.2);
-    const rot = new THREE.Sprite(new THREE.SpriteMaterial({ map: BILD.schein('rgba(255,60,40,1)', 'rgba(255,60,40,0)'), fog: false, transparent: true, depthWrite: false })); rot.position.set(0, 99, 0); rot.scale.set(22, 22, 1); rot.visible = false;
-    g.rotation.y = 2.2 + w() * 0.3; g.add(turm, gondel, rotor, rot); gruppe.add(g); raeder.push({ rotor, tempo: 0.9 + w() * 0.5 }); blinker.push(rot);
-    rotor.rotation.z = w() * 6;
-  }
-
-  // ---- Hügel am Horizont (im Süden, Osten und Westen): ein Ring aus Dreiecken, innen flach, außen hoch
-  { const p = [], c = [], idx = [], RINGE = 7, TEILE = 96, f1 = farbe('#8fb47a'), f2 = farbe('#6f93a0');
-    const hoehe = (a, k) => { const t = k / (RINGE - 1); return Math.sin(t * Math.PI * 0.62) * (95 + 70 * Math.sin(a * 3.1 + 1) + 45 * Math.sin(a * 7.3) + 25 * Math.sin(a * 13.7 + 2)) * Math.max(0, Math.min(1, Math.sin(a) * 2.6 + 0.9)); };
-    for (let k = 0; k < RINGE; k++) for (let i = 0; i <= TEILE; i++) {
-      const a = -0.5 + (Math.PI + 1) * i / TEILE, r = 2500 + k * 380, y = Math.max(-0.2, hoehe(a, k));
-      p.push(Math.cos(a) * r, y - 0.1, Math.sin(a) * r + 300); const m = Math.min(1, y / 200); c.push(f1.r + (f2.r - f1.r) * m, f1.g + (f2.g - f1.g) * m, f1.b + (f2.b - f1.b) * m);
-    }
-    for (let k = 0; k + 1 < RINGE; k++) for (let i = 0; i < TEILE; i++) { const a = k * (TEILE + 1) + i, b = a + TEILE + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); g.setIndex(idx); g.computeVertexNormals();
-    gruppe.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
-  }
+  // (Windräder, Hügel am Horizont, Halligen, Überseehafen, Möwen …: siehe horizont.js)
+  const fern = baueHorizont(); gruppe.add(fern.gruppe);
 
   // ---- Das Meer: Molen mit kleinen Leuchtfeuern, die Leuchtturminsel, Schiffe
   for (const [x, f] of [[-492, '#c0392b'], [652, '#2e9a4f']]) {
@@ -134,8 +99,12 @@ export function baueUmland() {
   L(new THREE.BoxGeometry(11, 5, 7).translate(14, 6, 6), '#f4ead6'); L(new THREE.ConeGeometry(8.2, 3.4, 4).rotateY(Math.PI / 4).scale(1, 1, 0.68).translate(14, 10.2, 6), '#a8452f');
   // Der Lichtstrahl: zwei lange durchsichtige Kegel, die sich im Kreis drehen
   const strahl = new THREE.Group(); strahl.position.y = 35.3;
-  const strahlMat = new THREE.MeshBasicMaterial({ color: '#fff2c0', transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
-  for (const r of [0, Math.PI]) { const k = new THREE.Mesh(new THREE.ConeGeometry(34, 900, 14, 1, true).rotateX(-Math.PI / 2).translate(0, 0, 450), strahlMat); k.rotation.y = r; strahl.add(k); }
+  const strahlMat = new THREE.MeshBasicMaterial({ color: '#fff2c0', vertexColors: true, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  // Der Strahl ist an der Lampe hell und wird nach außen immer blasser (die Farbe der Ecken blendet ihn aus) – so hat er kein hartes Ende.
+  for (const r of [0, Math.PI]) { const g = new THREE.ConeGeometry(16, 1300, 14, 6, true).rotateX(-Math.PI / 2).translate(0, 0, 650), f = [];
+    for (let i = 0; i < g.attributes.position.count; i++) { const hell = Math.pow(Math.max(0, 1 - g.attributes.position.getZ(i) / 1300), 1.6); f.push(hell, hell, hell); }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(f, 3));
+    const k = new THREE.Mesh(g, strahlMat); k.rotation.y = r; strahl.add(k); }
   const funkeln = new THREE.Sprite(new THREE.SpriteMaterial({ map: BILD.schein('rgba(255,244,200,1)', 'rgba(255,244,200,0)'), fog: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
   funkeln.position.y = 35.3; funkeln.scale.set(46, 46, 1);
   strahl.visible = funkeln.visible = false; insel.add(strahl, funkeln); gruppe.add(insel);
@@ -165,18 +134,18 @@ export function baueUmland() {
 
   let uhr = 0, nacht = false, strahlHell = 0.2;
   return {
-    gruppe,
+    gruppe, fern,
     schritt(dt) {
       uhr += dt;
-      for (const r of raeder) r.rotor.rotation.z += r.tempo * dt * (0.35 + WIND.uWind.value * 1.3);      // mehr Wind = die Windräder drehen schneller
+      fern.schritt(dt);
       for (const s of schiffe) { s.g.position.x += s.tempo * dt; if (s.g.position.x > s.bis) s.g.position.x = s.von; if (s.g.position.x < s.von) s.g.position.x = s.bis; s.g.position.y = -0.9 + Math.sin(uhr * 0.8 + s.von) * 0.15; }
-      if (nacht) { strahl.rotation.y = uhr * 0.7; strahlMat.opacity = strahlHell * LUFT.sicht; const an = Math.floor(uhr * 0.8) % 2 === 0; for (const b of blinker) b.visible = an; }
+      if (nacht) { strahl.rotation.y = uhr * 0.7; strahlMat.opacity = strahlHell * LUFT.sicht; }
     },
     licht(name) {
       nacht = name === 'abend' || name === 'nacht';
       strahl.visible = funkeln.visible = nacht; strahlHell = name === 'nacht' ? 0.2 : 0.09;
       glas.material.emissiveIntensity = nacht ? 2.5 : 0.3;
-      for (const b of blinker) b.visible = nacht;
+      fern.licht(name);
     },
   };
 }
