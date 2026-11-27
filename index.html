@@ -39,7 +39,7 @@
   <div id="pfeil" hidden><div id="pfeilBild">⬆</div><div id="pfeilWeit"></div></div>
   <div id="tacho" hidden></div>
   <!-- Radar: kleine Karte rund um dich. Antippen (oder Taste M) öffnet die große Stadtkarte. -->
-  <div id="kamKnoepfe" hidden><button data-k="links" title="Kamera nach links drehen (Taste Q)" aria-label="Kamera nach links drehen">⟲</button><button data-k="rechts" title="Kamera nach rechts drehen (Taste R)" aria-label="Kamera nach rechts drehen">⟳</button><button data-k="nah" title="näher (Taste +)" aria-label="näher">＋</button><button data-k="fern" title="weiter weg (Taste −)" aria-label="weiter weg">－</button><button data-k="normal" title="Kamera wie am Anfang (Taste Pos1)" aria-label="Kamera wie am Anfang">🎯</button></div>
+  <div id="kamKnoepfe" hidden><button data-k="links" title="Kamera nach links drehen (Taste Q)" aria-label="Kamera nach links drehen">⟲</button><button data-k="rechts" title="Kamera nach rechts drehen (Taste R)" aria-label="Kamera nach rechts drehen">⟳</button><button data-k="nah" title="näher (Taste +)" aria-label="näher">＋</button><button data-k="fern" title="weiter weg (Taste −)" aria-label="weiter weg">－</button><button data-k="hoch" title="Kamera höher, mehr von oben (Taste Bild↑)" aria-label="Kamera höher, mehr von oben">▲</button><button data-k="flach" title="Kamera flacher, mehr von der Seite (Taste Bild↓)" aria-label="Kamera flacher, mehr von der Seite">▼</button><button data-k="weit" title="Übersicht von oben (Taste O)" aria-label="Übersicht von oben">🔭</button><button data-k="normal" title="Kamera wie am Anfang (Taste Pos1)" aria-label="Kamera wie am Anfang">🎯</button></div>
   <div id="radar" hidden title="Stadtkarte (Taste M)"><canvas id="radarBild" width="300" height="300"></canvas><div id="radarNord">N</div></div>
   <div id="karte" hidden>
     <div id="karteKopf"><b>🗺️ Stadtkarte von Möwenbrück</b><span id="karteWo"></span><button id="karteZu">Schließen</button></div>
@@ -61,7 +61,7 @@
     <button id="kLupe" title="Zeigen, was man antippen kann (Taste H)"><b>🔍</b>Was gibt es?</button>
   </div>
   <button id="blaulicht" hidden title="Blaulicht (Taste B): aus → nur Blaulicht → Blaulicht mit Sirene">🚨 Blaulicht: aus</button>
-  <div id="neigLeiste" hidden><button id="neigKnopf" title="Das iPad wie ein Lenkrad drehen">📱 Neigen: aus</button><button id="neigMitte" hidden title="So wie du es jetzt hältst, ist geradeaus">↕ Mitte</button></div>
+  <div id="neigLeiste" hidden><button id="sichtKnopf" title="Blick wechseln: im Cockpit oder hinter dem Wagen (Taste C)">🎥 Cockpit</button><button id="neigKnopf" title="Das iPad wie ein Lenkrad drehen">📱 Neigen: aus</button><button id="neigMitte" hidden title="So wie du es jetzt hältst, ist geradeaus">↕ Mitte</button></div>
   <div id="fahren" hidden>
     <div><button data-t="links" class="pfeil">◀</button><button data-t="rechts" class="pfeil">▶</button><button data-t="runter" class="pedalLinks">Bremse</button></div>
     <div><button data-t="runter" class="pedalRechts">Bremse</button><button data-t="hoch">Gas</button></div>
@@ -94,9 +94,10 @@
     <button id="neuesSpiel">Neues Spiel</button>
     <button id="weiterSpielen" hidden>Weiterspielen</button>
     <p class="klein">Point and Click: unten eine Tätigkeit wählen (🚶 Gehen · 👁 Ansehen · 💬 Reden · ✋ Benutzen), dann auf ein Ding, eine Person oder den Boden tippen. 🔍 zeigt, was es gibt.</p>
-    <p class="klein nurFinger">Mit zwei Fingern drehst und zoomst du die Kamera. Im Streifenwagen lenkst du, indem du das Gerät wie ein Lenkrad drehst – Gas liegt unter dem rechten Daumen, die Bremse unter dem linken.</p>
+    <p class="klein nurFinger">Kamera: Mit einem Finger ziehen = umherschauen, mit zwei Fingern drehen, neigen und zoomen (kneifen). 🔭 zeigt die Übersicht von oben, 🎯 stellt alles zurück. Im Streifenwagen lenkst du, indem du das Gerät wie ein Lenkrad drehst – Gas liegt unter dem rechten Daumen, die Bremse unter dem linken.</p>
     <p class="klein nurFinger" id="homeTipp" hidden>Tipp: In Safari auf „Teilen“ und dann „Zum Home-Bildschirm“ tippen. Dann startet das Spiel wie eine App im Vollbild und läuft auch ohne Internet.</p>
     <p class="klein nurTasten">Tastatur: Laufen mit den Pfeiltasten · Tätigkeit: 1 2 3 4 oder rechte Maustaste · E = das Nächstliegende tun · Funk F · Notizbuch N · Tasche T · Stadtkarte M · Musik U (laut → leise → aus) · im Auto Blaulicht B (aus → nur Blaulicht → mit Sirene)</p>
+    <p class="klein nurTasten">Kamera: rechte Maustaste ziehen = drehen und neigen · Mausrad = zoomen · Q R drehen · + − zoomen · Bild↑ Bild↓ neigen · O Übersicht · Pos1 wie am Anfang</p>
   </div>
 
   <div id="ende" class="voll" hidden>
