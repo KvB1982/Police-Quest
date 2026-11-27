@@ -21,12 +21,14 @@ import { neuerVerkehr } from './verkehr.js';
 import { baueVerkehr } from './verkehrbau.js';
 import { woBinIch, UFER, imHindernis } from './stadtplan.js';
 import * as JAGD from './jagd.js';
+import * as FAHR from './fahrphysik.js';
+import { baueCockpit } from './cockpit.js';
 
 // ------------------------------------------------------------------ Zahlen zum Einstellen
 const LAUF_TEMPO = 4.6;          // Meter pro Sekunde zu Fuß
 const NAH = 2.1;                 // so nah muss man an etwas heran, um es zu benutzen
 const LAMPE_WINKEL = 0.8;        // halbe Breite des Lichtkegels (Bogenmaß)
-const GAS = 7, BREMSE = 14, ROLLEN = 1.6;      // Auto: schneller werden, bremsen, ausrollen (m/s²)
+// Wie der Streifenwagen fährt (Gas, Bremse, Reifen, Lenkung), steht seit 27.11.2026 in js/fahrphysik.js (aus dem Rennspiel übernommen).
 const V_MAX = 19, V_MAX_BLAU = 26;             // Höchsttempo ohne und mit Blaulicht (m/s)
 // Das Blaulicht hat drei Stufen: 0 = aus, 1 = nur Blaulicht (leise, z. B. zum Absichern), 2 = Blaulicht mit Sirene.
 // Schnell fahren darf man mit Stufe 1 und 2. Platz machen Autos und Fußgänger bei Stufe 1 und 2; für eine Verfolgung verlangt Otto die Sirene (Stufe 2).
@@ -92,6 +94,19 @@ let wetter = null;               // Regen, Wind, Nebel, Gewitter (wetter.js) –
 const kim = figur({ hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#7a4a22', muetze: '#f4f4f4' });
 // Kamera im Auto: so viele Meter hinter dem Wagen und so hoch. Kleiner = der Wagen ist größer im Bild.
 const KAMERA_AUTO = [8.2, 4.1];
+// Im Wagen gibt es zwei Blicke: 'cockpit' (du sitzt am Lenkrad, seit 27.11.2026 der Standard) und 'hinten' (die Kamera fährt hinterher).
+// Umschalten mit dem Knopf 🎥 oder Taste C; gemerkt wird es im Gerät.
+const SICHT_MERKER = 'blaulicht.sicht.v1';
+let sicht = 'cockpit';
+try { if (localStorage.getItem(SICHT_MERKER) === 'hinten') sicht = 'hinten'; } catch (e) { /* dann eben Cockpit */ }
+const cockpit = baueCockpit();
+const imCockpit = () => Z.imAuto && sicht === 'cockpit' && !window.__polizei.frei;
+function sichtWeiter() {
+  sicht = sicht === 'cockpit' ? 'hinten' : 'cockpit'; cockpit.neu(); kamNormal(); sichtZeigen();
+  try { localStorage.setItem(SICHT_MERKER, sicht); } catch (e) { /* dann eben nicht merken */ }
+  if (Z.imAuto) kameraSetzen(1);
+}
+function sichtZeigen() { const k = document.getElementById('sichtKnopf'); if (k) k.textContent = sicht === 'cockpit' ? '🎥 Cockpit' : '🎥 von hinten'; }
 // So stark spiegelt der Lack des Streifenwagens bei welchem Licht.
 const SPIEGELN = { tag: 0.9, abend: 0.5, nacht: 0.22, dunkel: 0.12 };
 const wagen = autoModell('#f4f4f4', true);
@@ -204,7 +219,7 @@ const S = {
   ziel(text, wo) { Z.ziel = { text, wo }; anzeigen(); },
   ort(name, x, z) { ortLaden(name, x, z); KLANG.spiel('tuer'); anzeigen(); },
   klang: name => KLANG.spiel(name),
-  auto(an) { Z.imAuto = an; if (an) Z.auto = { x: spieler.x, z: spieler.z, h: -Math.PI / 2, v: 0 }; sichtbarkeit(); kameraSetzen(1); },
+  auto(an) { Z.imAuto = an; if (an) Z.auto = { x: spieler.x, z: spieler.z, h: -Math.PI / 2, v: 0 }; cockpit.neu(); sichtbarkeit(); kameraSetzen(1); },
   imWagen: () => Z.imAuto,
   licht: lichtSetzen,
   wetter: name => wetter.setze(name),              // ein Wetter festlegen (Namen in wetterplan.js), ohne Namen wieder nach Plan
@@ -245,7 +260,9 @@ let schrittZeit = 0;
 function geraeusche(dt) {
   const stadt = Z.ort === 'stadt', nah = (x, z, weit) => Math.max(0, 1 - abstand(spieler.x, spieler.z, x, z) / weit);
   KLANG.schleife('sirene', Z.blaulicht === SIRENE ? 1 : 0);
-  KLANG.schleife('motor', Z.imAuto ? 0.6 + Math.abs(Z.auto.v) / 40 : 0, 0.8 + Math.abs(Z.auto.v) / 14);
+  // Der Motor klingt nach seiner Drehzahl: In jedem Gang dreht er hoch, beim Schalten fällt der Ton wieder (wie im Rennspiel).
+  const dz = Z.imAuto ? ((Z.auto.drehzahl || 850) - 850) / 5650 : 0;
+  KLANG.schleife('motor', Z.imAuto ? 0.55 + dz * 0.35 + (tasten.hoch ? 0.15 : 0) : 0, 0.75 + dz * 1.25);
   KLANG.schleife('markt', stadt && Z.licht === 'tag' ? nah(-40, -30, 60) : 0);
   KLANG.schleife('moewen', stadt && Z.licht !== 'nacht' ? 0.25 + Math.max(0, 1 - (spieler.z - UFER) / 160) * 0.75 : 0);      // am Wasser lauter
   KLANG.schleife('alarm', stadt && Z.flags.alarm && !Z.flags.tagEnde ? nah(74, 30, 70) : 0);
@@ -314,13 +331,13 @@ function moeglich() {
 function aussteigen() {
   const a = Z.auto;
   // Beim Aussteigen geht die Sirene aus. Das Blaulicht bleibt an, wenn es an war: So sichert der Wagen eine Unfallstelle.
-  Z.imAuto = false; kameraSetzen(0.6); a.v = 0; if (Z.blaulicht === SIRENE) blaulichtSetzen(BLAU);
+  Z.imAuto = false; kameraSetzen(0.6); FAHR.halt(a); if (Z.blaulicht === SIRENE) blaulichtSetzen(BLAU);
   spieler.x = a.x + Math.cos(a.h) * 2; spieler.z = a.z - Math.sin(a.h) * 2; spieler.h = a.h;
   [spieler.x, spieler.z] = schieben(spieler.x, spieler.z, 0.4);
   for (const o of welt.objekte) if (o.def.folgt) { o.x = a.x - Math.cos(a.h) * 2; o.z = a.z + Math.sin(a.h) * 2; }
   sichtbarkeit();
 }
-function einsteigen() { neigung.kalibrieren(); Z.imAuto = true; spieler.tap = null; sichtbarkeit(); tu('eingestiegen'); }
+function einsteigen() { neigung.kalibrieren(); FAHR.halt(Z.auto); cockpit.neu(); Z.imAuto = true; spieler.tap = null; sichtbarkeit(); tu('eingestiegen'); }
 
 function blaulichtSetzen(stufe) {
   Z.blaulicht = stufe === true ? SIRENE : stufe || AUS;
@@ -522,24 +539,21 @@ function zuFuss(dt) {
 function fahren(dt) {
   const a = Z.auto;
   const max = Z.blaulicht ? V_MAX_BLAU : V_MAX;
-  if (tasten.hoch) a.v += GAS * dt; else if (tasten.runter) a.v -= (a.v > 0 ? BREMSE : GAS * 0.6) * dt;
-  else a.v -= Math.sign(a.v) * Math.min(Math.abs(a.v), ROLLEN * dt);
-  a.v = Math.max(-5, Math.min(max, a.v));
   // Lenken: mit den Tasten ganz oder gar nicht – oder das iPad wie ein Lenkrad drehen (dann geht es auch fein)
-  const lenk = neigung.an && neigung.signal ? neigung.lenk : (tasten.links ? 1 : 0) - (tasten.rechts ? 1 : 0);
-  a.h += lenk * dt * Math.max(-1.6, Math.min(1.6, a.v * 0.16));
-  const vorher = a.v, sh = Math.sin(a.h), ch = Math.cos(a.h);
-  const zx = a.x + sh * a.v * dt, zz = a.z + ch * a.v * dt;
-  const [nx, nz] = schiebWagen(zx, zz, a.h);
-  if (abstand(zx, zz, nx, nz) > 0.02 && dt > 0) {       // angestoßen: Der Wagen prallt nicht zurück, er rutscht am Hindernis entlang und dreht sich ein Stück mit
-    const vor = ((nx - a.x) * sh + (nz - a.z) * ch) / dt, quer = ((nx - a.x) * ch - (nz - a.z) * sh) / dt;
-    a.v += (vor - a.v) * 0.5; a.h += Math.max(-1, Math.min(1, quer * 0.3)) * dt * Math.sign(vorher || 1);
-    if (Math.abs(vorher) > 5 && Math.abs(vorher) - Math.abs(vor) > 2.5 && zeit > rummsZeit) { rummsZeit = zeit + 4; KLANG.spiel('rumms');
+  const fein = neigung.an && neigung.signal, lenk = fein ? neigung.lenk : (tasten.links ? 1 : 0) - (tasten.rechts ? 1 : 0);
+  const vorher = a.v;
+  // Die Fahrphysik rückt den Wagen weiter (Motor, Bremse, Reifen, Schleuderschutz – siehe js/fahrphysik.js) …
+  FAHR.schritt(a, { gas: tasten.hoch ? 1 : 0, brems: tasten.runter ? 1 : 0, lenk, fein }, dt, max);
+  // … und hier wird geprüft, ob dort etwas im Weg steht. Dann rutscht der Wagen am Hindernis entlang und dreht sich ein Stück mit.
+  const zx = a.x, zz = a.z, [nx, nz] = schiebWagen(zx, zz, a.h);
+  if (abstand(zx, zz, nx, nz) > 0.02 && dt > 0) {
+    const hart = FAHR.stoss(a, zx, zz, nx, nz, dt);
+    if (Math.abs(vorher) > 5 && hart > 2.5 && zeit > rummsZeit) { rummsZeit = zeit + 4; KLANG.spiel('rumms');
       // Bei einer Verfolgung kostet ein Rumms keinen Punkt – aber den Bonus für sauberes Fahren gibt es dann nicht mehr.
       if (jagd && !jagd.fertig && Z.flags.jagdLos) { jagd.rumms++; UI.toast('Rumms! Otto: „Ruhig bleiben, Kim!“'); } else S.punkte(-1, 'Rumms! Vorsichtig fahren');
     }
-  }
-  a.x = nx; a.z = nz; a.weg = (a.weg || 0) + a.v * dt; a.lenk = lenk;
+  } else { a.x = nx; a.z = nz; }
+  a.lenk = a.lenkWinkel / 0.45;       // für die Vorderräder im Bild (autoRaeder)
   const kmh = Math.abs(a.v) * 3.6;
   zuSchnellZeit = (!Z.blaulicht && kmh > ZU_SCHNELL) ? zuSchnellZeit + dt : 0;
   if (zuSchnellZeit > 1.5 && zeit > schimpfZeit) { schimpfZeit = zeit + 15; S.punkte(-1, 'Otto: „In der Stadt gilt 50!“'); }
@@ -663,11 +677,13 @@ function kamSchritt(dt) {
   kamGrenzen();
   // Im Auto dreht sich die Kamera von selbst wieder hinter den Wagen, sobald man fährt und nicht gerade an ihr zieht.
   if (Z.imAuto && !kam.zeiger.size && !t && Math.abs(Z.auto.v) > 2) kam.zwAuto *= Math.exp(-dt * 1.5);
+  if (imCockpit() && !kam.zeiger.size && Math.abs(Z.auto.v) > 2) kam.zneig *= Math.exp(-dt * 1.5);       // im Cockpit schaut man beim Fahren auch von selbst wieder geradeaus
   const k = Math.min(1, dt * 8);
   kam.w += (kam.zw - kam.w) * k; kam.neig += (kam.zneig - kam.neig) * k; kam.mal += (kam.zmal - kam.mal) * k; kam.wAuto += (kam.zwAuto - kam.wAuto) * k;
 }
 // Wie steil schaut die Kamera gerade (Winkel über dem Boden) und wie weit ist sie weg?
 function kamLage() {
+  if (imCockpit()) return { e: 0.2, d: 1 };       // im Cockpit sitzt die Kamera fest an deinen Augen (siehe js/cockpit.js)
   const [hoch, weg] = Z.imAuto ? [KAMERA_AUTO[1], KAMERA_AUTO[0]] : ORTE[Z.ort].kamera;
   const e = Math.max(0.12, Math.min(1.5, Math.atan2(hoch - 1, weg) + kam.neig));
   // Drinnen schaut die Kamera mit einem engeren Blickwinkel von weiter weg: Dann kippen die Leute am Bildrand nicht so schief zur Seite.
@@ -680,6 +696,8 @@ function kameraSetzen(staerke) {
   let px, py, pz, bx, bz;
   const frei = window.__polizei.frei;       // zum Testen: Kamera an eine feste Stelle setzen, frei = { von: [x, y, z], nach: [x, y, z] }
   if (frei) { kamera.position.set(...frei.von); kamera.lookAt(...frei.nach); return; }
+  if (imCockpit()) { cockpit.blick(kamera, Z.auto, kam.wAuto, -kam.neig, 1 / 60); blick.set(Z.auto.x, 1, Z.auto.z); return; }
+  if (kamera.rotation.order !== 'XYZ') kamera.rotation.order = 'XYZ';
   if (Z.imAuto) {
     const a = Z.auto;
     // Die Kamera fährt hinter dem Wagen her. Gerät sie dabei in ein Haus, rückt sie näher heran und höher.
@@ -757,8 +775,14 @@ function schritt(dt) {
 
   // Figuren und Wagen an ihre Plätze setzen
   kim.visible = !Z.imAuto; kim.position.set(spieler.x, 0, spieler.z); kim.rotation.y = spieler.h; figurBewegen(kim, dt, spieler.tempo);
+  const blink = Z.blaulicht && Math.floor(zeit * 5) % 2;
+  // Die Karosserie neigt sich in der Kurve und nickt beim Bremsen (nur fürs Bild, die Zahlen kommen aus der Fahrphysik)
+  wagen.rotation.order = 'YXZ'; wagen.rotation.x = Z.imAuto ? Z.auto.nicken || 0 : 0; wagen.rotation.z = Z.imAuto ? Z.auto.kippen || 0 : 0;
+  // Im Cockpit malt die Stadt-Kamera den eigenen Wagen nicht (sonst säße man in seinem Blech) – seine Lampen leuchten weiter.
+  const drin = imCockpit(); if (wagen.userData.drin !== drin || bildNr % 60 === 0) { wagen.userData.drin = drin; wagen.traverse(o => { if (o.isMesh) o.layers.set(drin ? 1 : 0); }); }
+  if (drin) cockpit.schritt(dt, Z.auto, { blaulicht: Z.blaulicht, blink, uhr: Z.uhr, funk: !!(Z.streife && Z.streife.ruf), oben, sonne, sonneRichtung: himmel && himmel.sonneRichtung, regen: wetter ? wetter.jetzt.regen : 0, max: V_MAX_BLAU });
   wagen.position.set(Z.auto.x, 0, Z.auto.z); wagen.rotation.y = Z.auto.h; autoRaeder(wagen, Z.auto.weg || 0, Z.imAuto ? Z.auto.lenk || 0 : 0);
-  const u = wagen.userData, blink = Z.blaulicht && Math.floor(zeit * 5) % 2;
+  const u = wagen.userData;
   u.blau[0].material.emissiveIntensity = Z.blaulicht && blink ? 3 : 0; u.blau[1].material.emissiveIntensity = Z.blaulicht && !blink ? 3 : 0;
   u.blitz.intensity = Z.blaulicht ? (blink ? 70 : 28) : 0;
   geraeusche(dt);
@@ -798,6 +822,7 @@ addEventListener('keydown', e => {
   if (k === 'e' || k === 'Enter') { const m = moeglich(); if (m.length) m[0].tun(); }
   else if (k === 'f') funkAuf(); else if (k === 'n') notizbuchAuf(); else if (k === 't') tascheAuf();
   else if (k === 'b' && Z.imAuto) blaulichtWeiter();
+  else if (k === 'c' && Z.imAuto) sichtWeiter();
   else if (k === 'm') karteAuf();
   else if (k === 'Home') kamNormal();
   else if (k === 'h') markenBis = zeit + MARKEN_ZEIT;
@@ -1095,6 +1120,7 @@ async function neigSchalten(an, laut = true) {
   neigZeigen();
 }
 document.getElementById('neigKnopf').addEventListener('click', () => neigSchalten(!neigung.an));
+document.getElementById('sichtKnopf').addEventListener('click', sichtWeiter); sichtZeigen();
 document.getElementById('neigMitte').addEventListener('click', () => { neigung.kalibrieren(); UI.toast('Geradeaus ist jetzt so, wie du das Gerät gerade hältst.'); });
 // Das iPad fragt nur nach einem Fingertipp um Erlaubnis – deshalb gleich beim Tipp auf "Neues Spiel" oder "Weiter spielen".
 for (const id of ['neuesSpiel', 'weiterSpielen']) document.getElementById(id).addEventListener('click', () => {
@@ -1113,7 +1139,11 @@ document.getElementById('radar').addEventListener('click', karteAuf);
 UI.verbinde({ notizbuch: notizbuchAuf, tasche: tascheAuf, funk: funkAuf, blaulicht: blaulichtWeiter, verb: verbSetzen, lupe: () => { markenBis = zeit + MARKEN_ZEIT; } });
 
 // ------------------------------------------------------------------ Start und Schleife
-function bild() { renderer.render(szene, kamera); }
+function bild() {
+  renderer.render(szene, kamera);
+  // Im Cockpit kommt ein zweites Bild obendrauf: Armaturenbrett, Lenkrad, Hände, Motorhaube. Durch die Scheiben schaut die Stadt.
+  if (imCockpit()) { renderer.autoClear = false; renderer.clearDepth(); renderer.render(cockpit.szene, cockpit.kamera); renderer.autoClear = true; }
+}
 let letzte = performance.now();
 function schleife(jetzt) {
   const vorher = letzte, dt = Math.min(0.05, (jetzt - letzte) / 1000); letzte = jetzt;
@@ -1123,7 +1153,7 @@ function schleife(jetzt) {
 }
 
 // Zum Testen: __polizei.step(n) spult n Bilder vor, __polizei.tu('spind') spielt eine Stelle der Geschichte.
-window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal,
+window.__polizei = { get Z() { return Z; }, get kim() { return kim; }, S, get beschaeftigt() { return beschaeftigt; }, get jagd() { return jagd; }, get verb() { return verb; }, verbSetzen, antippbar, aufSchirm, spieler, tasten, STORY, ORTE, tu, bild, KARTE, kamera, renderer, get verkehr() { return verkehr; }, get himmel() { return himmel; }, ortLaden, lichtSetzen, kam: () => ({ k: kamera, v: new THREE.Vector3() }), get welt() { return welt; }, angehalten: false, get wetter() { return wetter; }, frei: null, get lauf() { return lauf; }, gaeste, neigung, kamStand: kam, kamNormal, cockpit, FAHR, sichtWeiter, get sicht() { return sicht; },
   step(n = 1, ohneBild = false) { for (let i = 0; i < n; i++) schritt(1 / 60); if (!ohneBild) bild(); } };       // ohneBild = nur rechnen, nicht zeichnen (schneller)
 
 async function start() {
@@ -1138,7 +1168,7 @@ async function start() {
   const was = await UI.menue(!!alt);
   KLANG.an();
   if (was === 'weiter') {
-    Z = alt; blaulichtSetzen(AUS); Z.auto.v = 0;
+    Z = alt; blaulichtSetzen(AUS); FAHR.halt(Z.auto);
     lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
   } else {
     Z = neuerStand(); blaulichtSetzen(AUS); lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
