@@ -101,3 +101,9 @@ Selbst gemalt (in `js/bilder.js`, keine Datei): alle Hausfassaden mit Fenstern, 
 - `brinkmann.glb`, `selin.glb`, `harms.glb`, `petersen.glb`, `hanne.glb`, `erzieherin.glb`, `baecker.glb`, `verletzte.glb`, `unfallfahrer.glb`, `zeugin.glb`, `opfer.glb`, `w1.glb`, `w2.glb`, `w3.glb`, `m1.glb` – Menschen aus MakeHuman / MPFB wie Dr. Thomsen (Körper, Haut, Haare, Kleidung aus den CC0-Paketen von files.makehumancommunity.org; Rezepte in `tools/figur/leute.py`, Farben selbst umgefärbt).
 - `p1.glb` … `p8.glb` (Passanten), `aerztin.glb`, `sani.glb` (Rettungswagen) – ausgedachte Menschen aus MakeHuman / MPFB wie oben (dazu das Paket mit dem Arbeitsanzug `male_worksuit01`, rot umgefärbt). Rezepte in `tools/figur/leute.py`.
 - `pol1.glb` … `pol4.glb` (Kolleginnen und Kollegen der Wache) – ausgedachte Menschen aus MakeHuman / MPFB wie oben, Arbeitsanzug `male_worksuit01` dunkelblau umgefärbt. Die Schutzweste baut das Spiel selbst (`js/polizist.js`).
+
+## Besucher des Wochenmarkts (7 Dateien, seit 27.11.2026)
+
+`besucher/b1.glb` … `b7.glb`, kopiert aus `Powershot/assets/besucher/`. Menschen aus MakeHuman / MPFB2 (nur CC0-Pakete, Herkunft in
+`Powershot/assets/QUELLEN_MENSCHEN.md`), dort mit `tools/mensch/menge.mjs` auf etwa 1.800 Dreiecke verkleinert und in 13 Haltungen gebacken.
+Benutzt in `js/marktbau.js`.
