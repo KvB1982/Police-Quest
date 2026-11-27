@@ -28,7 +28,7 @@ export const MAX_PUNKTE = 67;
 export const JAGD = { start: [-87.2, 99.4], erst: [-88, 125], ziel: [-348, 589] };
 
 // Der Fluchtweg des Taschendiebs über den Markt: im Zickzack zwischen den Ständen durch und in einem Bogen zurück.
-const DIEB_WEG = [[-24, -20], [-25, -30], [-34, -36], [-40, -28], [-45, -20], [-56, -17.5], [-56, -8], [-45, -6], [-34, -8]];
+export const DIEB_WEG = [[-24, -20], [-25, -30], [-34, -36], [-40, -28], [-45, -20], [-56, -17.5], [-56, -8], [-45, -6], [-34, -8]];
 
 // Was in der Tasche sein kann.
 export const SACHEN = {

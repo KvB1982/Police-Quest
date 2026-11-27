@@ -22,6 +22,7 @@
 
 import { PLAN, GROSS } from './stadtplan.js';
 import { wacheDaten } from './wache.js';
+import { hindernisse as marktHindernisse } from './markt.js';
 
 const OTTO_SIEH = 'Otto Brandl, dein Ausbilder. Grauer Bart, breite Schultern, die Mütze gerade. Seine Stiefel sind die saubersten der ganzen Wache.';
 const POLIZEI = { hemd: '#2b4c9b', hose: '#1b2a4a', haut: '#f0c8a0', haar: '#5a3b22', muetze: '#f4f4f4' };
@@ -46,10 +47,8 @@ const wache = wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH });
 // ---------------------------------------------------------------------------------------------
 // Die ganze Stadt (Straßen, Häuser, Viertel, Kanal, Hafen …) wird in stadtplan.js ausgerechnet.
 // Hier steht nur, was die Geschichte in der Stadt braucht: Marktstände, Dinge und Leute.
-const STAND = ['#d9534f', '#f0ad4e', '#5cb85c', '#5bc0de', '#d9534f', '#f0ad4e'];
-const marktStaende = [[-60, -40], [-48, -42], [-30, -44], [-20, -36], [-62, -20], [-50, -14], [-28, -16], [-18, -24]]
-  .map(([x, z], i) => ({ x, z, b: 4, t: 2.4, h: 1, farbe: '#c9a777', dach: STAND[i % STAND.length] }));
-
+// Der Marktplatz selbst (Stände, Karussell, Bänke, Besucher …) steht in markt.js und wird in marktbau.js gebaut.
+// Hier kommen nur seine Hindernisse an: Rechtecke [x von, z von, x bis, z bis], um die Kim herumgehen muss.
 const stadt = {
   name: 'Möwenbrück',
   gross: GROSS,
@@ -59,13 +58,9 @@ const stadt = {
   wandFarbe: wache.wandFarbe,
   boden: wache.boden,
   waende: wache.waende, glaswaende: wache.glaswaende, klinker: wache.klinker, tueren: wache.tueren,
-  moebel: [...marktStaende, ...wache.moebel],
-  // Kisten, Fässer und Tafeln an den Marktständen – dicht am Stand, damit niemand darüber stolpert
-  deko: [...wache.deko, ...marktStaende.flatMap((s, i) => [
-    { modell: i % 2 ? 'kiste_holz' : 'fischkiste', x: s.x - 2.5, z: s.z + 0.5, dreh: i * 0.7 }, { modell: i % 3 ? 'holzfass' : 'fass', x: s.x + 2.5, z: s.z - 0.4 },
-    { modell: 'kiste_holz', x: s.x + 1.2, z: s.z - 1.8, dreh: i * 1.3, mal: 0.8 }, { modell: 'tafel', x: s.x - 2.4, z: s.z + 1.6, dreh: (i % 2 ? 0.5 : -0.4) },
-    ...(i % 2 ? [{ modell: 'pflanzkuebel', x: s.x + 2.6, z: s.z + 1.2 }] : [{ modell: 'fischkiste', x: s.x - 1.4, z: s.z - 1.7, dreh: 0.2 }]),
-  ])],
+  moebel: wache.moebel,
+  marktFest: marktHindernisse(),
+  deko: wache.deko,
   schilder: [{ x: -40, z: -30, text: 'Marktplatz', hoch: 7 }, ...wache.schilder.map(s => ({ ...s, wache: true }))],
   dinge: [
     ...wache.dinge,
