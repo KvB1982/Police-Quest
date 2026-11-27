@@ -1,0 +1,17 @@
+{
+  "appId": "de.kvb1982.blaulicht",
+  "appName": "Blaulicht",
+  "webDir": "www",
+  "backgroundColor": "#0b1430",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "allowsLinkPreview": false,
+    "backgroundColor": "#0b1430"
+  },
+  "plugins": {
+    "SystemBars": {
+      "hidden": true
+    }
+  }
+}

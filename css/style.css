@@ -105,3 +105,72 @@ body.neigen #fahren button { min-width: 120px; height: 104px; font-size: 22px; }
 #neigLeiste { position: fixed; bottom: calc(214px + env(safe-area-inset-bottom, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); display: flex; gap: 8px; z-index: 2; }
 #neigLeiste button { background: #24304f; min-height: 46px; font-size: 15px; font-weight: 700; }
 #neigLeiste button.an { background: #2b5fc0; }
+
+/* ------------------------------------------------------------------ iPad und iPhone
+   body.finger = Gerät mit Finger-Bildschirm (setzt main.js). Dort gibt es keine Tastatur, also auch keine Tasten-Hinweise. */
+.nurFinger { display: none; }
+body.finger .nurFinger { display: block; }
+body.finger .nurTasten { display: none; }
+button { touch-action: manipulation; }
+
+/* iPhone hochkant: Das Bild ist zu schmal für Straße, Radar und Knöpfe – bitte quer halten. (Das iPad darf hochkant bleiben.) */
+#drehen { display: none; position: fixed; inset: 0; z-index: 20; background: #0b1430; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; }
+#drehen div { font-size: 64px; }
+#drehen p { font-size: 22px; font-weight: 600; margin: 0; }
+@media (orientation: portrait) and (max-width: 540px) { body.finger #drehen { display: flex; } }
+
+/* iPhone quer: nur etwa 390 Bildpunkte hoch. Alles rückt zusammen, damit die Straße frei bleibt und sich keine Knöpfe überdecken. */
+@media (max-height: 500px) {
+  #oben { padding: 6px 10px; gap: 8px; }
+  #links { padding: 5px 10px; max-width: 46vw; }
+  #ortName { font-size: 11px; }
+  #ziel { font-size: 14px; }
+  #rechts { gap: 5px; }
+  #rechts span { padding: 7px 9px; font-size: 14px; }
+  #rechts button { font-size: 19px; padding: 4px 8px; min-width: 42px; min-height: 40px; }
+  #pfeil { top: 56px; }
+  #pfeilBild { font-size: 32px; }
+  #toast { top: 96px; font-size: 14px; padding: 7px 14px; max-width: 70vw; }
+  #radar { top: calc(54px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); width: 100px; height: 100px; }
+  #tacho { top: calc(54px + env(safe-area-inset-top, 0px)); right: calc(120px + env(safe-area-inset-right, 0px)); font-size: 17px; padding: 6px 10px; }
+  /* Kamera: Auf dem iPhone dreht und zoomt man mit zwei Fingern. Von den Knöpfen bleibt nur "wie am Anfang". */
+  body.finger #kamKnoepfe button:not([data-k="normal"]) { display: none; }
+  #kamKnoepfe { top: calc(162px + env(safe-area-inset-top, 0px)); }
+  #verben { gap: 6px; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  #verben button { width: 54px; height: 54px; font-size: 0; }
+  #verben button b { font-size: 26px; }
+  #kLupe { margin-left: 4px; }
+  #satz { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); font-size: 14px; }
+  body:not(.imAuto) #knoepfe { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  #knoepfe { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); gap: 6px; }
+  #knoepfe button { font-size: 15px; padding: 10px 14px; }
+  #fahren { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  #fahren button { min-width: 72px; height: 68px; font-size: 17px; }
+  body.neigen #fahren button { min-width: 104px; height: 80px; font-size: 18px; }
+  /* Blaulicht rechts über dem Gas, Neigen links über der Bremse – so liegt nichts mehr auf dem Radar */
+  #blaulicht { bottom: calc(98px + env(safe-area-inset-bottom, 0px)); min-height: 44px; font-size: 15px; padding: 8px 12px; }
+  #neigLeiste { right: auto; left: calc(16px + env(safe-area-inset-left, 0px)); bottom: calc(98px + env(safe-area-inset-bottom, 0px)); }
+  #neigLeiste button { min-height: 40px; font-size: 13px; padding: 6px 10px; }
+  #dialog { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); padding: 10px 14px; max-height: calc(100vh - 16px); overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+  #text { font-size: 16px; line-height: 1.3; }
+  #optionen { gap: 6px; margin-top: 8px; }
+  #optionen button { font-size: 15px; padding: 9px 12px; }
+  #weiter { margin-top: 6px; padding: 9px 16px; }
+  .kasten { max-height: 92vh; padding: 12px 16px; touch-action: pan-y; }
+  .kasten h2 { font-size: 18px; margin-bottom: 6px; }
+  .kasten p { font-size: 15px; }
+  #fensterInhalt button { font-size: 15px; padding: 9px 12px; margin: 6px 0; }
+  #schloss { width: min(380px, 92vw); }
+  #schlossZahl { font-size: 28px; margin: 2px 0 6px; }
+  #schlossTasten { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  #schlossTasten button { font-size: 18px; padding: 8px; }
+  .voll { justify-content: safe center; gap: 8px; padding: 14px; touch-action: pan-y; }
+  .voll h1 { font-size: 28px; }
+  .voll p { margin: 2px 0; }
+  .voll button { font-size: 18px; padding: 10px 16px; }
+  .klein { font-size: 12px; }
+  #karteKopf { padding: 6px 12px; font-size: 15px; }
+  #karteFuss { display: none; }
+}
+/* Die Fenster darf man mit dem Finger schieben, wenn der Inhalt nicht ganz hineinpasst (sonst ist Schieben überall aus). */
+.kasten, .voll, #dialog { touch-action: pan-y; overscroll-behavior: contain; }
