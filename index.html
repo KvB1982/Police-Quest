@@ -47,6 +47,14 @@
     <div id="karteFuss">🔵 du · 🟡 dein Ziel · 🚓 Streifenwagen · Ziehen = verschieben · Rad oder zwei Finger = größer und kleiner</div>
   </div>
   <div id="toast" hidden></div>
+  <!-- Bild zu einer Stelle der Geschichte: liegt über dem Spiel, solange erzählt wird, was man im Spiel nicht sehen kann -->
+  <div id="szene" hidden><img id="szeneBild" alt=""></div>
+  <!-- Verfolgung zu Fuß: roter Rand (je näher, desto stärker), Abstand oben, großer Knopf zum Zugreifen -->
+  <div id="hatzRand" hidden></div>
+  <div id="hatz" hidden><div id="hatzText"></div><div id="hatzBalken"><i id="hatzStand"></i></div></div>
+  <button id="kGriff" hidden></button>
+  <!-- Im Einsatz: Kollegen zu Hilfe rufen -->
+  <button id="kVerst" hidden title="Verstärkung anfordern (Taste X)">📻 Verstärkung</button>
 
   <!-- Knöpfe für das, was man gerade tun kann -->
   <div id="knoepfe"></div>

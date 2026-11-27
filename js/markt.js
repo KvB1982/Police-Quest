@@ -17,6 +17,7 @@ const PLAUDER_ZEIT = [14, 45];       // wer sich unterhält, bleibt länger
 const SCHRITT = 1.3;                 // so viele Meter kommt ein Erwachsener mit einem Doppelschritt voran
 const DREH_TEMPO = 5;                // so schnell dreht sich jemand in seine Laufrichtung
 const DICK = 0.55;                   // so viel Abstand halten Besucher von Ständen und anderen Hindernissen
+const SCHEU_PLATZ = 1.7;             // so viel Platz machen sie jemandem, der über den Markt rennt (der Flüchtende bei einer Verfolgung)
 const KIM_PLATZ = 0.8;               // so nah lassen sie Kim an sich heran, dann weichen sie ein Stück aus
 
 // Der Platz: das Pflaster zwischen Marktstraße, Speicherstraße, Deichstraße und Wachstraße
@@ -257,6 +258,7 @@ export class Marktleben {
       // Kim kommt zu nah: ein Stück zur Seite treten (sx, sz = so weit steht die Figur gerade neben ihrer Stelle)
       let wx = 0, wz = 0;
       if (kim) { const dx = p.x - kim.x, dz = p.z - kim.z, d = Math.hypot(dx, dz); if (d < KIM_PLATZ) { const k = (KIM_PLATZ - d) / (d || 1); wx = (d ? dx : 1) * k; wz = dz * k; } }
+      if (this.scheu) for (const q of this.scheu) { const dx = p.x - q.x, dz = p.z - q.z, d = Math.hypot(dx, dz); if (d < SCHEU_PLATZ) { const k = (SCHEU_PLATZ - d) / (d || 1); wx += (d ? dx : 1) * k; wz += dz * k; } }       // vor jemandem, der rennt, springt man weiter zur Seite
       p.sx += (wx - p.sx) * Math.min(1, dt * 8); p.sz += (wz - p.sz) * Math.min(1, dt * 8);
     });
     // Die Verkäufer: Sie stehen, reden mit der Kundschaft, stemmen mal die Hände in die Hüften
