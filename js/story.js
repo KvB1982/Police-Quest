@@ -28,11 +28,11 @@ export const MAX_PUNKTE = 69;
 export const JAGD = { start: [-87.2, 99.4], erst: [-88, 125], ziel: [-348, 589] };
 
 // Der Fluchtweg des Taschendiebs über den Markt: im Zickzack zwischen den Ständen durch und in einem Bogen zurück.
-export const DIEB_WEG = [[-24, -20], [-25, -30], [-34, -36], [-40, -28], [-45, -20], [-56, -17.5], [-56, -8], [-45, -6], [-34, -8], [-22, -9.5], [-20, -17]];
+export const DIEB_WEG = [[-24, -21], [-22.5, -31], [-32, -36], [-40, -35.5], [-47, -33.5], [-57, -35], [-63, -28], [-57, -21.5], [-47, -22.5], [-36, -21.5], [-30, -23.5]];
 // Die Verfolgungen zu Fuß (was die Zahlen bedeuten, steht oben in js/hatz.js). Die Wege sind Runden: Nach dem letzten Punkt geht es wieder zum ersten.
 // Der Taschendieb: am Anfang schneller als du, reißt an drei Stellen Kisten um. Otto läuft zur Marktmitte und schneidet ihm den Weg ab.
 export const DIEB_HATZ = { weg: DIEB_WEG, tempo: 5.3, tempoMin: 3.8, muede: 0.04, griff: 'stoss', wurf: [2, 5, 8], vorlauf: 13, zeit: 60,
-  otto: [-45, -20], sperren: [[-45, -6], [-34, -36]], anfahrt: { ziel: [-58, -1.5], aus: [-1, 0], bis: 'abgabe2' } };
+  otto: [-47, -22.5], sperren: [[-63, -28], [-32, -36]], anfahrt: { ziel: [-58, -1.5], aus: [-1, 0], bis: 'abgabe2' } };
 // Timo: Er humpelt (das Knie), deshalb ist er langsamer und wird schnell müde. Er rennt eine Runde durch die Gärten am Finkenstieg.
 const M12_FINK = [-334.7, 557.7];       // hier hält Möwe 12 im Finkenstieg
 export const TIMO_HATZ = { weg: [[-349, 592], [-356, 603], [-352, 617], [-342, 625], [-327, 611], [-321, 598], [-316.5, 587], [-320.5, 581.5], [-328.5, 577], [-336, 569], [-346, 566], [-352, 578]],

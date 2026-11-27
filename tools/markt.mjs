@@ -2,7 +2,7 @@
 //   node tools/markt.mjs
 // Nichts steht ineinander, der Fluchtweg des Taschendiebs und die Leute der Geschichte sind frei, jede Stelle ist zu Fuß
 // erreichbar, und fünf Minuten Markttreiben laufen durch, ohne dass ein Besucher in einem Stand landet.
-import { MARKT, STAENDE, SACHEN, STELLEN, VERKAEUFER, hindernisse, baueNetz, Marktleben, BESUCHER_TAG } from '../js/markt.js';
+import { HAEUSER, MARKT, STAENDE, SACHEN, STELLEN, VERKAEUFER, hindernisse, baueNetz, Marktleben, BESUCHER_TAG } from '../js/markt.js';
 import { DIEB_WEG } from '../js/story.js';
 import { ORTE } from '../js/daten.js';
 import { PLAN } from '../js/stadtplan.js';
@@ -15,6 +15,8 @@ console.log(`Markt: ${STAENDE.length} Stände, ${SACHEN.length} Sachen, ${R.leng
 // 1. Nichts steht ineinander oder außerhalb des Platzes
 R.forEach((a, i) => { if (a[0] < MARKT.x1 || a[2] > MARKT.x2 || a[1] < MARKT.z1 || a[3] > MARKT.z2) schlecht(`${name(i)} ragt über den Platz hinaus`);
   R.forEach((b, j) => { if (j > i && a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]) schlecht(`${name(i)} und ${name(j)} stehen ineinander`); }); });
+// 1b. Nichts steht in einem der Häuser rund um den Platz oder in der Kirche
+R.forEach((a, i) => HAEUSER.forEach(h => { if (a[0] < h[2] && h[0] < a[2] && a[1] < h[3] && h[1] < a[3]) schlecht(`${name(i)} steht in einem Haus am Markt`); }));
 // 2. Bäume der Stadt stehen nicht in einem Stand
 for (const b of PLAN.baeume) R.forEach((r, i) => { if (zuRechteck(b.x, b.z, r) < 0.5) schlecht(`${name(i)} steht an einem Baum (${b.x.toFixed(1)}, ${b.z.toFixed(1)})`); });
 // 3. Der Fluchtweg des Taschendiebs bleibt frei (alle halbe Meter nachgemessen)
@@ -33,7 +35,7 @@ STELLEN.forEach((s, i) => {
   if (netz.drin(s.x, s.z)) schlecht(`Stelle ${s.art} (${s.x.toFixed(1)}, ${s.z.toFixed(1)}) liegt in einem Hindernis`);
   if (s.x < MARKT.x1 + 0.3 || s.x > MARKT.x2 - 0.3 || s.z < MARKT.z1 + 0.3 || s.z > MARKT.z2 - 0.3) schlecht(`Stelle ${s.art} (${s.x.toFixed(1)}, ${s.z.toFixed(1)}) liegt nicht auf dem Platz`);
   STELLEN.forEach((t, j) => { if (j > i && Math.hypot(s.x - t.x, s.z - t.z) < 0.55) schlecht(`Zwei Stellen liegen aufeinander: (${s.x.toFixed(1)}, ${s.z.toFixed(1)}) ${s.art}/${t.art}`); });
-  const w = netz.weg(-74, -33, s.x, s.z); if (w.length === 1 && !netz.frei(-74, -33, s.x, s.z)) schlecht(`Zur Stelle ${s.art} (${s.x.toFixed(1)}, ${s.z.toFixed(1)}) führt kein Weg`);
+  const w = netz.weg(-40, -9.5, s.x, s.z); if (w.length === 1 && !netz.frei(-40, -9.5, s.x, s.z)) schlecht(`Zur Stelle ${s.art} (${s.x.toFixed(1)}, ${s.z.toFixed(1)}) führt kein Weg`);
 });
 console.log(`  Wege-Netz: ${netz.punkte.length} Punkte, ${netz.nachbarn.reduce((a, n) => a + n.length, 0) / 2} Verbindungen`);
 // 6. Fünf Minuten Markt: Niemand steckt in einem Stand, alle bewegen sich

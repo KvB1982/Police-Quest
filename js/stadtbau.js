@@ -308,6 +308,7 @@ export function baueStadt() {
     try { hausBauen(h, x1, z1, x2, z2, f, stil); } finally { E = E0; }
   }
   function hausBauen(h, x1, z1, x2, z2, f, stil) {
+    if (h.kirche) return kircheBauen(h, x1, z1, x2, z2);
     const y1 = h.typ === 'einzel' ? EG + 0.2 : h.h, yE = Math.min(EG, y1);
     const art = h.typ === 'speicher' || stil === 'halle' ? 'tor' : h.laden ? 'laden' : 'wohn';
     const og = E('og_' + stil), eg = E(`eg_${stil}_${art}`);
@@ -347,6 +348,79 @@ export function baueStadt() {
       const sp = [tx, th + tb * 1.5, tz], e = [[tx - a - 0.4, th, tz + a + 0.4], [tx + a + 0.4, th, tz + a + 0.4], [tx + a + 0.4, th, tz - a - 0.4], [tx - a - 0.4, th, tz - a - 0.4]];
       for (let i = 0; i < 4; i++) E('dach').drei(e[i], e[(i + 1) % 4], sp, df, 0.5, 0.5);
     }
+  }
+
+  // Eine Kirche aus rotem Backstein, wie sie in den alten Hafenstädten an der Küste stehen (Backsteingotik):
+  // langes Schiff mit steilem Dach, Stützpfeiler an den Seiten, dazwischen hohe spitze Fenster, im Westen der Turm
+  // mit Uhr, Schall-Luken für die Glocken und einem spitzen grünen Helm aus Kupfer. Das Schiff liegt von West nach Ost.
+  function kircheBauen(h, x1, z1, x2, z2) {
+    const K = E('aufbau'), dach = E('dach'), y1 = h.h, df = farbe(h.dach.farbe);
+    const STEIN = [farbe('#a4523c'), farbe('#97493a'), farbe('#b05c44')], HELL = farbe('#d9cfbd'), GLAS = farbe('#27364f'), BUNT = [farbe('#3a5a8a'), farbe('#7a3a4a'), farbe('#3a6a5a')], HOLZ = farbe('#4a3424'), GOLD = farbe('#e2b53a');
+    const zm = (z1 + z2) / 2, breit = z2 - z1, yr = y1 + breit * 0.72;
+    K.kiste(x1 - 0.25, 0, z1 - 0.25, x2 + 0.25, 0.9, z2 + 0.25, farbe('#8c8478'));       // der Sockel aus Feldstein
+    K.kiste(x1, 0.9, z1, x2, y1, z2, STEIN[0]);
+    K.kiste(x1 - 0.2, y1 - 0.5, z1 - 0.2, x2 + 0.2, y1, z2 + 0.2, HELL);                // heller Fries unter dem Dach
+    // das steile Dach und die beiden Giebel
+    dach.quad([x1, y1, z2 + 0.4], [x2, y1, z2 + 0.4], [x2, yr, zm], [x1, yr, zm], df, 0, 0, (x2 - x1) / 3, 3);
+    dach.quad([x2, y1, z1 - 0.4], [x1, y1, z1 - 0.4], [x1, yr, zm], [x2, yr, zm], df, 0, 0, (x2 - x1) / 3, 3);
+    K.drei([x1, y1, z1], [x1, y1, z2], [x1, yr, zm], STEIN[0]); K.drei([x2, y1, z2], [x2, y1, z1], [x2, yr, zm], STEIN[0]);
+    // ein hohes spitzes Fenster: heller Rahmen, dunkles Glas mit einem bunten Feld. An einer Längswand (seite = ±1) oder am Ost-Giebel.
+    const fenster = (m, b, yu, yo, seite, ost) => {
+      const P = (a, y, t) => ost ? [x2 + t, y, m - a * seite] : [m + a * seite, y, (seite > 0 ? z2 : z1) + t * seite];
+      const feld = (bb, u, o, t, f) => { K.quad(P(-bb, u, t), P(bb, u, t), P(bb, o, t), P(-bb, o, t), f); K.drei(P(-bb, o, t), P(bb, o, t), P(0, o + bb * 1.5, t), f); };
+      feld(b / 2 + 0.22, yu - 0.2, yo, 0.04, HELL); feld(b / 2, yu, yo, 0.08, GLAS); feld(b / 2 - 0.25, yu + (yo - yu) * 0.55, yo - 0.2, 0.11, BUNT[Math.abs(Math.round(m)) % 3]);
+      K.quad(P(-0.07, yu, 0.13), P(0.07, yu, 0.13), P(0.07, yo + b * 0.6, 0.13), P(-0.07, yo + b * 0.6, 0.13), HELL);       // die Mittelstrebe
+    };
+    // Stützpfeiler und Fenster an beiden Längsseiten; in der Mitte der Südseite das Portal
+    const n = Math.max(3, Math.round((x2 - x1) / 4.6)), feldB = (x2 - x1) / n, tuer = Math.floor(n / 2);
+    for (const seite of [1, -1]) {
+      const zw = seite > 0 ? z2 : z1;
+      for (let i = 0; i <= n; i++) { const x = x1 + i * feldB, f = STEIN[1 + i % 2];
+        K.kiste(x - 0.42, 0, Math.min(zw, zw + seite * 0.95), x + 0.42, y1 * 0.62, Math.max(zw, zw + seite * 0.95), f);
+        K.kiste(x - 0.36, y1 * 0.62, Math.min(zw, zw + seite * 0.55), x + 0.36, y1 - 0.9, Math.max(zw, zw + seite * 0.55), f);
+        K.kiste(x - 0.5, y1 * 0.62 - 0.12, Math.min(zw, zw + seite * 1.02), x + 0.5, y1 * 0.62 + 0.1, Math.max(zw, zw + seite * 1.02), HELL); }
+      for (let i = 0; i < n; i++) { const m = x1 + (i + 0.5) * feldB;
+        if (seite > 0 && i === tuer) {       // das Portal: zwei Stufen, eine schwere Holztür im spitzen Bogen, darüber ein rundes Fenster
+          K.kiste(m - 2.1, 0, z2, m + 2.1, 0.16, z2 + 1.5, HELL); K.kiste(m - 1.8, 0.16, z2, m + 1.8, 0.32, z2 + 1.1, HELL);
+          const P = (a, y, t) => [m + a, y, z2 + t], bogen = (bb, o, t, f) => { K.quad(P(-bb, 0.32, t), P(bb, 0.32, t), P(bb, o, t), P(-bb, o, t), f); K.drei(P(-bb, o, t), P(bb, o, t), P(0, o + bb * 1.3, t), f); };
+          bogen(1.65, 3.3, 0.05, HELL); bogen(1.3, 3.2, 0.1, HOLZ); K.quad(P(-0.04, 0.32, 0.13), P(0.04, 0.32, 0.13), P(0.04, 4.6, 0.13), P(-0.04, 4.6, 0.13), farbe('#2a1c12'));
+          for (const sx of [-0.35, 0.35]) K.kiste(m + sx - 0.05, 1.5, z2 + 0.1, m + sx + 0.05, 1.75, z2 + 0.2, GOLD);
+          for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, b = a + Math.PI / 4, r = 1.25, ym = y1 - 3.4; K.drei(P(0, ym, 0.06), P(Math.cos(a) * r, ym + Math.sin(a) * r, 0.06), P(Math.cos(b) * r, ym + Math.sin(b) * r, 0.06), k % 2 ? BUNT[k % 3] : GLAS); }
+        } else fenster(m, Math.min(1.7, feldB * 0.42), 3.2, y1 - 3.4, seite, false);
+      }
+    }
+    fenster(zm, 2.2, 3.4, y1 - 2.2, 1, true);       // das große Fenster im Ost-Giebel
+    for (const dz of [-breit * 0.3, breit * 0.3]) fenster(zm + dz, 1.1, 3.4, y1 - 4.2, 1, true);
+    K.kiste(x2 - 0.3, yr - 0.2, zm - 0.3, x2 + 0.3, yr + 1.2, zm + 0.3, STEIN[1]); K.kiste(x2 - 0.06, yr + 1.2, zm - 0.06, x2 + 0.06, yr + 2.6, zm + 0.06, GOLD); K.kiste(x2 - 0.06, yr + 2.0, zm - 0.5, x2 + 0.06, yr + 2.12, zm + 0.5, GOLD);       // das Kreuz auf dem Giebel
+    if (!h.turm) return;
+    // ---- der Turm
+    const tx = h.turm[0] - h.x, tz = h.turm[1] - h.z, a = h.turm[2] / 2, th = h.turm[3];
+    K.kiste(tx - a - 0.25, 0, tz - a - 0.25, tx + a + 0.25, 0.9, tz + a + 0.25, farbe('#8c8478'));
+    K.kiste(tx - a, 0.9, tz - a, tx + a, th, tz + a, STEIN[0]);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) K.kiste(tx + sx * a - 0.45, 0, tz + sz * a - 0.45, tx + sx * a + 0.45, th - 1, tz + sz * a + 0.45, STEIN[1]);       // verstärkte Ecken
+    for (const y of [y1 + 1.5, th * 0.66, th - 1]) K.kiste(tx - a - 0.18, y, tz - a - 0.18, tx + a + 0.18, y + 0.4, tz + a + 0.18, HELL);                                             // helle Bänder
+    // auf jeder Seite: unten ein schmales Fenster, in der Mitte die Uhr, oben zwei Schall-Luken für die Glocken
+    for (let s = 0; s < 4; s++) {
+      const c = [1, 0, -1, 0][s], d = [0, 1, 0, -1][s];       // (c, d) = nach außen, quer dazu (d, −c)
+      const P = (q, y, t) => [tx + c * (a + t) + d * q, y, tz + d * (a + t) - c * q];
+      const flaeche = (q1, q2, u, o, t, f) => K.quad(P(q1, u, t), P(q2, u, t), P(q2, o, t), P(q1, o, t), f);
+      const spitz = (q, bb, u, o, t, f) => { flaeche(q - bb, q + bb, u, o, t, f); K.drei(P(q - bb, o, t), P(q + bb, o, t), P(q, o + bb * 1.5, t), f); };
+      spitz(0, 0.75, y1 * 0.55, y1 + 0.2, 0.05, HELL); spitz(0, 0.5, y1 * 0.55 + 0.25, y1, 0.09, GLAS);
+      const yu = th * 0.56, ru = Math.min(1.7, a * 0.42);
+      for (let k = 0; k < 12; k++) { const w0 = k * Math.PI / 6, w1 = w0 + Math.PI / 6; K.drei(P(0, yu, 0.07), P(Math.cos(w0) * ru, yu + Math.sin(w0) * ru, 0.07), P(Math.cos(w1) * ru, yu + Math.sin(w1) * ru, 0.07), farbe('#f3efe2'));
+        K.drei(P(0, yu, 0.04), P(Math.cos(w0) * (ru + 0.22), yu + Math.sin(w0) * (ru + 0.22), 0.04), P(Math.cos(w1) * (ru + 0.22), yu + Math.sin(w1) * (ru + 0.22), 0.04), GOLD); }
+      flaeche(-0.07, 0.07, yu, yu + ru * 0.8, 0.1, farbe('#1c1c1c')); K.quad(P(0, yu - 0.07, 0.1), P(ru * 0.55, yu + 0.25, 0.1), P(ru * 0.55, yu + 0.39, 0.1), P(0, yu + 0.07, 0.1), farbe('#1c1c1c'));       // die Zeiger: zehn nach zwölf
+      for (const q of [-a * 0.42, a * 0.42]) { spitz(q, a * 0.26, th * 0.74, th - 3.2, 0.05, HELL); spitz(q, a * 0.2, th * 0.74 + 0.2, th - 3.4, 0.09, farbe('#2b2622'));
+        for (let k = 0; k < 5; k++) flaeche(q - a * 0.2, q + a * 0.2, th * 0.74 + 0.5 + k * (th * 0.26 - 4.2) / 5, th * 0.74 + 0.68 + k * (th * 0.26 - 4.2) / 5, 0.12, farbe('#5a5048')); }
+    }
+    // der Helm: unten vier kleine Giebel, darüber die lange Spitze aus grünem Kupfer, ganz oben Kugel und Wetterhahn
+    const hs = h.turm[2] * 2.1, sp = [tx, th + hs, tz], e = [[tx - a - 0.4, th, tz + a + 0.4], [tx + a + 0.4, th, tz + a + 0.4], [tx + a + 0.4, th, tz - a - 0.4], [tx - a - 0.4, th, tz - a - 0.4]];
+    for (let i = 0; i < 4; i++) { const p = e[i], q = e[(i + 1) % 4], mitte = [(p[0] + q[0]) / 2, th + a * 1.3, (p[1 + 1] + q[2]) / 2];
+      K.drei(p, q, mitte, STEIN[2]); dach.drei(p, mitte, sp, df, 0.5, 0.5); dach.drei(mitte, q, sp, df, 0.5, 0.5); }
+    K.kiste(tx - 0.3, th + hs - 0.5, tz - 0.3, tx + 0.3, th + hs + 0.1, tz + 0.3, GOLD); K.kiste(tx - 0.05, th + hs, tz - 0.05, tx + 0.05, th + hs + 1.6, tz + 0.05, GOLD); K.kiste(tx - 0.5, th + hs + 1.2, tz - 0.04, tx + 0.4, th + hs + 1.7, tz + 0.04, GOLD);
+    // das Turmportal im Westen
+    { const P = (q, y, t) => [tx - a - t, y, tz + q], bogen = (bb, o, t, f) => { K.quad(P(-bb, 0, t), P(bb, 0, t), P(bb, o, t), P(-bb, o, t), f); K.drei(P(-bb, o, t), P(bb, o, t), P(0, o + bb * 1.3, t), f); };
+      bogen(1.5, 3.0, 0.5, HELL); bogen(1.15, 2.9, 0.55, HOLZ); }
   }
 
   // ---- Kleinkram aus einfachen Formen: Stege, Kräne, Boote, Waggons, Bussteige
