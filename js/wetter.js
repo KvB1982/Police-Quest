@@ -28,7 +28,7 @@ const GRAU = { tag: '#8f9aa4', abend: '#5b586a', nacht: '#0d1322', dunkel: '#0d1
 const REGEN_HELL = { tag: 0.62, abend: 0.48, nacht: 0.34, dunkel: 0.34 };       // wie gut man die Regen-Striche sieht
 // Fahnen: [x, z, Höhe des Masts, Bild]. Sie stehen neben Wache, Rathaus, Museum, Seenotrettern und am Alten Hafen.
 const FAHNEN = [
-  [23.6, -6.4, 9, 0], [56.4, -6.4, 9, 0], [-90.6, -46, 11, 0], [-90.6, -22, 11, 1], [74.3, 43.3, 9, 0],
+  [23.6, -9.2, 9, 0], [43.8, -9.2, 9, 0], [-90.6, -46, 11, 0], [-90.6, -22, 11, 1], [74.3, 43.3, 9, 0],
   [598, -66, 10, 2], [-26, UFER + 3.2, 10, 1], [0, UFER + 3.2, 12, 0], [26, UFER + 3.2, 10, 2],
 ];
 

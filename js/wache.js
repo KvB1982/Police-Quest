@@ -16,6 +16,21 @@
 // Liege mit schwer brennbarer Matratze, WC aus Edelstahl, Schließfächer für die Waffe vor dem Zellentrakt,
 // Wachtresen hinter Glas, Hof ohne Einblick von der Straße). Der Grundriss selbst ist ausgedacht.
 
+// Die Wache steht mitten in der Stadt (seit 27.11.2026): im Block zwischen Deichstraße, Speicherstraße, Museumsstraße und Wachstraße.
+// Alle Maße in dieser Datei sind "Wache-Maße" (die Hoftür liegt bei x = 0, z = 6). wacheDaten() schiebt am Ende alles
+// um WACHE_X / WACHE_Z an seinen Platz in der Stadt. Vorn (Norden) liegt der Eingang an der Speicherstraße,
+// hinten (Süden) geht das Schiebetor vom Hof auf die Wachstraße.
+export const WACHE_X = 29, WACHE_Z = -38;
+export const WACHE_BLOCK = [8, -52, 72, -8];          // das ganze Grundstück in Stadt-Maßen (Vorplatz, Haus, Hof)
+export const WACHE_HAUS = [8, -48, 72, -32];           // nur das Haus (für den Stadtplan und die Karte)
+export const WACHE_KAMERA = [11, 7.5];                 // Kamera auf dem Grundstück: Höhe und Abstand (steiler als in der Stadt)
+export const WACHE_PLATZ8 = [6 + WACHE_X, 14 + WACHE_Z];       // hier parkt Möwe 14 (Parkplatz 8), die Nase zum Tor
+export const WACHE_TOR = [6 + WACHE_X, 30 + WACHE_Z];          // das Schiebetor zur Wachstraße
+// Der Umriss des Hauses in Wache-Maßen: das lange Haus und rechts der Anbau mit dem Gewahrsam
+export const WACHE_UMRISS = [[-21, -10, 31.5, 6], [31.5, -6, 43, 6]];
+export const inWache = (x, z, rand = 0) => x > WACHE_BLOCK[0] - rand && x < WACHE_BLOCK[2] + rand && z > WACHE_BLOCK[1] - rand && z < WACHE_BLOCK[3] + rand;
+export const imWachHaus = (x, z, rand = 0) => WACHE_UMRISS.some(r => x - WACHE_X > r[0] - rand && x - WACHE_X < r[2] + rand && z - WACHE_Z > r[1] - rand && z - WACHE_Z < r[3] + rand);
+
 const V = Math.PI / 2, N = Math.PI;       // Drehungen: 0 = schaut nach Süden (zur Kamera), N = nach Norden, V = nach Osten, -V = nach Westen
 const D = 0.15;                            // halbe Dicke einer Wand
 
@@ -50,7 +65,7 @@ ziehe('z', -14, -10, 6, { tuer: [[-3.6, 1.4], [3, 3.4]] });                     
 ziehe('z', -5, -10, 0); ziehe('z', 5, -10, 0); ziehe('z', 14, -10, 0); ziehe('z', 19, -10, 0); ziehe('z', 27, -10, 0);
 ziehe('z', 31.5, -6, 6, { tuer: [[3, 1.6]] });
 ziehe('z', 35.33, -6, 0); ziehe('z', 39.17, -6, 0);
-ziehe('x', -6.4, 12.4, 14, { tuer: [[13.3, 1.0]] });                                  // neben dem Wachtresen: die Tür hinter den Tresen
+ziehe('x', -6.4, 12.4, 14, { tuer: [[13.2, 1.4]] });                                  // neben dem Wachtresen: die Tür hinter den Tresen
 
 // Die Parkplätze im Hof: zehn Stück, jeder 3 m breit. Platz 6 (vor der Hoftür) bleibt immer frei.
 const PLATZ = [-15, -12, -9, -6, -3, 0, 3, 6, 9, 12];
@@ -67,20 +82,16 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
   const TIMO = { hemd: '#4a4f57', hose: '#2a2a2a', haut: '#f0c8a0', haar: '#3a2a1a', modell: 'unfallfahrer', art: 'mann' };
   const DIEB = { hemd: '#3f9a4a', hose: '#333', haut: '#e8b890', haar: '#8a5a2a', modell: 'w2', art: 'mann' };
 
-  return {
+  const roh = {
     name: 'Polizeiwache Am Deich',
-    gross: [-23.6, -17, 45.6, 29.6],
-    kamera: [11, 7.5],
-    schatten: 46, mitte: [11, 8],                 // die Sonne wirft hier Schatten (Feld von 46 m um die Mitte)
-    aussen: '#8f9499', aussenArt: 'gehweg',
     wandFarbe: '#ece7dc',
     waende: WAENDE, glaswaende: GLAS, klinker: KLINKER,
     boden: [
-      { r: [-25, 6, 47, 31], farbe: '#7b8086', art: 'asphalt', ueber: 0 },             // Hof
-      { r: [-60, 33.5, 80, 41], farbe: '#6a6e73', art: 'asphalt', ueber: 0 },          // die Wachstraße vor dem Tor
-      { r: [-60, -27, 80, -19.5], farbe: '#6a6e73', art: 'asphalt', ueber: 0 },        // die Straße Am Deich vor dem Eingang
-      { r: [-25, -10, -21.2, 6], farbe: '#6f9a5f', art: 'gras', ueber: 0 }, { r: [43.2, -10, 47, 6], farbe: '#6f9a5f', art: 'gras', ueber: 0 }, { r: [31.7, -10, 43.2, -6.2], farbe: '#6f9a5f', art: 'gras', ueber: 0 },
-      { r: [19, -17.5, 31, -11.2], farbe: '#74787d', art: 'asphalt', ueber: 0 },       // Besucher-Parkplatz
+      { r: [-21, -14, 43, 30], farbe: '#8f9499', art: 'gehweg', ueber: 0 },            // das ganze Grundstück: Pflaster (darauf liegt alles andere)
+      { r: [-21, 6, 43, 30], farbe: '#7b8086', art: 'asphalt', ueber: 0.5 },           // Hof
+      { r: [3, 30, 9, 33], farbe: '#7b8086', art: 'asphalt', y: 0.06 },                // die Ausfahrt: vom Tor über den Gehweg bis zur Wachstraße
+      { r: [31.7, -14, 43, -6.2], farbe: '#6f9a5f', art: 'gras', ueber: 0.5 },         // Rasen in der Ecke neben dem Gewahrsam
+      { r: [19.5, -14, 31, -11.4], farbe: '#74787d', art: 'asphalt', ueber: 0.5 },     // Besucher-Parkplatz: eine Bucht längs am Vorplatz
       { r: [-14, 0, 31.5, 6], farbe: '#d6cfbd', art: 'linoleum', ueber: 1 },           // Flur
       { r: [-13.85, 0.15, 31.35, 0.75], farbe: '#a9a18d', art: 'linoleum', ueber: 2 }, { r: [-13.85, 5.25, 31.35, 5.85], farbe: '#a9a18d', art: 'linoleum', ueber: 2 },       // dunkle Streifen an den Wänden
       { r: [-21, -10, -14, 0], farbe: '#d3e0e4', art: 'fliesen', ueber: 1 },           // Waschraum
@@ -154,27 +165,27 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
         { x: x + 0.5, z: -2.6, b: 0.6, t: 0.6, h: 0.9, form: 'zellenwc', dreh: V },
       ]),
       // ----- Hof
-      { x: -20.6, z: 26.2, b: 5.2, t: 5.2, h: 1.8, form: 'zwinger', durch: true },
-      ...[[-20.6, 23.6, 5.2, 0.2], [-18, 26.2, 0.2, 5.2]].map(([x, z, b, t]) => ({ x, z, b, t, h: 1.8, farbe: '#6b7278' })).map(q => ({ ...q, form: 'linie', y: -1 })),       // unsichtbare Hindernisse am Zwinger
-      { x: -22.4, z: 9.2, b: 1.4, t: 1.1, h: 1.35, farbe: '#3d5a3a', form: 'container' }, { x: -22.4, z: 10.9, b: 1.4, t: 1.1, h: 1.35, farbe: '#4a5a6a', form: 'container' },
+      { x: -18.3, z: 26.2, b: 5.2, t: 5.2, h: 1.8, form: 'zwinger', durch: true },
+      ...[[-18.3, 23.6, 5.2, 0.2], [-15.7, 26.2, 0.2, 5.2]].map(([x, z, b, t]) => ({ x, z, b, t, h: 1.8, farbe: '#6b7278' })).map(q => ({ ...q, form: 'linie', y: -1 })),       // unsichtbare Hindernisse am Zwinger
+      { x: -20.1, z: 9.2, b: 1.4, t: 1.1, h: 1.35, farbe: '#3d5a3a', form: 'container' }, { x: -20.1, z: 10.9, b: 1.4, t: 1.1, h: 1.35, farbe: '#4a5a6a', form: 'container' },
       { x: 24, z: 12.5, b: 2.2, t: 1.0, h: 1.6, form: 'zapfsaeule' },
       { x: 30, z: 18.4, b: 9, t: 2.2, h: 0.3, form: 'beet' }, { x: 30, z: 18.4, b: 0.5, t: 0.5, h: 5.5, form: 'hofleuchte', dreh: N },                    // grüne Insel mitten im Hof
       { x: 28.5, z: 6.75, b: 2.6, t: 0.9, h: 1.2, form: 'waschplatz' },
       { x: -7, z: 7.1, b: 2.6, t: 1.4, h: 1.0, form: 'fahrradstaender', n: 3 },
       { x: 14.6, z: 6.6, b: 0.9, t: 0.6, h: 0.6, form: 'streukiste' },
-      { x: 44.9, z: 12.5, b: 0.5, t: 2, h: 1, farbe: '#888', modell: 'absperrgitter', dreh: V }, { x: 44.9, z: 14.9, b: 0.5, t: 2, h: 1, farbe: '#888', modell: 'absperrgitter', dreh: V },
-      { x: 44.6, z: 9.4, b: 1.6, t: 0.5, h: 0.8, farbe: '#888', modell: 'betonsperre' }, { x: 44.6, z: 10.3, b: 1.6, t: 0.5, h: 0.8, farbe: '#888', modell: 'betonsperre' },
-      { x: 23, z: 29.2, b: 0.5, t: 0.5, h: 5.5, form: 'hofleuchte', dreh: N }, { x: -8, z: 29.2, b: 0.5, t: 0.5, h: 5.5, form: 'hofleuchte', dreh: N }, { x: 44.8, z: 20, b: 0.5, t: 0.5, h: 5.5, form: 'hofleuchte', dreh: -V },
-      { x: -23, z: 7.4, b: 0.7, t: 0.7, h: 11, form: 'antenne' },
-      // der Zaun rund um den Hof, in der Mitte der Südseite das Schiebetor
-      zaun(-10.6, 30, 26.8), zaun(27.4, 30, 36.8), zaun(-24, 18, 24, true), zaun(46, 18, 24, true), zaun(-22.5, 6, 3, false, false), zaun(44.5, 6, 3, false, false),
-      { x: 6, z: 30, b: 6, t: 0.3, h: 1.9, form: 'tor' },
+      { x: 42.5, z: 12.5, b: 0.5, t: 2, h: 1, farbe: '#888', modell: 'absperrgitter', dreh: V }, { x: 42.5, z: 14.9, b: 0.5, t: 2, h: 1, farbe: '#888', modell: 'absperrgitter', dreh: V },
+      { x: 41.9, z: 9.6, b: 1.6, t: 0.5, h: 0.8, farbe: '#888', modell: 'betonsperre' }, { x: 41.9, z: 10.5, b: 1.6, t: 0.5, h: 0.8, farbe: '#888', modell: 'betonsperre' },
+      { x: 23, z: 29.2, b: 0.5, t: 0.5, h: 5.5, form: 'hofleuchte', dreh: N }, { x: -8, z: 29.2, b: 0.5, t: 0.5, h: 5.5, form: 'hofleuchte', dreh: N }, { x: 42.2, z: 19.4, b: 0.5, t: 0.5, h: 5.5, form: 'hofleuchte', dreh: -V },
+      { x: 42.4, z: 7.9, b: 0.7, t: 0.7, h: 11, form: 'antenne' },
+      // der Zaun rund um den Hof: links und rechts an den Gehwegen der Deichstraße und der Museumsstraße, hinten an der Wachstraße.
+      // In der Lücke der Südseite fährt das Schiebetor (es steht bei den Dingen, weil es sich bewegt).
+      zaun(-9, 30, 24), zaun(26, 30, 34), zaun(-21, 18, 24, true), zaun(43, 18, 24, true),
+      { x: 6, z: 30, b: 6, t: 0.3, h: 1.9, form: 'tor', nur: 'fest', durch: true },       // Schiene, Pfosten und Antrieb des Tors
       // ----- Vorplatz
-      { x: 5, z: -14.5, b: 1.3, t: 0.4, h: 3, form: 'pylon' },
-      ...[13.2, 14.6, 16].map((x, i) => ({ x, z: -15, b: 0.3, t: 0.3, h: 7, form: 'fahnenmast', farben: [['#1d3f8a', '#f2f2ee', '#1d3f8a'], ['#f2f2ee', '#c62828', '#f2f2ee'], ['#111', '#c62828', '#d9a521']][i] })),
+      { x: 5, z: -13.1, b: 1.3, t: 0.4, h: 3, form: 'pylon' },
+      ...[13.2, 14.6, 16].map((x, i) => ({ x, z: -13.4, b: 0.3, t: 0.3, h: 7, form: 'fahnenmast', farben: [['#1d3f8a', '#f2f2ee', '#1d3f8a'], ['#f2f2ee', '#c62828', '#f2f2ee'], ['#111', '#c62828', '#d9a521']][i] })),
       { x: 2, z: -11.2, b: 2.0, t: 1.4, h: 1.0, form: 'fahrradstaender', n: 2 },
       { x: -9, z: -10.9, b: 15, t: 1.0, h: 0.3, form: 'beet' }, { x: 16.8, z: -10.9, b: 3.4, t: 1.0, h: 0.3, form: 'beet' },
-      { x: -4, z: -17.6, b: 30, t: 0.7, h: 0.9, form: 'hecke' }, { x: 37, z: -17.6, b: 12, t: 0.7, h: 0.9, form: 'hecke' },
       { x: 37.3, z: -8.2, b: 10, t: 0.8, h: 1.1, form: 'hecke' },
     ],
     deko: [
@@ -254,34 +265,24 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
       ...[16.5, 19.5, 22.5, 25.5, 28.5, 31.5, 34.5, 37.5, 40.5].map(x => linie(x, 26.6, 0.14, 5.6)), { form: 'schrift', text: 'DIENSTGRUPPE', x: 28.5, z: 22.8, b: 6.4, farbe: '#e8eaec' },
       // Kleinkram, der einen Hof lebendig macht
       { form: 'kegel', x: 15.4, z: 7.4, n: 4 }, { form: 'kegel', x: 16.1, z: 7.0, n: 1 }, { form: 'fleck', x: -5.8, z: 13.6, b: 1.8 }, { form: 'fleck', x: 9.2, z: 15.2, b: 1.5 }, { form: 'fleck', x: -2.8, z: 14.8, b: 1.3 },
-      { modell: 'muelltonne', x: 16.9, z: 6.7 }, { modell: 'muelltonne', x: 17.7, z: 6.7 }, { modell: 'reifen', x: -22.9, z: 12.6 }, { modell: 'reifen', x: -22.8, z: 13.4, dreh: 1 }, { modell: 'kiste_holz', x: -22.4, z: 15.2, dreh: 0.3 },
+      { modell: 'muelltonne', x: 16.9, z: 6.7 }, { modell: 'muelltonne', x: 17.7, z: 6.7 }, { modell: 'reifen', x: -20.4, z: 12.6 }, { modell: 'reifen', x: -20.3, z: 13.4, dreh: 1 }, { modell: 'kiste_holz', x: -20.2, z: 15.2, dreh: 0.3 },
       { form: 'aschenbecher', x: 2.4, z: 6.6 }, { form: 'sitzbank', x: 4.4, z: 6.65, b: 1.8, t: 0.5, farbe: '#8a6a4a' }, { modell: 'pflanzkuebel', x: -2.3, z: 6.7 }, { modell: 'pflanzkuebel', x: 6.2, z: 6.7 },
       { form: 'poller', x: -1.7, z: 11.2 }, { form: 'poller', x: 1.7, z: 11.2 }, { form: 'poller', x: 32.2, z: 11 }, { form: 'poller', x: 35.8, z: 11 },
-      { modell: 'baum_laub', x: -22, z: 20 }, { modell: 'baum_laub', x: 44.7, z: 21.5, mal: 0.6 }, { modell: 'baum_laub', x: 44.6, z: 27.2, mal: 0.8 }, { form: 'beet', x: 44.6, z: 24, b: 2.2, t: 9 }, { modell: 'gully', x: 6, z: 21, y: 0.02 }, { modell: 'gully', x: 24, z: 20, y: 0.02 },
+      { modell: 'baum_laub', x: -19.6, z: 20.4, mal: 0.8 }, { modell: 'baum_laub', x: 41.9, z: 21.8, mal: 0.6 }, { modell: 'baum_laub', x: 41.9, z: 27.4, mal: 0.7 }, { form: 'beet', x: 41.9, z: 24.6, b: 1.8, t: 8 }, { modell: 'gully', x: 6, z: 21, y: 0.02 }, { modell: 'gully', x: 24, z: 20, y: 0.02 },
       { form: 'schildmast', text: 'Schritt|fahren', x: 2.3, z: 29.3, b: 0.8, farbe: '#f2f2ee', schrift: '#111', dreh: N }, { modell: 'kamera_wand', x: 3.0, z: 6.3, y: 1.45, dreh: 0.6 },
-      // ----- vor dem Tor: Gehweg, Wachstraße, Häuser gegenüber
-      linie(10, 37.25, 140, 0.14),
-      { form: 'bordstein', x: 10, z: 33.4, b: 140, t: 0.25 }, { form: 'bordstein', x: 10, z: 41.1, b: 140, t: 0.25 },
-      { form: 'haus', x: -34, z: 50, b: 18, t: 11, h: 12.2, stil: 'backstein', dach: '#7a3b2e' }, { form: 'haus', x: -13, z: 50, b: 21, t: 11, h: 9.2, stil: 'putz', dach: '#5a4a44' },
-      { form: 'haus', x: 9, z: 50.5, b: 18, t: 11, h: 12.2, stil: 'dunkel', dach: '#4a4f57' }, { form: 'haus', x: 30, z: 50, b: 21, t: 11, h: 9.2, stil: 'sandstein', dach: '#7a3b2e' }, { form: 'haus', x: 52, z: 50.5, b: 18, t: 11, h: 12.2, stil: 'backstein', dach: '#5a4a44' },
-      { modell: 'laterne', x: -14, z: 32.6 }, { modell: 'laterne', x: 26, z: 32.6 }, { modell: 'baum_laub', x: -30, z: 32.4 }, { modell: 'baum_laub', x: 50, z: 32.4 }, { modell: 'baum_laub', x: -4, z: 42.6, mal: 0.9 }, { modell: 'baum_laub', x: 20, z: 42.6 },
-      // ----- Vorplatz und die Straße Am Deich
+      // ----- Vorplatz an der Speicherstraße (Straßen, Gehwege und die Häuser gegenüber gehören zur Stadt: stadtplan.js)
       { form: 'vordach', x: 9.5, z: -11.2, b: 3.6, t: 2.4, dreh: N }, { form: 'matte', x: 9.5, z: -10.9, b: 1.8, t: 0.9 },
       { form: 'briefkasten', x: 11.4, z: -10.26, dreh: N }, { form: 'klingel', x: 8.1, z: -10.26, dreh: N }, { form: 'schild', text: 'POLIZEI', x: 9.5, z: -10.27, dreh: N, b: 1.9, h: 0.4, y: 1.25 },
       { form: 'wandleuchte', x: 7.4, z: -10.26, dreh: N, y: 1.6 }, { form: 'wandleuchte', x: 11.9, z: -10.26, dreh: N, y: 1.6 }, { modell: 'kamera_wand', x: 13.6, z: -10.3, y: 1.45, dreh: N },
       { form: 'sitzbank', x: -2, z: -12.4, b: 1.8, t: 0.5, farbe: '#8a6a4a', dreh: N }, { modell: 'muelltonne', x: -0.4, z: -12.3 }, { form: 'aschenbecher', x: 7.2, z: -11.6 },
-      { modell: 'laterne_alt', x: 1, z: -16.4 }, { modell: 'laterne_alt', x: 17.6, z: -16.4 }, { modell: 'laterne_alt', x: -16, z: -16.4 }, { modell: 'laterne_alt', x: 33, z: -16.4 },
-      { modell: 'baum_laub', x: -12, z: -14.2, mal: 0.85 }, { modell: 'baum_laub', x: -20, z: -14, mal: 0.7 }, { modell: 'baum_laub', x: 38, z: -12.6, mal: 0.8 }, { modell: 'baum_laub', x: 45, z: -3, mal: 0.75 }, { modell: 'baum_laub', x: -23.4, z: -5, mal: 0.6 },
-      ...[20.5, 23.5, 26.5, 29.5].map(x => linie(x, -14.6, 0.14, 5.4)), { form: 'schrift', text: 'BESUCHER', x: 25, z: -11.8, b: 4.2, farbe: '#e8eaec' }, { form: 'schildmast', art: 'park', text: 'Besucher|der Wache', x: 19.4, z: -11.6, dreh: N },
-      { form: 'bordstein', x: 10, z: -19.4, b: 140, t: 0.25 }, { form: 'bordstein', x: 10, z: -27.1, b: 140, t: 0.25 }, linie(10, -23.25, 140, 0.14),
-      { form: 'haus', x: -32, z: -36, b: 20, t: 11, h: 12.2, stil: 'sandstein', dach: '#5a4a44' }, { form: 'haus', x: -9, z: -36.5, b: 21, t: 11, h: 9.2, stil: 'backstein', dach: '#7a3b2e' },
-      { form: 'haus', x: 13, z: -36, b: 18, t: 11, h: 12.2, stil: 'putz', dach: '#7a3b2e' }, { form: 'haus', x: 34, z: -36.5, b: 20, t: 11, h: 9.2, stil: 'dunkel', dach: '#4a4f57' }, { form: 'haus', x: 56, z: -36, b: 19, t: 11, h: 12.2, stil: 'sandstein', dach: '#5a4a44' },
-      { modell: 'baum_laub', x: -22, z: -28.6 }, { modell: 'baum_laub', x: 2, z: -28.6, mal: 0.9 }, { modell: 'baum_laub', x: 24, z: -28.6 }, { modell: 'baum_laub', x: 46, z: -28.6, mal: 0.9 },
+      { modell: 'laterne_alt', x: -16, z: -13.4 }, { modell: 'laterne_alt', x: 33, z: -13.4 },
+      { modell: 'baum_laub', x: -12, z: -12.9, mal: 0.7 }, { modell: 'baum_laub', x: 38, z: -11.6, mal: 0.8 },
+      ...[19.7, 25.2, 30.8].map(x => linie(x, -12.7, 0.14, 2.4)), { form: 'schrift', text: 'BESUCHER', x: 28, z: -12.7, b: 4.2, farbe: '#e8eaec' }, { form: 'schildmast', art: 'park', text: 'Besucher|der Wache', x: 19.4, z: -11.6, dreh: N },
     ],
     tueren: [
       { x: -9.5, z: 0, b: 2 }, { x: 0, z: 0, b: 2 }, { x: 9.5, z: 0, b: 2 }, { x: 16.5, z: 0, b: 1.4 }, { x: 23, z: 0, b: 2 }, { x: 29.2, z: 0, b: 1.4, farbe: '#6f777f' },
       { x: 0, z: 6, b: 3, farbe: '#5f6b78' }, { x: 9.5, z: -10, b: 2, art: 'glas' }, { x: -14, z: -3.6, b: 1.4, quer: true, farbe: '#b9c7cf' },
-      { x: -19.8, z: 6, b: 1.2, farbe: '#4a515a' }, { x: 13.3, z: -6.4, b: 1.0, art: 'glas' },
+      { x: -19.8, z: 6, b: 1.2, farbe: '#4a515a' }, { x: 13.2, z: -6.4, b: 1.4, art: 'glas' },
       { x: 31.5, z: 3, b: 1.6, quer: true, farbe: '#5d6f6c' }, { x: 34, z: 6, b: 1.6, farbe: '#4a515a' },
     ],
     schilder: [
@@ -291,7 +292,9 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
     dinge: [
       { id: 'waffenschrank', x: -20.3, z: 3, name: 'Stahlschrank der Waffenkammer', art: 'schrank', fest: [1, 1.6], sieh: 'Ein schwerer Stahlschrank mit zwei Türen und einem Zahlenschloss. Den Schlüssel dazu hat nur Harms.' },
       { id: 'spind', x: -13.2, z: -6, name: 'Dein Spind', art: 'spind', akt: 'spind', fest: [1, 1.2], sieh: 'Ein schmaler Stahlspind mit Zahlenschloss. Auf dem Namensschild steht: K. Berger.' },
-      { id: 'auto', x: 6, z: 14, art: 'auto', polizei: true, h: 0, fest: [2, 4.4] },
+      // Möwe 14 steht nicht hier bei den Dingen: Das ist der echte Streifenwagen aus main.js. Er parkt am Anfang auf Platz 8 (WACHE_PLATZ8).
+      // Das Schiebetor: Es rollt von selbst zur Seite, wenn du zu Fuß oder mit dem Wagen kommst (main.js, klappenSchritt).
+      { id: 'tor', x: 6, z: 30, art: 'tor', b: 6, t: 0.3, h: 1.9, fest: [6, 0.3], schiebt: -6.3 },
       { id: 'moewe9', x: -6, z: 14, art: 'auto', polizei: true, leicht: true, h: 0, fest: [2, 4.4], name: 'Streifenwagen Möwe 9', verb: 'sieh', sieh: 'Möwe 9, der Wagen von Ben Okafor. Frisch gewaschen, die Reifen glänzen noch nass.' },
       { id: 'moewe12', x: 12, z: 14, art: 'auto', polizei: true, leicht: true, h: 0, fest: [2, 4.4], name: 'Streifenwagen Möwe 12', verb: 'sieh', sieh: 'Möwe 12, der Wagen von Jan Dirks und Meike Tammen. Auf dem Beifahrersitz liegt eine angebissene Laugenstange.' },
       { id: 'zivil', x: -12, z: 14, art: 'auto', farbe: '#4f5a66', h: 0, fest: [2, 4.4], name: 'Ziviler Dienstwagen', verb: 'sieh', sieh: 'Ein grauer Kombi ohne Aufschrift. Nur wer genau hinsieht, entdeckt das Blaulicht hinter dem Kühlergrill. Den fährt die Kripo.' },
@@ -300,19 +303,25 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
       { id: 'privat1', x: 19.5 + 1.5, z: 26.6, art: 'auto', farbe: '#b03a2e', h: N, fest: [2, 4.4], name: 'Roter Kleinwagen', verb: 'sieh', sieh: 'Ein kleiner roter Wagen mit einem Aufkleber: „Frikadellen sind auch eine Lösung.“ Das kann nur Hannes sein.' },
       { id: 'privat2', x: 28.5 + 1.5, z: 26.6, art: 'auto', farbe: '#2f5a44', h: N, fest: [2, 4.4], name: 'Grüner Kombi', verb: 'sieh', sieh: 'Ein dunkelgrüner Kombi, mindestens zwanzig Jahre alt und blitzsauber. Am Spiegel baumelt ein kleiner Anker. Ottos Wagen.' },
       { id: 'privat3', x: 37.5 + 1.5, z: 26.6, art: 'auto', farbe: '#d9dcdf', h: N, fest: [2, 4.4], name: 'Silberner Wagen', verb: 'sieh', sieh: 'Ein silberner Wagen mit Kindersitz auf der Rückbank und Sand im Fußraum.' },
-      { id: 'besucher', x: 22, z: -14.6, art: 'auto', farbe: '#3d6fa0', h: N, fest: [2, 4.4], name: 'Blauer Wagen', verb: 'sieh', sieh: 'Ein blauer Wagen auf dem Besucher-Parkplatz. Hinter der Scheibe liegt eine Parkscheibe – ordentlich eingestellt.' },
+      { id: 'besucher', x: 22.4, z: -12.7, art: 'auto', farbe: '#3d6fa0', h: V, fest: [4.4, 2], name: 'Blauer Wagen', verb: 'sieh', sieh: 'Ein blauer Wagen auf dem Besucher-Parkplatz. Hinter der Scheibe liegt eine Parkscheibe – ordentlich eingestellt.' },
       { id: 'c_vorn', x: 6, z: 17.2, name: 'Scheinwerfer und Blinker prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_vorn', nah: 1.6, verb: 'sieh' },
       { id: 'c_reifen1', x: 4.2, z: 15.3, name: 'Reifen links prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_reifen1', nah: 1.6, verb: 'sieh' },
       { id: 'c_reifen2', x: 7.8, z: 12.7, name: 'Reifen rechts prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_reifen2', nah: 1.6, verb: 'sieh' },
       { id: 'c_heck', x: 6, z: 10.8, name: 'Rücklichter und Kofferraum prüfen', art: 'punkt', akt: 'check', wenn: 'briefing', bis: 'c_heck', nah: 1.6, verb: 'sieh' },
-      { id: 'einsteigen', x: 4.2, z: 13.6, name: 'In den Streifenwagen einsteigen', art: 'punkt', akt: 'einsteigen_hof', wenn: 'briefing', nah: 1.6, farbe: '#3fa7ff', sieh: 'Die Fahrertür von Möwe 14.' },
       // Gewahrsam: Schließfächer für die Waffe und die drei Zellentüren
       { id: 'waffenfach', x: 31.7, z: 1.1, h: V, name: 'Waffenschließfach', art: 'waffenfach', akt: 'waffenfach', nah: 2.2, sieh: 'Sechs kleine Stahlfächer mit Schlüssel. Darüber ein rotes Schild: Waffen einschließen! In den Zellentrakt geht niemand mit Pistole.' },
       ...[33.4, 37.25, 41.1].map((x, i) => ({ id: 'zelle' + (i + 1), nr: i + 1, x, z: 0, name: `Zelle ${i + 1}`, art: 'zellentuer', akt: 'zelle', nah: 2.4, fest: [1.4, 0.3], sieh: 'Eine schwere Stahltür mit zwei Riegeln. In der Mitte die Klappe für das Essen, darüber das Guckloch. Von innen gibt es keine Klinke.' })),
     ],
     leute: [
       { id: 'otto', x: 2, z: 3.5, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, bis: 'briefing', look: OTTO_LOOK },
-      { id: 'otto', x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'briefing', look: OTTO_LOOK },
+      // Nach dem Briefing wartet Otto im Hof am Wagen. Sobald ihr das erste Mal losfahrt (Merker "los"), ist er dein Beifahrer und läuft dir nach (folgt).
+      // Lieferst du jemanden ein (Merker "hof1", "hof2"), bleibt er beim Wagen stehen (amWagen), bis ihr wieder abfahrt.
+      { id: 'otto', x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'briefing', bis: 'los', look: OTTO_LOOK },
+      { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'los', bis: 'hof1', look: OTTO_LOOK },
+      { id: 'otto', amWagen: true, x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'hof1', bis: 'abgabe1', look: OTTO_LOOK },
+      { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'abgabe1', bis: 'hof2', look: OTTO_LOOK },
+      { id: 'otto', amWagen: true, x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'hof2', bis: 'abgabe2', look: OTTO_LOOK },
+      { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'abgabe2', look: OTTO_LOOK },
       { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', bis: 'briefing', look: { ...POLIZEI, haar: '#1e1a17', muetze: null, modell: 'selin', art: 'frau' }, sieh: 'Selin Aydin leitet die Wache. Kerzengerade, die Uniform wie gebügelt. Sie sieht von ihren Unterlagen auf, bevor du etwas sagst.' },
       // Nach der Besprechung sitzt sie in ihrem Büro am Rechner
       { id: 'selin', x: 16.5, z: -6.28, h: 0, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', wenn: 'briefing', nah: 2.6, look: { ...POLIZEI, haar: '#1e1a17', muetze: null, modell: 'selin', art: 'frau', arbeit: 'tippen' }, sieh: 'Selin Aydin sitzt in ihrem Büro am Rechner und schreibt den Dienstplan für nächste Woche. Kerzengerade, auch im Sitzen.' },
@@ -321,9 +330,9 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
       // Harms ist in der Waffenkammer – außer wenn du jemanden einlieferst: Dann wartet er im Gewahrsam.
       { ...HARMS_KAMMER, bis: 'gefangen1' }, { ...HARMS_KAMMER, wenn: 'abgabe1', bis: 'gefangen2' }, { ...HARMS_KAMMER, wenn: 'abgabe2' },
       { ...HARMS_GEWAHRSAM, wenn: 'gefangen1', bis: 'abgabe1' }, { ...HARMS_GEWAHRSAM, wenn: 'gefangen2', bis: 'abgabe2' },
-      // Die Festgenommenen: Erst laufen sie neben dir her (folgt), später sitzen sie in ihrer Zelle.
-      { id: 'gef1', folgt: true, x: 5.2, z: 12.4, name: 'Timo Reents', akt: 'gefangener', wenn: 'gefangen1', bis: 'zelle1', look: TIMO, sieh: 'Timo Reents, der Fahrer des dunklen Kombi. Die Hände in Handschellen vor dem Bauch, den Blick auf dem Boden. Er humpelt.' },
-      { id: 'gef2', folgt: true, x: 5.2, z: 12.4, name: 'Der Taschendieb', akt: 'gefangener', wenn: 'gefangen2', bis: 'zelle2', look: DIEB, sieh: 'Der Mann vom Käsestand. Ohne Rucksack sieht er schmaler aus. Er mustert jede Tür, an der ihr vorbeikommt.' },
+      // Die Festgenommenen: Sie steigen im Hof aus (Merker "hof1", "hof2") und laufen neben dir her (folgt), später sitzen sie in ihrer Zelle.
+      { id: 'gef1', folgt: true, x: 5.2, z: 12.4, name: 'Timo Reents', akt: 'gefangener', wenn: 'hof1', bis: 'zelle1', look: TIMO, sieh: 'Timo Reents, der Fahrer des dunklen Kombi. Die Hände in Handschellen vor dem Bauch, den Blick auf dem Boden. Er humpelt.' },
+      { id: 'gef2', folgt: true, x: 5.2, z: 12.4, name: 'Der Taschendieb', akt: 'gefangener', wenn: 'hof2', bis: 'zelle2', look: DIEB, sieh: 'Der Mann vom Käsestand. Ohne Rucksack sieht er schmaler aus. Er mustert jede Tür, an der ihr vorbeikommt.' },
       { id: 'timo_zelle', x: 33.6, z: -5.25, y: 0.5, h: -V, name: 'Timo Reents (Zelle 1)', akt: 'zellenmann', nah: 6, wenn: 'zelle1', look: { ...TIMO, sitzt: true }, sieh: 'Timo sitzt auf der Liege, das verletzte Bein ausgestreckt. Er zupft an der grauen Decke und schaut nicht zur Tür.' },
       { id: 'dieb_zelle', x: 37.25, z: -1.9, h: 0, name: 'Der Taschendieb (Zelle 2)', akt: 'zellenmann', nah: 3.4, wenn: 'zelle2', look: DIEB, sieh: 'Der Taschendieb steht dicht an der Tür und lauscht. Als er dich bemerkt, tut er, als würde er die Wand betrachten.' },
       // Kollegen im Dienst. "runde" = ihr Weg durch die Wache: Punkte [x, z, Pause in Sekunden, Blickrichtung in der Pause]. Sie gehen ihn immer wieder ab.
@@ -340,5 +349,21 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
       { id: 'buerger1', x: 5.72, z: -8.3, h: V, name: 'Herr Janßen', akt: 'buerger', look: { hemd: '#8a7a5a', hose: '#444', haut: '#f0c8a0', haar: '#cfcfcf', modell: 'p6', art: 'mann', arbeit: 'ruhe', sitzHoch: 0.58 }, sieh: 'Ein älterer Herr sitzt im Wartebereich. Er hält eine Fahrradklingel in der Hand – ohne Fahrrad.' },
       { id: 'buerger2', x: 12.03, z: -9.4, h: 0, name: 'Frau Nguyen', akt: 'buerger', look: { hemd: '#c96a7a', hose: '#333', haut: '#e8c8a0', haar: '#1e1a17', modell: 'p3', art: 'frau', arbeit: 'ruhe', sitzHoch: 0.58 }, sieh: 'Eine Frau sitzt auf den Wartestühlen, einen dicken Umschlag auf dem Schoß. Sie schaut alle paar Sekunden zum Tresen.' },
     ],
+  };
+  return inDieStadt(roh);
+}
+
+// Alles aus Wache-Maßen an seinen Platz in der Stadt schieben. Jedes Ding und jede Person bekommt dazu den Merker wache: true
+// (daran erkennt main.js, dass Wege aus der Geschichte – z. B. der Weg in die Zelle – auch in Wache-Maßen gemeint sind).
+function inDieStadt(d) {
+  const X = WACHE_X, Z = WACHE_Z;
+  const eck = r => Object.assign([r[0] + X, r[1] + Z, r[2] + X, r[3] + Z], r.h ? { h: r.h } : {});
+  const ort = q => ({ ...q, x: q.x + X, z: q.z + Z });
+  return { ...d,
+    waende: d.waende.map(eck), glaswaende: d.glaswaende.map(eck), klinker: d.klinker.map(eck),
+    boden: d.boden.map(b => ({ ...b, r: eck(b.r) })),
+    moebel: d.moebel.map(ort), deko: d.deko.map(ort), tueren: d.tueren.map(ort), schilder: d.schilder.map(ort),
+    dinge: d.dinge.map(q => ({ ...ort(q), wache: true })),
+    leute: d.leute.map(q => ({ ...q, x: (q.x || 0) + X, z: (q.z || 0) + Z, wache: true, ...(q.runde ? { runde: q.runde.map(p => [p[0] + X, p[1] + Z, ...p.slice(2)]) } : {}) })),
   };
 }

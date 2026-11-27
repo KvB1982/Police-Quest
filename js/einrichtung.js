@@ -290,9 +290,13 @@ export function moebelForm(q) {
       if (q.draht) for (let i = 0; i < n; i++) { const x = -b / 2 + (i + 0.5) * b / n; K(b / n, 0.012, 0.012, x, h + 0.2, 0.05, '#9aa0a6'); K(b / n, 0.012, 0.012, x, h + 0.3, 0.1, '#9aa0a6'); } if (q.draht) for (let i = 0; i <= n; i++) K(0.04, 0.3, 0.04, -b / 2 + i * b / n, h + 0.2, 0.05, farbe).rotation.x = 0.4;
       break; }
     case 'tor': {       // Schiebetor: Rahmen mit Stäben auf einer Schiene, daneben der Antrieb mit Warnleuchte
-      const farbe = q.farbe || '#3f4a52'; K(b + 2, 0.03, 0.14, 1, 0.015, 0, '#6b6f75'); K(b, 0.1, 0.07, 0, 0.14, 0, farbe); K(b, 0.09, 0.07, 0, h, 0, farbe); for (const sx of [-1, 1]) K(0.09, h, 0.07, sx * (b / 2 - 0.045), h / 2 + 0.05, 0, farbe);
+      // nur: 'fest' = nur Schiene, Pfosten und Antrieb (bleiben stehen) · 'blatt' = nur das Tor selbst (rollt zur Seite) · ohne Angabe beides
+      const farbe = q.farbe || '#3f4a52', fest = q.nur !== 'blatt', blatt = q.nur !== 'fest';
+      if (fest) { K(2 * b + 1, 0.03, 0.14, -b / 2, 0.015, 0, '#6b6f75'); for (const sx of [-1, 1]) { K(0.22, h + 0.4, 0.22, sx * (b / 2 + 0.16), (h + 0.4) / 2, 0.16, '#5d646b'); } K(0.4, 0.7, 0.34, b / 2 + 0.6, 0.35, 0.3, '#6f777f'); R(0.07, 0.12, b / 2 + 0.16, h + 0.47, 0.16, '#f0ad4e'); }
+      if (!blatt) break;
+      K(b, 0.1, 0.07, 0, 0.14, 0, farbe); K(b, 0.09, 0.07, 0, h, 0, farbe); for (const sx of [-1, 1]) K(0.09, h, 0.07, sx * (b / 2 - 0.045), h / 2 + 0.05, 0, farbe);
       const bild = gitterBild(farbe, 10).clone(); bild.needsUpdate = true; bild.repeat.set(b / 0.5, 1); const p = new THREE.Mesh(new THREE.PlaneGeometry(b - 0.1, h - 0.15), new THREE.MeshBasicMaterial({ map: bild, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide })); p.position.y = h / 2 + 0.07; g.add(p);
-      for (const sx of [-1, 1]) { K(0.22, h + 0.4, 0.22, sx * (b / 2 + 0.16), (h + 0.4) / 2, 0.16, '#5d646b'); } K(0.4, 0.7, 0.34, b / 2 + 0.6, 0.35, 0.3, '#6f777f'); R(0.07, 0.12, b / 2 + 0.16, h + 0.47, 0.16, '#f0ad4e'); K(0.9, 0.5, 0.02, 0, h * 0.62, 0.05, WEISS); B(schildBild('POLIZEI|Einfahrt freihalten', WEISS, POLIZEIBLAU), 0.86, 0.46, 0, h * 0.62, 0.065); break; }
+      K(0.9, 0.5, 0.02, 0, h * 0.62, 0.05, WEISS); B(schildBild('POLIZEI|Einfahrt freihalten', WEISS, POLIZEIBLAU), 0.86, 0.46, 0, h * 0.62, 0.065); break; }
     case 'schranke': K(0.3, 1.05, 0.3, 0, 0.525, 0, '#e9edf0'); K(0.32, 0.12, 0.32, 0, 1.0, 0, '#c62828'); for (let i = 0; i < 8; i++) K(b / 8, 0.09, 0.05, 0.2 + (i + 0.5) * b / 8, 0.95, 0, i % 2 ? '#c62828' : WEISS); K(0.06, 0.9, 0.06, b + 0.25, 0.45, 0, STAHL); break;
     case 'carport': {       // Überdachung: Stahlstützen, Träger, ein helles durchscheinendes Dach (damit man von oben noch sieht, was darunter steht)
       const hh = q.h || 2.6; for (const sx of [-1, 1]) for (let i = 0; i <= Math.round(b / 5); i++) { const x = -b / 2 + 0.15 + i * (b - 0.3) / Math.round(b / 5); K(0.12, hh, 0.12, x, hh / 2, sx * (t / 2 - 0.15), '#5d646b'); }

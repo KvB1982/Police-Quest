@@ -44,6 +44,8 @@ export const SACHEN = {
 };
 
 // Wen liefern wir gerade im Gewahrsam ein? 1 = Timo, 2 = der Taschendieb, 0 = niemanden.
+const OTTO_HOF1 = 'Wir fahren durch das Tor auf den Hof. Den Gewahrsam kennst du noch nicht: Er hat seine eigene Tür, rechts am Gebäude. Dort drin gelten strenge Regeln. Lies die Schilder, bevor du etwas anfasst.';
+const OTTO_HOF2 = 'Wieder auf den Hof. Den Weg kennst du ja jetzt – und die Regeln auch.';
 function lieferung(S) { return S.hat('gefangen2') && !S.hat('abgabe2') ? 2 : S.hat('gefangen1') && !S.hat('abgabe1') ? 1 : 0; }
 const GEFANGEN = { 1: { name: 'Timo', wen: 'Timo' }, 2: { name: 'Der Taschendieb', wen: 'den Taschendieb' } };
 const ZELLE_X = { 1: 33.4, 2: 37.25, 3: 41.1 };       // hier sind die drei Zellentüren (wie in js/wache.js)
@@ -201,11 +203,12 @@ export const AKT = {
     if (fertig < 4) return S.ziel(`Prüfe den Streifenwagen (${fertig} von 4)`, ['wache', 6, 14]);
     S.flag('wagen'); S.punkte(3, 'Wagen vor der Fahrt geprüft');
     await S.sag(OTTO, 'Alles in Ordnung. Das machen wir jeden Tag so. Wenn bei einem Einsatz das Licht nicht geht, ist es zu spät.');
-    S.ziel('Steig in den Streifenwagen (blaue Stelle an der Fahrertür)', ['wache', 4.2, 13.6]);
+    S.ziel('Steig in den Streifenwagen und fahr durch das Tor auf die Straße', ['wagen']);
   },
 
   async einsteigen_hof(S) {
     const n = lieferung(S);
+    if (n && !S.hat('hof' + n)) { S.auto(true); return AKT.eingestiegen(S); }      // noch gar nicht auf Platz 8 geparkt: einfach weiterfahren
     if (n) {       // Wir liefern gerade jemanden ein: Losgefahren wird erst, wenn die Zellentür zu ist und die Waffe wieder im Holster steckt.
       if (!S.hat('zelle' + n)) return S.sag(OTTO, `Wir fahren erst, wenn ${n === 1 ? 'Timo' : 'der Taschendieb'} in der Zelle sitzt. Der Gewahrsam hat seine eigene Tür: rechts am Gebäude, wo die gelben Streifen auf dem Boden sind.`);
       if (!S.hat('zurueck' + n)) return S.sag(OTTO, 'Moment. Schau mal an deinen Gürtel, Kim. Fällt dir etwas auf? … Genau. Deine Pistole liegt noch im Schließfach. Ohne die fährst du mir nicht vom Hof.');
@@ -214,8 +217,10 @@ export const AKT = {
     if (!S.hat('wagen')) {
       return S.sag(OTTO, 'Halt, nicht so schnell! Erst gehen wir einmal um den Wagen. Stell dir vor, uns platzt mitten im Einsatz ein Reifen.');
     }
-    S.uhr('07:00');
-    S.ort('stadt', 40, -2.5); S.auto(true);
+    // Später am Tag steht der Wagen vielleicht wieder auf dem Hof: Dann steigt man einfach ein.
+    if (S.hat('los')) { S.auto(true); return AKT.eingestiegen(S); }
+    S.flag('los'); S.uhr('07:00');
+    S.auto(true);          // Der Wagen bleibt, wo er steht: Vom Hof fährt man selbst durch das Tor auf die Wachstraße.
     await S.sag(OTTO, 'Bevor wir losfahren, melden wir uns bei der Leitstelle an. Drück auf das Funkgerät (📻).');
     S.ziel('Melde dich über Funk bei der Leitstelle an (📻)', null);
   },
@@ -447,7 +452,7 @@ export const AKT = {
     S.blaulichtAn(0);
     await S.sag(OTTO, 'Wer festnimmt, liefert auch ab. Timo kommt hinten in unseren Wagen, und wir bringen ihn zur Wache. Blaulicht bleibt aus – er läuft uns nicht mehr weg.');
     S.flag('jagdFertig'); S.flag('gefangen1'); S.uhr('09:40');
-    S.ziel('Bring Timo zur Wache (halte in der Wachstraße vor der Wache an, dann fahrt ihr auf den Hof)', ['stadt', 40, -2.5]);
+    S.ziel('Bring Timo zur Wache (das Tor zum Hof ist in der Wachstraße)', ['stadt', 35, -2.5]);
     S.speichern();
   },
   // ------------------------------------------------------------------ Gewahrsam: Wer festnimmt, liefert auch ein
@@ -455,15 +460,24 @@ export const AKT = {
   // in die Zelle bringen → Waffe wieder holen → zurück zum Wagen. Merker je Einlieferung n (1 = Timo, 2 = der Taschendieb):
   // fach n (Waffe eingeschlossen), sucht n (durchsucht), zelle n (Tür zu), zurueck n (Waffe wieder im Holster), abgabe n (wieder losgefahren).
   async z_abgabe1(S) {
-    await S.sag(OTTO, 'Wir fahren durch das Tor auf den Hof. Den Gewahrsam kennst du noch nicht: Er hat seine eigene Tür, rechts am Gebäude. Dort drin gelten strenge Regeln. Lies die Schilder, bevor du etwas anfasst.');
-    S.blaulichtAn(0); S.auto(false); S.ort('wache', 4.2, 13.6);
+    await S.sag(OTTO, OTTO_HOF1);
+    S.ziel('Fahr durch das Tor auf den Hof und park auf Platz 8', ['wache', 6, 14]);
+  },
+  // Auf Platz 8 angekommen: aussteigen und den Festgenommenen von der Rückbank holen.
+  async z_hof1(S) {
+    if (!S.hat('zone_za1')) await S.sag(OTTO, OTTO_HOF1);      // wer von hinten auf den Hof kommt, hört es erst hier
+    S.blaulichtAn(0); S.auto(false); S.flag('hof1');
     await S.sag('', 'Das Schiebetor rollt hinter euch zu. Du parkst Möwe 14 auf Platz 8 und hilfst Timo von der Rückbank. Er tritt vorsichtig auf, das Knie ist dick.');
     S.ziel('Bring Timo in den Gewahrsam (graue Tür am Hof, rechts bei den gelben Streifen)', ['wache', 34, 7.6]);
     S.speichern();
   },
   async z_abgabe2(S) {
-    await S.sag(OTTO, 'Wieder auf den Hof. Den Weg kennst du ja jetzt – und die Regeln auch.');
-    S.blaulichtAn(0); S.auto(false); S.ort('wache', 4.2, 13.6);
+    await S.sag(OTTO, OTTO_HOF2);
+    S.ziel('Fahr durch das Tor auf den Hof und park auf Platz 8', ['wache', 6, 14]);
+  },
+  async z_hof2(S) {
+    if (!S.hat('zone_za2')) await S.sag(OTTO, OTTO_HOF2);
+    S.blaulichtAn(0); S.auto(false); S.flag('hof2');
     await S.sag('', 'Der Mann steigt aus, ohne dass du ihm helfen musst. Sein Blick springt über den Zaun, das Tor, die Kameras.');
     S.ziel('Bring den Taschendieb in den Gewahrsam (graue Tür am Hof, rechts)', ['wache', 34, 7.6]);
     S.speichern();
@@ -495,7 +509,7 @@ export const AKT = {
       await S.sag('', 'Du schließt Fach 5 auf, prüfst die Sicherung und steckst die Pistole zurück ins Holster. Der Schlüssel bleibt im Schloss.');
       S.klang('schloss'); await S.oeffne('waffenfach', false);
       S.flag('zurueck' + n);
-      return S.ziel('Geh zurück zum Streifenwagen im Hof (blaue Stelle an der Fahrertür)', ['wache', 4.2, 13.6]);
+      return S.ziel('Geh zurück zum Streifenwagen im Hof', ['wagen']);
     }
     return S.sag('', 'Fach 5 ist wieder leer, der Schlüssel steckt.');
   },
@@ -587,7 +601,7 @@ export const AKT = {
   async abfahrt1(S) {
     await S.sag(OTTO, 'Sauber eingeliefert. Den Bericht schreiben wir heute Mittag. Jetzt wieder raus auf die Straße.');
     S.flag('abgabe1'); S.punkte(1, 'Festgenommenen in den Gewahrsam gebracht'); S.uhr('09:55');
-    S.ort('stadt', 40, -2.5); S.auto(true);
+    S.auto(true);
     S.streife('ruf_markt', 25);
     S.speichern();
   },
@@ -595,7 +609,7 @@ export const AKT = {
     S.flag('abgabe2'); S.punkte(1, 'Festgenommenen in den Gewahrsam gebracht');
     await S.sag(OTTO, 'Zwei Einlieferungen an einem Vormittag. Harms wird dich nicht vergessen – das ist bei ihm ein Lob.');
     await S.sag('', 'Der Tag vergeht. Ihr schreibt die Berichte, esst bei Hanne und fahrt Streife. Langsam wird es Abend.');
-    S.ort('stadt', 40, -2.5); S.auto(true);
+    S.auto(true);
     S.licht('abend'); S.uhr('21:30'); S.flag('abend');
     await S.sag(OTTO, 'Eine letzte Runde, dann ist Feierabend.');
     S.streife('ruf_museum', 25);
@@ -701,7 +715,7 @@ export const AKT = {
     await S.sag(OTTO, 'Erste Festnahme am ersten Tag. Und das Zittern geht vorbei – bei mir hat es damals bis zum Abend gedauert. Jetzt bringen wir ihn zur Wache.');
     S.notiz('Taschendieb festgenommen, drei Portemonnaies sichergestellt.');
     S.flag('marktFertig'); S.flag('gefangen2'); S.uhr('11:00');
-    S.ziel('Bring den Taschendieb zur Wache (halte in der Wachstraße vor der Wache an)', ['stadt', 40, -2.5]);
+    S.ziel('Bring den Taschendieb zur Wache (das Tor zum Hof ist in der Wachstraße)', ['stadt', 35, -2.5]);
     S.speichern();
   },
   async marktmann(S) { await S.sag('Mann am Stand', 'Die Krabben vom Hein sind die besten. Aber mit dem redet ja keiner mehr, seit der Sache mit der Glocke damals.'); },
@@ -864,7 +878,7 @@ export const AKT = {
 // Was man gerade über Funk sagen kann. Das hängt davon ab, was schon passiert ist.
 export function funk(S) {
   const o = [];
-  if (S.hat('imWagen') || S.wo() === 'stadt') {
+  if (S.imWagen() || S.wo() === 'stadt') {
     if (!S.hat('angemeldet')) o.push({ text: 'Möwe 14 einsatzbereit melden', akt: 'f_anmelden' });
     if (S.hat('kennz') && !S.hat('halter')) o.push({ text: 'Kennzeichen MÖ-KB 512 abfragen', akt: 'f_kennz' });
     if (S.hat('kitaFertig') && !S.hat('kitaGemeldet') && !S.hat('unfall')) o.push({ text: 'Einsatz Kita erledigt melden', akt: 'f_kita_fertig' });
@@ -879,8 +893,11 @@ export const ZONEN = [
   { id: 'zk', ort: 'stadt', x: -44, z: 60, r: 14, akt: 'z_kita', wenn: 'angemeldet', bis: 'kitaFertig' },
   { id: 'zu', ort: 'stadt', x: -85, z: 96, r: 20, akt: 'z_unfall', wenn: 'unfall', bis: 'flucht' },
   { id: 'zm', ort: 'stadt', x: -40, z: -1.5, r: 12, akt: 'z_markt', wenn: 'markt', bis: 'marktFertig' },
-  { id: 'za1', ort: 'stadt', x: 40, z: -2.5, r: 13, akt: 'z_abgabe1', wenn: 'gefangen1', bis: 'abgabe1' },
-  { id: 'za2', ort: 'stadt', x: 40, z: -2.5, r: 13, akt: 'z_abgabe2', wenn: 'gefangen2', bis: 'abgabe2' },
+  { id: 'za1', ort: 'stadt', x: 35, z: -2.5, r: 13, akt: 'z_abgabe1', wenn: 'gefangen1', bis: 'hof1' },
+  { id: 'za2', ort: 'stadt', x: 35, z: -2.5, r: 13, akt: 'z_abgabe2', wenn: 'gefangen2', bis: 'hof2' },
+  // Platz 8 auf dem Hof der Wache: Hier wird geparkt und ausgestiegen.
+  { id: 'zh1', ort: 'wache', x: 6, z: 14, r: 4.5, akt: 'z_hof1', wenn: 'gefangen1', bis: 'hof1' },
+  { id: 'zh2', ort: 'wache', x: 6, z: 14, r: 4.5, akt: 'z_hof2', wenn: 'gefangen2', bis: 'hof2' },
   { id: 'zmu', ort: 'stadt', x: 80, z: 30, r: 12, akt: 'z_museum', wenn: 'alarm' },
 ];
 
@@ -892,11 +909,11 @@ export const DURCHLAUF = [
   ['einsteigen_hof', null, []], ['f_anmelden', null, []], ['z_kita', null, []],
   ['erzieherin', null, []], ['falschparker', null, []], ['f_kennz', null, []], ['baecker', null, [1, 0, 0]], ['f_kita_fertig', null, []], ['ruf_unfall', null, []],
   ['z_unfall', null, []], ['verletzte', null, [0, 2]], ['zeugin', null, []], ['unfallfahrer', null, [1, 0]], ['unfallwagen', null, []], ['roterwagen', null, []],
-  ['f_unfall', null, [1, 2]], ['eingestiegen', null, []], ['jagd_ende', null, [1, 2, 0, 1]], ['z_abgabe1', null, []],
+  ['f_unfall', null, [1, 2]], ['eingestiegen', null, []], ['jagd_ende', null, [1, 2, 0, 1]], ['z_abgabe1', null, []], ['z_hof1', null, []],
   ['zelle', 'zelle1', [], true], ['waffenfach', null, []], ['gewahrsam', 'harms_g', [0, 2, 1]], ['zelle', 'zelle2', [], true], ['zelle', 'zelle1', []], ['einsteigen_hof', null, [], true], ['waffenfach', null, []], ['einsteigen_hof', null, []], ['ruf_markt', null, []],
   ['z_markt', null, []], ['opfer', null, [1, 0]], ['f_beschreibung', null, []],
   ['verdacht', 'w1', [], true], ['verdacht', 'w2', [1, 2, 0, 1, 0, 1]],
-  ['z_abgabe2', null, []], ['waffenfach', null, []], ['gewahrsam', 'harms_g', [2, 1]], ['zelle', 'zelle2', []], ['waffenfach', null, []], ['einsteigen_hof', null, []],
+  ['z_abgabe2', null, []], ['z_hof2', null, []], ['waffenfach', null, []], ['gewahrsam', 'harms_g', [2, 1]], ['zelle', 'zelle2', []], ['waffenfach', null, []], ['einsteigen_hof', null, []],
   ['ruf_museum', null, []], ['z_museum', null, []], ['museumstuer', null, []], ['brinkmann', null, [0, 2]], ['thomsen', null, []],
   ['spur', 'spur_feder', []], ['spur', 'spur_fuss', []], ['fenster', null, []], ['spur', 'spur_kratzer', [0, 2]],
   ['otto', null, [0, 1]], ['brinkmann', null, [1, 0]],
