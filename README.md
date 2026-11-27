@@ -1,6 +1,6 @@
 # Blaulicht über Möwenbrück
 
-Ein Polizei-Krimi in 3D für 10- bis 12-Jährige, für den Browser (PC und iPad). Spannend, aber ohne Tote und ohne Blut.
+Ein Polizei-Krimi in 3D für 10- bis 12-Jährige, für den Browser (PC, iPad und iPhone – Anleitung für die Geräte: `APP-ANLEITUNG.md`). Spannend, aber ohne Tote und ohne Blut.
 Du bist neu bei der Polizei in der ausgedachten Hafenstadt Möwenbrück und fährst mit deinem Ausbilder Otto Streife.
 
 **Stand:** erste spielbare Version – Fall 1 „Die Feder im Museum“, Tag 1 (etwa 15–20 Minuten).

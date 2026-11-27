@@ -268,7 +268,10 @@ function musikKnopf(stufe) {
 function musikWeiter() { KLANG.an(); const s = KLANG.musikSchalter(); musikKnopf(s); UI.toast(MUSIK_KNOPF[s][0] + ' ' + MUSIK_KNOPF[s][1]); }
 musikKnopf(KLANG.musikStand().stufe);
 document.getElementById('kMusik').onclick = musikWeiter;
-addEventListener('pointerdown', () => KLANG.an(), { capture: true });      // schon auf dem Startbild: Ton an, sobald man irgendwo tippt
+addEventListener('pointerdown', () => KLANG.an(), { capture: true });
+// iPhone und iPad erlauben Ton erst beim LOSLASSEN des Fingers, nicht beim Aufsetzen – deshalb auch dort einschalten.
+for (const ev of ['pointerup', 'touchend', 'click']) addEventListener(ev, () => KLANG.an(), { capture: true });
+      // schon auf dem Startbild: Ton an, sobald man irgendwo tippt
 
 // ------------------------------------------------------------------ Was kann man gerade tun?
 function abstand(ax, az, bx, bz) { return Math.hypot(ax - bx, az - bz); }
@@ -1036,19 +1039,47 @@ for (const b of document.querySelectorAll('#fahren button')) {
 const neigung = new Neigung();
 const NEIG_MERKER = 'blaulicht.neigen.v1';
 const mitFingern = () => navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches;
+// ---------------------------------------------------------------- iPad und iPhone
+// "finger" am body: Das Gerät hat einen Finger-Bildschirm und keine Maus. Dann zeigt das Spiel keine Tasten-Hinweise,
+// und auf kleinen Bildschirmen (iPhone) rücken die Knöpfe zusammen (siehe unten in css/style.css).
+document.body.classList.toggle('finger', mitFingern());
+// Safari vergrößert die Seite sonst, wenn man mit zwei Fingern kneift oder doppelt tippt. Im Spiel dreht das die Kamera.
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+// Der Bildschirm soll nicht dunkel werden, während man durch Neigen lenkt und nichts antippt.
+let wach = null;
+async function wachBleiben() {
+  if (wach || !navigator.wakeLock || document.hidden) return;
+  try { wach = await navigator.wakeLock.request('screen'); wach.addEventListener('release', () => { wach = null; }); } catch (e) { wach = null; }
+}
+addEventListener('pointerup', wachBleiben, { capture: true });
+// Home-Knopf, anderes Programm, Anruf: Ton aus und alle gedrückten Knöpfe loslassen (sonst fährt der Wagen beim Zurückkommen allein los).
+function wegOderDa() {
+  const weg = document.hidden;
+  KLANG.schlafen(weg);
+  if (weg) { for (const t of Object.keys(tasten)) tasten[t] = false; kam.taste = null; }
+  else wachBleiben();
+}
+document.addEventListener('visibilitychange', wegOderDa);
+addEventListener('pagehide', () => KLANG.schlafen(true));
+addEventListener('pageshow', () => { if (!document.hidden) KLANG.schlafen(false); });
+// Dreht man das Gerät, meldet Safari die neue Größe manchmal erst einen Moment später.
+addEventListener('orientationchange', () => setTimeout(groesse, 300));
+if (window.visualViewport) visualViewport.addEventListener('resize', groesse);
+
 function neigZeigen() {
   const k = document.getElementById('neigKnopf'), an = neigung.an;
   k.textContent = `📱 Neigen: ${an ? 'an' : 'aus'}`; k.classList.toggle('an', an);
   document.getElementById('neigMitte').hidden = !an; document.body.classList.toggle('neigen', an);
 }
 async function neigSchalten(an, laut = true) {
-  if (an) { const ok = await neigung.start(); if (!ok && laut) UI.toast('Der Bewegungs-Sensor ist hier nicht erlaubt oder nicht da.'); if (ok && laut) UI.toast('Dreh das iPad wie ein Lenkrad. „↕ Mitte“ stellt geradeaus neu ein.'); }
+  if (an) { const ok = await neigung.start(); if (!ok && laut) UI.toast('Der Bewegungs-Sensor ist hier nicht erlaubt oder nicht da.'); if (ok && laut) UI.toast('Dreh das Gerät wie ein Lenkrad. „↕ Mitte“ stellt geradeaus neu ein.'); }
   else neigung.stop();
   try { localStorage.setItem(NEIG_MERKER, neigung.an ? 'an' : 'aus'); } catch (e) { /* dann eben nicht merken */ }
   neigZeigen();
 }
 document.getElementById('neigKnopf').addEventListener('click', () => neigSchalten(!neigung.an));
-document.getElementById('neigMitte').addEventListener('click', () => { neigung.kalibrieren(); UI.toast('Geradeaus ist jetzt so, wie du das iPad gerade hältst.'); });
+document.getElementById('neigMitte').addEventListener('click', () => { neigung.kalibrieren(); UI.toast('Geradeaus ist jetzt so, wie du das Gerät gerade hältst.'); });
 // Das iPad fragt nur nach einem Fingertipp um Erlaubnis – deshalb gleich beim Tipp auf "Neues Spiel" oder "Weiter spielen".
 for (const id of ['neuesSpiel', 'weiterSpielen']) document.getElementById(id).addEventListener('click', () => {
   let wunsch = null; try { wunsch = localStorage.getItem(NEIG_MERKER); } catch (e) { wunsch = null; }

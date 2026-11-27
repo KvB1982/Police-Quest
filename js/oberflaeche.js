@@ -107,7 +107,8 @@ export function knoepfe(liste, druck) {
   if (neu === alteKnoepfe) return;
   alteKnoepfe = neu;
   const k = $('knoepfe'); k.innerHTML = '';
-  liste.forEach((l, i) => { const b = document.createElement('button'); b.textContent = (i === 0 ? 'E  ' : '') + l.text; b.onclick = () => druck(l); k.appendChild(b); });
+  const finger = document.body.classList.contains('finger');       // "E" ist die Taste für den ersten Knopf – ohne Tastatur lassen wir sie weg
+  liste.forEach((l, i) => { const b = document.createElement('button'); b.textContent = (i === 0 && !finger ? 'E  ' : '') + l.text; b.onclick = () => druck(l); k.appendChild(b); });
 }
 
 let toastZeit = null;

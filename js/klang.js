@@ -27,9 +27,19 @@ const laufend = {};             // Name → Schleife, die gerade spielt
 // Die Tonausgabe für andere Dateien (wetter.js erzeugt damit Regen, Wind und Donner). null = noch kein Ton erlaubt
 export const kontext = () => ton;
 
+// Ist das Spiel nicht zu sehen (Home-Knopf, anderes Programm, Anruf), soll es still sein. iPhone und iPad spielen sonst
+// im Hintergrund weiter oder kommen stumm zurück. schlafen(true) = Ton anhalten, schlafen(false) = wieder an.
+let still = false;
+export function schlafen(ja) {
+  still = ja;
+  if (!ton) return;
+  try { if (ja) ton.suspend(); else ton.resume(); } catch (e) { /* dann eben nicht */ }
+}
+
 // Tonausgabe einschalten. Browser erlauben das erst, wenn der Spieler etwas gedrückt hat.
 export function an() {
-  if (ton) { if (ton.state === 'suspended') ton.resume(); return; }
+  if (still) return;                // Das Spiel ist gerade nicht zu sehen (anderes Programm, Bildschirm aus): kein Ton
+  if (ton) { if (ton.state !== 'running') ton.resume(); return; }
   try { ton = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ton = null; return; }
   laden();
 }

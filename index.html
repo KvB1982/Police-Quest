@@ -8,7 +8,12 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Blaulicht">
+  <meta name="theme-color" content="#0b1430">
   <title>Blaulicht über Möwenbrück</title>
+  <!-- Symbol und Angaben für "Zum Home-Bildschirm" auf iPad und iPhone -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/style.css">
   <!-- three.js kommt aus dem Internet (jsDelivr), wie bei Powershot und Rennspiel. Kein Build-Schritt. -->
   <script type="importmap">
@@ -88,7 +93,9 @@
     <button id="neuesSpiel">Neues Spiel</button>
     <button id="weiterSpielen" hidden>Weiterspielen</button>
     <p class="klein">Point and Click: unten eine Tätigkeit wählen (🚶 Gehen · 👁 Ansehen · 💬 Reden · ✋ Benutzen), dann auf ein Ding, eine Person oder den Boden tippen. 🔍 zeigt, was es gibt.</p>
-    <p class="klein">Tastatur: Laufen mit den Pfeiltasten · Tätigkeit: 1 2 3 4 oder rechte Maustaste · E = das Nächstliegende tun · Funk F · Notizbuch N · Tasche T · Stadtkarte M · Musik U (laut → leise → aus) · im Auto Blaulicht B (aus → nur Blaulicht → mit Sirene)</p>
+    <p class="klein nurFinger">Mit zwei Fingern drehst und zoomst du die Kamera. Im Streifenwagen lenkst du, indem du das Gerät wie ein Lenkrad drehst – Gas liegt unter dem rechten Daumen, die Bremse unter dem linken.</p>
+    <p class="klein nurFinger" id="homeTipp" hidden>Tipp: In Safari auf „Teilen“ und dann „Zum Home-Bildschirm“ tippen. Dann startet das Spiel wie eine App im Vollbild und läuft auch ohne Internet.</p>
+    <p class="klein nurTasten">Tastatur: Laufen mit den Pfeiltasten · Tätigkeit: 1 2 3 4 oder rechte Maustaste · E = das Nächstliegende tun · Funk F · Notizbuch N · Tasche T · Stadtkarte M · Musik U (laut → leise → aus) · im Auto Blaulicht B (aus → nur Blaulicht → mit Sirene)</p>
   </div>
 
   <div id="ende" class="voll" hidden>
@@ -101,6 +108,30 @@
     <button id="endeZu">Weiter herumlaufen</button>
   </div>
 
+  <!-- iPhone hochkant: Dafür ist das Bild zu schmal. -->
+  <div id="drehen"><div>📱↻</div><p>Bitte dreh dein iPhone quer.</p></div>
+
   <script type="module" src="js/main.js"></script>
+  <script>
+    // Der Helfer sw.js merkt sich alle Dateien, damit das Spiel vom Home-Bildschirm auch ohne Internet startet.
+    // Am eigenen PC (localhost) bleibt er aus, damit man Änderungen sofort sieht – außer mit ?offline in der Adresse.
+    // In der App (Capacitor) liegt sowieso alles auf dem Gerät.
+    (function () {
+      var lokal = /^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname), app = !!window.Capacitor || location.protocol === 'capacitor:';
+      // Tipp "Zum Home-Bildschirm" nur zeigen, wenn das Spiel in Safari läuft und noch nicht vom Home-Bildschirm gestartet ist
+      var alsApp = navigator.standalone || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches;
+      if (!alsApp && !app && /iPad|iPhone|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) document.getElementById('homeTipp').hidden = false;
+      if (!('serviceWorker' in navigator) || app || (lokal && !/[?&]offline/.test(location.search))) return;
+      navigator.serviceWorker.register('sw.js').then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
+        // Beim allerersten Start hat die Seite schon geladen, bevor der Helfer mithören konnte: Liste nachreichen.
+        var merken = function () {
+          var liste = performance.getEntriesByType('resource').map(function (e) { return e.name; });
+          liste.push(location.href.split('?')[0]);
+          if (reg.active) reg.active.postMessage({ merken: liste });
+        };
+        setTimeout(merken, 4000); setTimeout(merken, 30000);
+      }).catch(function () { /* ohne Helfer läuft das Spiel trotzdem, nur nicht ohne Internet */ });
+    })();
+  </script>
 </body>
 </html>

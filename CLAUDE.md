@@ -1,6 +1,6 @@
 # Blaulicht über Möwenbrück – Hinweise für Claude
 
-3D-Polizei-Abenteuer für den Browser (PC und iPad), für Kinder von 10 bis 12. Vater-Sohn-Lernprojekt wie die Geschwister-Spiele
+3D-Polizei-Abenteuer für den Browser (PC, iPad und iPhone), für Kinder von 10 bis 12. Vater-Sohn-Lernprojekt wie die Geschwister-Spiele
 Powershot, Rennspiel, Frontline und Reitturnier. Vorbild für die Art des Spiels ist das alte Adventure Police Quest 1 –
 aber nur die Spielidee (Dienstvorschriften richtig befolgen). Name, Figuren, Stadt, Geschichte, Bilder und Musik sind ausgedacht.
 Repository: https://github.com/KvB1982/Police-Quest
@@ -130,6 +130,33 @@ Einen neuen Fall schreibt man so: Dinge und Leute in `daten.js` eintragen, je `a
   Schnell fahren darf man mit 1 und 2, Platz machen die anderen bei 1 und 2 (seit 21.11.2026 abends); bei einer Verfolgung verlangt Otto die Sirene. Beim Aussteigen geht die Sirene aus, das Blaulicht bleibt an (sichert die Unfallstelle).
 - Für das iPad vorbereitet: nur Zeiger-Ereignisse (Maus und Finger gleich), große Knöpfe, Abstand zum Bildschirmrand (`env(safe-area-inset-…)`), Vollbild vom Home-Bildschirm.
   Auf einem echten iPad nicht erprobt.
+
+## iPad und iPhone (seit 27.11.2026, Wunsch des Nutzers: „aufs iPad und iPhone portieren“)
+
+Zwei Wege, beide mit denselben Spieldateien:
+
+- **Home-Bildschirm-App (geht sofort, ohne Mac):** In Safari https://kvb1982.github.io/Police-Quest/ öffnen → Teilen → „Zum Home-Bildschirm“. Dann startet das Spiel
+  im Vollbild mit eigenem Symbol (`manifest.webmanifest`, `icons/`, Vorlage `icons/icon.svg`). `sw.js` (Vorbild Powershot) merkt sich die Dateien, damit es danach
+  auch ohne Internet läuft: Programm-Dateien kommen zuerst aus dem Netz, Modelle, Bodenbilder, Geräusche, Musik und three.js zuerst aus dem Speicher. Gemerkt wird nur,
+  was schon einmal geladen wurde – wer ohne Internet spielen will, muss vorher einmal mit Internet durch Wache, Stadt und Museum gekommen sein.
+  Wird ein Modell, Geräusch oder Musikstück unter gleichem Namen ersetzt: `VERSION` in `sw.js` erhöhen. Auf `localhost` ist `sw.js` aus; zum Testen `?offline` anhängen.
+- **Echte App (Xcode, TestFlight):** Capacitor-Hülle wie beim Rennspiel, Anleitung in `APP-ANLEITUNG.md`. `package.json`, `capacitor.config.json`
+  (Kennung `de.kvb1982.blaulicht`, Name „Blaulicht“, Team `AX2SZQVU9L`), `scripts/copy-web.mjs` → `www/` (nicht im Repository; legt three.js mit den benutzten
+  `three/addons` aus `node_modules` nach `www/lib/` und biegt die Import-Map um – die App braucht kein Internet). Neue Ordner mit Spieldateien dort in `FILES` eintragen.
+  `ios/` ist aus dem Rennspiel übernommen, ohne dessen Plugins (kein Lenkrad-Funk, kein Rütteln); fest im Querformat, der Bildschirm bleibt an.
+  `npm run ios` öffnet Xcode, `npm run testflight` (`scripts/testflight.sh`) lädt einen Build hoch – beides nur auf dem Mac.
+- Im Spiel (`js/main.js`, Abschnitt „iPad und iPhone“): `body.finger` = Gerät mit Finger-Bildschirm (dann keine Tasten-Hinweise, kein „E“ am ersten Knopf).
+  Ton geht auch beim Loslassen des Fingers an (iPhone und iPad erlauben ihn beim Aufsetzen nicht); geht die App in den Hintergrund, schläft der Ton
+  (`KLANG.schlafen`) und alle gedrückten Knöpfe werden losgelassen; der Bildschirm bleibt wach (`wachBleiben`, in der App `isIdleTimerDisabled`); Kneifen und
+  Doppeltipp vergrößern die Seite nicht.
+- iPhone (`css/style.css` ganz unten): Quer ist das Bild nur etwa 390 Punkte hoch (`@media (max-height: 500px)`): kleinere Anzeige oben, Radar 100 Punkte,
+  Tätigkeiten ohne Schrift, kleinere Pedale, Blaulicht rechts über dem Gas, „Neigen“ links über der Bremse, vom Kamera-Block bleibt nur 🎯 (drehen und zoomen mit
+  zwei Fingern), Zahlenschloss in zwei Reihen. Hochkant zeigt das iPhone „Bitte dreh dein iPhone quer“ (`#drehen`); das iPad darf hochkant bleiben.
+- Geprüft im Test-Browser mit nachgemachtem Finger-Bildschirm als Standbilder: iPhone quer (844 × 390 und 667 × 375) und iPad (1180 × 820) – Startbild, Sprechblase,
+  Wache, Stadt, Streifenwagen, Stadtkarte; der App-Ordner `www/` läuft mit gesperrtem Internet; mit `?offline` startet das Spiel nach dem Abschalten des Netzes neu.
+  **Nicht geprüft:** echtes iPad oder iPhone (Tempo, Ton, Neigen, Zwei-Finger-Kamera, Aussparung am Bildschirmrand), Safari selbst, „Zum Home-Bildschirm“.
+  Das Xcode-Projekt ist hier nie gebaut worden (kein Mac im Test-Rechner). Tempo auf dem iPhone ist unbekannt – die Stadt hat bis 1,7 Millionen Dreiecke;
+  ist es zu langsam, schaltet der Spar-Modus die Schatten ab.
 
 ## Bekannte Grenzen (Stand 21.11.2026)
 
