@@ -48,6 +48,7 @@ export const STIMMEN = {
   'Bäcker Kruse': ['kruse', 'Charlie', 0.5],
   'Herr Janßen': ['janssen', 'Charlie', 0.5],
   'Mann am Stand': ['marktmann', 'Roger', 0.5],
+  'Nachrichten': ['nachrichten', 'Matilda', 0.65],      // die Sprecherin im Fernsehen
 };
 const STUMM = ['Lotte'];
 
@@ -144,8 +145,9 @@ for (const liste of ['CHECKS', 'SPUREN']) {
 // Sätze zum Ansehen (👁)
 const { ORTE } = await import(join(root, 'js/daten.js'));
 for (const ort of Object.values(ORTE)) for (const d of [...ort.dinge, ...ort.leute]) if (d.sieh) nimm('', d.sieh);
-const haupt = readFileSync(join(root, 'js/main.js'), 'utf8').match(/const text = o\.wagen ? '([^']*)'/);
-if (haupt) nimm('', haupt[1]);
+const haupt = readFileSync(join(root, 'js/main.js'), 'utf8').match(/PRIVATWAGEN_SIEH : '([^']*)'/);
+if (haupt) nimm('', haupt[1]); else unklar.push('Satz zum Streifenwagen in main.js nicht gefunden');
+nimm('', STORY.PRIVATWAGEN_SIEH);
 void STORY;
 
 // ------------------------------------------------------------------ Was gibt es schon?

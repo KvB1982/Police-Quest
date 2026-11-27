@@ -18,10 +18,13 @@
 //   S.jagd()                          – wie lief die Verfolgungsfahrt? { rumms: wie oft angestoßen, sirene: lief die Sirene? }
 // So kann dasselbe auch ohne Bildschirm durchgespielt werden (tools/story.mjs).
 
-const OTTO = 'Otto Brandl', SELIN = 'Selin Aydin', FUNK = 'Leitstelle (Frau Petersen)', KIM = 'Kim', HARMS = 'Harms';
+const OTTO = 'Otto Brandl', SELIN = 'Selin Aydin', FUNK = 'Leitstelle (Frau Petersen)', KIM = 'Kim', HARMS = 'Harms', NEWS = 'Nachrichten';
 
-export const START = { ort: 'wache', x: 0, z: 3.5, licht: 'tag', uhr: '06:00' };
-export const MAX_PUNKTE = 67;
+// Der Tag beginnt zu Hause: Kim wacht in der Wohnung am Fleetufer 7 auf.
+export const START = { ort: 'wohnung', x: -2.9, z: -2.4, licht: 'frueh', uhr: '05:10' };
+export const MAX_PUNKTE = 70;
+// Der Satz, wenn man sein eigenes Auto ansieht (👁)
+export const PRIVATWAGEN_SIEH = 'Dein eigener Wagen: klein, dunkelblau und zwölf Jahre alt. Auf der Rückbank liegt die Sporttasche, am Spiegel baumelt ein kleiner Handball.';
 
 // Die Verfolgungsfahrt am Vormittag: Wo der Fluchtwagen losfährt, zu welcher Kreuzung zuerst und wo er am Ende festsitzt
 // (der Wendeplatz in der Sackgasse Finkenstieg). Den Weg dazwischen sucht sich jagd.js selbst.
@@ -41,6 +44,7 @@ export const SACHEN = {
   spray: { name: 'Pfefferspray', text: 'Nur, wenn dich jemand angreift und Festhalten nicht reicht.' },
   pistole: { name: 'Dienstpistole', text: 'Nummer MB-0417, gesichert im Holster. Gezogen wird sie nur, wenn jemand bewaffnet ist oder ein Leben in Gefahr ist.' },
   schluessel: { name: 'Autoschlüssel', text: 'Für den Streifenwagen Möwe 14.' },
+  privatschluessel: { name: 'Eigener Autoschlüssel', text: 'Für dein eigenes Auto. Am Schlüsselring hängt ein kleiner Handball.' },
 };
 
 // Wen liefern wir gerade im Gewahrsam ein? 1 = Timo, 2 = der Taschendieb, 0 = niemanden.
@@ -51,13 +55,23 @@ const GEFANGEN = { 1: { name: 'Timo', wen: 'Timo' }, 2: { name: 'Der Taschendieb
 const ZELLE_X = { 1: 33.4, 2: 37.25, 3: 41.1 };       // hier sind die drei Zellentüren (wie in js/wache.js)
 
 export async function beginn(S) {
-  await S.sag('', 'Montag, 6:00 Uhr. Polizeiwache Am Deich, Möwenbrück. Dein erster Tag im Streifendienst.');
-  await S.sag(OTTO, 'Berger? Brandl. Ich bin dein Ausbilder. Dreißig Jahre Streife in dieser Stadt, und dieses Jahr ist mein letztes.');
-  await S.sag(OTTO, 'Hier draußen verzeiht dir keiner, wenn du schlampst. Also machen wir alles der Reihe nach. Erst die Ausrüstung: dein Spind steht in der Umkleide, hinten links.');
-  await S.sag(OTTO, 'Die Zahl für das Schloss ist deine Dienstnummer. Die steht auf deinem Ausweis – schau in deine Tasche (🎒).');
-  S.gib('ausweis');
-  S.ziel('Hol deine Ausrüstung aus dem Spind in der Umkleide', ['wache', -12.2, -6]);
+  await S.sag('', 'Montag, 5:10 Uhr. Fleetufer 7, zweiter Stock. Der Wecker klingelt. In fünfzig Minuten beginnt dein erster Tag im Streifendienst.');
+  morgenZiel(S);
 }
+
+// Die Morgenroutine: Was ist als Nächstes dran? (Das steht dann oben als Ziel.)
+const MORGEN = [
+  ['weckerAus', 'Mach den Wecker aus', [-3.12, -2.85]], ['geduscht', 'Geh duschen (im Bad)', [-3.55, 3.2]], ['zaehne', 'Putz dir am Waschbecken die Zähne', [-3.0, 2.25]],
+  ['angezogen', 'Zieh dich am Kleiderschrank an', [-3.95, -0.3]], ['fruehstueck', 'Frühstücke: Sieh in den Kühlschrank', [2.35, 3.35]],
+  ['bereit', 'Nimm Schlüssel und Ausweis vom Schlüsselbrett an der Tür', [0.6, 3.2]],
+];
+function morgenOffen(S) { return MORGEN.find(m => !S.hat(m[0])); }
+function morgenZiel(S) {
+  const m = morgenOffen(S);
+  if (m) S.ziel(m[1], ['wohnung', ...m[2]]); else S.ziel('Geh aus der Wohnung und fahr zur Arbeit', ['wohnung', 0, 3.15]);
+}
+// Ist gerade Abend zu Hause? (Morgens und abends tut man an denselben Dingen etwas anderes.)
+const abends = S => S.hat('daheim');
 
 const CHECKS = {
   c_vorn: 'Du schaltest das Licht ein und gehst nach vorn: Beide Scheinwerfer leuchten, die Blinker blinken.',
@@ -79,7 +93,9 @@ function spurenZahl(S) { return Object.keys(SPUREN).filter(k => S.hat(k)).length
 export const AKT = {
   // ------------------------------------------------------------------ Wache
   async otto(S) {
-    if (S.hat('tagEnde')) return S.sag(OTTO, 'Feierabend, Kim. Bis morgen.');
+    if (!S.hat('dienst')) return AKT.dienstbeginn(S);
+    if (S.hat('feierabend')) return S.sag(OTTO, 'Feierabend, Kim. Bis morgen.');
+    if (S.hat('museumFertig')) return S.sag(OTTO, 'Zurück zur Wache, Kim. Für heute reicht es.');
     if (S.wo() === 'museum') return AKT.otto_museum(S);
     if (!S.hat('spind')) return S.sag(OTTO, 'Dein Spind ist in der Umkleide, hinten links. Die Zahl ist deine Dienstnummer vom Ausweis.');
     if (!S.hat('waffe')) return S.sag(OTTO, 'Jetzt zur Waffenkammer, im Flur ganz links. Harms gibt dir deine Dienstwaffe. Lies genau, was du unterschreibst.');
@@ -127,7 +143,31 @@ export const AKT = {
     await S.sag(FUNK, 'Merk dir: Erst sagen, wer du bist. Dann, wo du bist. Dann, was du brauchst.');
   },
 
+  // Dienstbeginn um sechs: Otto wartet schon im Flur der Wache.
+  async dienstbeginn(S) {
+    if (S.hat('dienst')) return;
+    S.flag('dienst'); S.licht('tag'); S.uhr('06:00');
+    await S.sag('', 'Montag, 6:00 Uhr. Polizeiwache Am Deich, Möwenbrück. Dein erster Tag im Streifendienst.');
+    await S.sag(OTTO, 'Berger? Brandl. Ich bin dein Ausbilder. Dreißig Jahre Streife in dieser Stadt, und dieses Jahr ist mein letztes.');
+    await S.sag(OTTO, 'Hier draußen verzeiht dir keiner, wenn du schlampst. Also machen wir alles der Reihe nach. Erst die Ausrüstung: dein Spind steht in der Umkleide, hinten links.');
+    await S.sag(OTTO, 'Die Zahl für das Schloss ist deine Dienstnummer. Die steht auf deinem Ausweis – schau in deine Tasche (🎒).');
+    S.ziel('Hol deine Ausrüstung aus dem Spind in der Umkleide', ['wache', -12.2, -6]);
+    S.speichern();
+  },
   async spind(S) {
+    if (!S.hat('dienst')) return S.hinweis('Melde dich erst bei Otto Brandl. Er wartet vorn im Flur.');
+    if (S.hat('umgezogen')) return S.hinweis('Dein Spind ist abgeschlossen. Ab nach Hause!');
+    if (S.hat('feierabend')) {       // abends: alles zurück in den Spind und umziehen
+      if (!S.hat('waffeAb')) return S.sag('', 'Erst die Pistole. Die kommt nicht in den Spind, die kommt zu Harms in die Waffenkammer.');
+      S.klang('schloss'); await S.oeffne('spind');
+      await S.sag('', 'Funkgerät, Handschellen, Pfefferspray, Taschenlampe: alles zurück an seinen Platz. Die Uniform kommt auf den Bügel. In Jeans und Pulli siehst du wieder aus wie jeder andere in Möwenbrück.');
+      for (const s of ['funk', 'lampe', 'weste', 'handschellen', 'spray', 'schluessel']) S.nimm(s);
+      S.kleidung('zivil');
+      S.flag('umgezogen'); S.punkte(1, 'Ausrüstung ordentlich verstaut'); S.uhr('23:25');
+      await S.oeffne('spind', false);
+      S.ziel('Dein Auto steht auf dem Parkplatz hinter der Wache. Fahr nach Hause: Fleetufer 7', ['stadt', 303.85, 85]);
+      return S.speichern();
+    }
     if (S.hat('spind')) return S.sag('', 'Dein Spind. Deine Jacke hängt drin, sonst ist er leer.');
     const zahl = await S.schloss('Zahlenschloss an deinem Spind');
     if (zahl === null) return;
@@ -135,6 +175,7 @@ export const AKT = {
     S.klang('schloss'); await S.oeffne('spind');
     await S.sag('', 'Der Spind geht auf. Du ziehst Uniform und Schutzweste an und legst den Einsatzgürtel um: Funkgerät, Handschellen, Pfefferspray, Taschenlampe. Das Holster ist noch leer.');
     for (const s of ['funk', 'notizbuch', 'lampe', 'weste', 'handschellen', 'spray', 'schluessel']) S.gib(s);
+    S.kleidung('dienst');       // ab jetzt in Uniform – und dein Auto ist der Streifenwagen
     S.flag('spind'); S.punkte(2, 'Ausrüstung vollständig');
     await S.oeffne('spind', false);
     S.ziel('Hol deine Dienstwaffe in der Waffenkammer (im Flur ganz links)', ['wache', -12.8, 3]);
@@ -143,6 +184,8 @@ export const AKT = {
   // Die Waffenkammer: Hier bekommt man die Dienstpistole – aber nur, wer genau hinschaut.
   async harms(S) {
     if (!S.hat('spind')) return S.sag(HARMS, 'Erst umziehen. Ohne Einsatzgürtel kein Holster, ohne Holster keine Waffe.');
+    if (S.hat('waffeAb')) return S.sag(HARMS, 'Gute Nacht, Berger. Morgen früh um sechs liegt sie wieder für Sie bereit.');
+    if (S.hat('feierabend')) return AKT.waffe_ab(S);
     if (S.hat('waffe')) return S.sag(HARMS, 'Am Dienstende liegt sie wieder hier. Gesichert und vollzählig.');
     await S.sag(HARMS, 'Berger? Harms, Waffenkammer. Auf meiner Liste steht für Sie die Dienstpistole mit der Nummer MB-0417. Hier unterschreiben.');
     await S.oeffne('waffenschrank');
@@ -171,6 +214,29 @@ export const AKT = {
     S.notiz('Dienstwaffe MB-0417 übernommen. Regel: ziehen nur, wenn jemand bewaffnet ist oder ein Leben in Gefahr ist.');
     await S.sag(HARMS, 'Eins noch, Berger. Die meisten hier ziehen sie in dreißig Jahren kein einziges Mal im Ernst. Das ist kein Zufall, das ist gute Arbeit.');
     S.ziel('Geh zum Briefing in den Besprechungsraum', ['wache', 0, -6]);
+  },
+
+  // Feierabend: Die Dienstpistole geht zurück in die Waffenkammer – genauso sorgfältig, wie man sie bekommen hat.
+  async waffe_ab(S) {
+    await S.sag(HARMS, 'Dienstende, Berger. Die Pistole kommt zurück in meinen Schrank.');
+    let gleich = true;
+    for (;;) {
+      const a = await S.wahl(HARMS, 'Wie geben Sie die Waffe ab?', [
+        'Aus dem Holster nehmen und über den Tresen reichen',
+        'An der Entladeecke: Magazin heraus, Lauf prüfen, sichern – dann mit dem Griff voran übergeben',
+        'Mit Holster und Gürtel auf den Tresen legen',
+      ]);
+      if (a === 1) break;
+      gleich = false;
+      if (a === 0) await S.sag(HARMS, 'Und wenn sie noch geladen ist? Entladen wird an der Entladeecke und nirgends sonst. Nochmal.');
+      else await S.sag(HARMS, 'Ich nehme nur an, was ich leer und gesichert gesehen habe. Nochmal.');
+    }
+    await S.oeffne('waffenschrank');
+    await S.sag(HARMS, 'MB-0417, gesichert und vollzählig. Hier unterschreiben. Für den ersten Tag war das ordentlich, Berger.');
+    S.klang('schloss'); await S.oeffne('waffenschrank', false);
+    S.nimm('pistole'); S.flag('waffeAb');
+    if (gleich) S.punkte(1, 'Waffe nach Vorschrift abgegeben');
+    S.ziel('Bring deine Ausrüstung in den Spind und zieh dich um', ['wache', -12.2, -6]);
   },
 
   async selin(S) {
@@ -207,6 +273,7 @@ export const AKT = {
   },
 
   async einsteigen_hof(S) {
+    if (S.hat('feierabend')) return S.hinweis('Feierabend. Möwe 14 bleibt heute Nacht auf dem Hof.');
     const n = lieferung(S);
     if (n && !S.hat('hof' + n)) { S.auto(true); return AKT.eingestiegen(S); }      // noch gar nicht auf Platz 8 geparkt: einfach weiterfahren
     if (n) {       // Wir liefern gerade jemanden ein: Losgefahren wird erst, wenn die Zellentür zu ist und die Waffe wieder im Holster steckt.
@@ -759,7 +826,7 @@ export const AKT = {
     S.ziel('Kümmere dich um den verletzten Wärter', null);
   },
   async ausgang(S) {
-    if (!S.hat('tagEnde')) return S.sag(OTTO, 'Wir sind hier noch nicht fertig, Kim.');
+    if (!S.hat('museumFertig')) return S.sag(OTTO, 'Wir sind hier noch nicht fertig, Kim.');
     await S.oeffne('ausgang');
     S.ort('stadt', 76, 30); S.licht('nacht');
   },
@@ -867,10 +934,134 @@ export const AKT = {
     S.notiz('Wärter Brinkmann: verriegelt jeden Abend die Fenster – heute das Westfenster „vergessen“. Sieht mich dabei nicht an. (Merken!)');
     await S.sag('', 'Der Rettungswagen nimmt Brinkmann mit. Die Fahndung bleibt ohne Ergebnis: Der Hinkende ist verschwunden.');
     await S.sag(OTTO, 'Morgen übernimmt Kommissar Wendt von der Kripo. Wir zwei arbeiten ihm zu.');
+    // Der Einsatz ist vorbei – aber der Tag noch nicht: zurück zur Wache, Feierabend machen, nach Hause.
+    S.flag('museumFertig'); S.uhr('23:00');
+    S.ziel('Fahr mit Otto zurück zur Wache und park auf Platz 8', ['wache', 6, 14]);
+    S.speichern();
+  },
+
+  // ------------------------------------------------------------------ Feierabend
+  // Zurück auf dem Hof der Wache (Platz 8): Otto schickt dich in den Feierabend.
+  async z_feierabend(S) {
     await S.sag('', 'Auf der Fahrt zurück zur Wache sagt Otto lange nichts. Draußen kreist das Licht vom Leuchtturm über den Hafen. Deine Schulter pocht.');
     await S.sag(OTTO, 'Diese Feder, Kim. So eine lag vor dreißig Jahren schon einmal an einem Tatort. Damals lag daneben ein Wachmann, der drei Wochen nicht aufgewacht ist. Den Täter habe ich nie gefunden.');
+    await S.sag(OTTO, 'Feierabend für heute. Die Pistole gibst du bei Harms ab, die Ausrüstung kommt in den Spind. Dann ziehst du dich um und fährst nach Hause.');
     await S.sag(OTTO, 'Geh schlafen. Ab morgen wird das hier ernst.');
-    S.flag('tagEnde'); S.uhr('23:10'); S.ziel('Tag 1 geschafft!', null); S.speichern();
+    S.flag('feierabend'); S.blaulichtAn(0); S.auto(false); S.uhr('23:10');
+    S.ziel('Gib deine Dienstwaffe bei Harms in der Waffenkammer ab', ['wache', -12.8, 3]);
+    S.speichern();
+  },
+  // Vor dem Haus Fleetufer 7 geparkt
+  async z_zuhause(S) {
+    await S.sag('', 'Fleetufer 7. Oben im zweiten Stock ist alles dunkel. Du stellst den Motor ab. Der Regen trommelt auf das Dach.');
+    S.auto(false);
+    S.ziel('Geh durch die Haustür nach oben in deine Wohnung', ['stadt', 310.6, 85]);
+  },
+  async haustuer(S) {
+    if (!S.hat('umgezogen')) {
+      if (!S.hat('dienst')) return S.hinweis('Du musst zur Arbeit! Um sechs beginnt dein Dienst.');
+      return S.sag('', 'Fleetufer 7. Hier wohnst du, im zweiten Stock links. Aber jetzt ist Dienst.');
+    }
+    await S.oeffne('haustuer');
+    const neu = !S.hat('daheim');
+    S.flag('daheim'); S.ort('wohnung', 0, 2.9); S.licht('lampe');
+    if (!neu) return;
+    S.uhr('23:50');
+    await S.sag('', 'Zweiter Stock, linke Tür. Du machst Licht. Es riecht nach kalter Pizza und nach zu Hause.');
+    S.ziel('Geh ins Bett – oder mach es dir vorher noch gemütlich', ['wohnung', -3.1, -2.1]);
+    S.speichern();
+  },
+
+  // ------------------------------------------------------------------ Zu Hause (morgens und abends)
+  async wecker(S) {
+    if (S.hat('weckerAus')) return S.hinweis(abends(S) ? 'Der Wecker steht auf 5:10 Uhr. Leider.' : 'Der Wecker ist aus.');
+    await S.sag('', 'Du haust auf den Wecker. Stille. Draußen wird es gerade erst hell, und irgendwo über dem Fleet schreit eine Möwe.');
+    S.flag('weckerAus'); morgenZiel(S);
+  },
+  async dusche(S) {
+    if (abends(S)) {
+      if (S.hat('abendDusche')) return S.hinweis('Du hast schon geduscht.');
+      S.flag('abendDusche');
+      return S.sag('', 'Das heiße Wasser tut gut. Deine Schulter wird blau, aber es ist nichts gebrochen.');
+    }
+    if (!S.hat('weckerAus')) return S.hinweis('Erst den Wecker ausmachen! Der weckt sonst das ganze Haus.');
+    if (S.hat('geduscht')) return S.hinweis('Du bist schon sauber.');
+    await S.sag('', 'Elf Sekunden kalt, dann warm. Langsam wirst du wach. Heute ist es so weit: zum ersten Mal richtig auf Streife.');
+    S.flag('geduscht'); S.uhr('05:17'); morgenZiel(S);
+  },
+  async waschbecken(S) {
+    if (abends(S)) return S.hinweis('Du putzt dir die Zähne. Dreimal gähnen inklusive.');
+    if (!S.hat('weckerAus')) return S.hinweis('Erst den Wecker ausmachen!');
+    if (S.hat('zaehne')) return S.hinweis('Die Zähne sind geputzt.');
+    await S.sag('', 'Zähne putzen, rasieren, einmal mit dem Kamm durch die Haare. Der im Spiegel sieht fast schon aus wie ein Polizist.');
+    S.flag('zaehne'); S.uhr('05:22'); morgenZiel(S);
+  },
+  async kleiderschrank(S) {
+    if (abends(S)) return S.hinweis('Dein Schlafanzug liegt schon auf dem Bett.');
+    if (!S.hat('geduscht')) return S.hinweis('Erst duschen, dann anziehen.');
+    if (S.hat('angezogen')) return S.hinweis('Du bist schon angezogen.');
+    await S.sag('', 'Jeans, ein frisches T-Shirt, der rote Pulli. Die Uniform wartet in der Wache im Spind.');
+    S.flag('angezogen'); S.uhr('05:27'); morgenZiel(S);
+  },
+  async kuehlschrank(S) {
+    if (abends(S)) return S.hinweis('Im Kühlschrank: Senf, Milch und ein halber Joghurt. Morgen musst du einkaufen.');
+    if (!S.hat('weckerAus')) return S.hinweis('Erst den Wecker ausmachen!');
+    if (S.hat('fruehstueck')) return S.hinweis('Du hast schon gefrühstückt.');
+    const a = await S.wahl(KIM, 'Was frühstückst du?', ['Müsli mit Banane und ein großes Glas Wasser', 'Die kalte Pizza von gestern', 'Nichts. Keine Zeit!']);
+    if (a === 0) { await S.sag('', 'Müsli, Banane, Wasser. Das hält bis zum Mittag.'); S.punkte(1, 'Gut gefrühstückt'); }
+    else if (a === 1) await S.sag('', 'Kalte Salamipizza um kurz nach fünf. Dein Magen meldet Bedenken an, aber er wird überstimmt.');
+    else await S.sag('', 'Du trinkst im Stehen einen Schluck Wasser. Spätestens um neun knurrt dein Magen lauter als jeder Wachhund.');
+    S.flag('fruehstueck'); S.uhr('05:35'); morgenZiel(S);
+  },
+  async kaffee(S) {
+    if (abends(S)) return S.hinweis('Kaffee um Mitternacht? Lieber nicht.');
+    if (!S.hat('weckerAus')) return S.hinweis('Erst den Wecker ausmachen!');
+    if (S.hat('kaffee')) return S.hinweis('Eine Tasse reicht. Sonst zittern dir gleich die Hände.');
+    S.flag('kaffee');
+    await S.sag('', 'Die Maschine gurgelt und zischt. Der erste Schluck ist zu heiß, der zweite ist genau richtig.');
+  },
+  async schluesselbrett(S) {
+    if (abends(S)) { if (!S.hat('schluesselAb')) { S.flag('schluesselAb'); S.nimm('privatschluessel'); return S.hinweis('Du hängst den Autoschlüssel an seinen Haken.'); } return S.hinweis('Alle Schlüssel hängen, wo sie hingehören.'); }
+    if (S.hat('bereit')) return S.hinweis('Schlüssel und Ausweis hast du schon.');
+    if (!S.hat('angezogen')) return S.hinweis('Im Schlafanzug gehst du nirgendwohin.');
+    S.gib('ausweis'); S.gib('privatschluessel');
+    await S.sag('', 'Autoschlüssel, Geldbeutel, Dienstausweis. Den Ausweis hast du gestern Abend dreimal angesehen: Kim Berger, Polizeianwärter.');
+    S.flag('bereit'); S.uhr('05:38'); morgenZiel(S);
+  },
+  async wohnungstuer(S) {
+    if (abends(S)) return S.hinweis('Für heute bleibst du drinnen. Ab ins Bett!');
+    const m = morgenOffen(S);
+    if (m) return S.hinweis('Noch nicht! ' + m[1] + '.');
+    S.flag('unterwegs'); S.ort('stadt', 309.3, 85); S.licht('abend'); S.uhr('05:40');
+    await S.sag('', 'Draußen ist es kühl, über dem Fleet hängt Dunst. Dein Wagen steht vor dem Haus: klein, dunkelblau und zwölf Jahre alt.');
+    S.ziel('Fahr mit deinem Auto zur Polizeiwache Am Deich. Der Parkplatz ist hinter dem Haus.', ['wache', 18, 26.6]);
+    S.speichern();
+  },
+  async fernseher(S) {
+    if (!abends(S)) return S.hinweis('Morgens läuft nur Werbung. Und du hast keine Zeit.');
+    if (S.hat('tv')) return S.hinweis('Es läuft nur noch der Wetterbericht: Regen.');
+    S.flag('tv');
+    await S.sag(NEWS, 'Und nun nach Möwenbrück. Im Stadtmuseum ist am späten Abend eingebrochen worden. Ein Wärter wurde verletzt. Die Polizei bittet um Hinweise.');
+    await S.sag('', 'Du schaltest aus. Du warst dabei, und trotzdem weißt du kaum mehr als die im Fernsehen.');
+  },
+  async handy(S) {
+    if (!abends(S)) return S.hinweis('Keine neuen Nachrichten. Um diese Zeit schläft jeder vernünftige Mensch.');
+    if (S.hat('handy')) return S.hinweis('Keine neuen Nachrichten.');
+    S.flag('handy');
+    await S.sag('', 'Zwei Nachrichten. Mama schreibt: Na, wie war der erste Tag? Ruf mal an! Und Jule: Hast du schon jemanden verhaftet?');
+    await S.sag('', 'Du tippst: Zwei sogar. Erzähle ich am Sonntag. Jule wird dir kein Wort glauben.');
+  },
+  async gitarre(S) {
+    if (!abends(S)) return S.hinweis('Um fünf Uhr morgens? Die Nachbarin ruft die Polizei. Und die bist du.');
+    if (S.hat('gitarre')) return S.hinweis('Genug für heute. Deine Finger sind müde.');
+    S.flag('gitarre');
+    await S.sag('', 'Du spielst leise die vier Akkorde, die du kannst. Von nebenan klopft niemand an die Wand. Das ist ein gutes Zeichen.');
+  },
+  async bett(S) {
+    if (!abends(S)) return S.hinweis(S.hat('weckerAus') ? 'Zurück ins Bett? Am ersten Tag? Keine Chance.' : 'Der Wecker klingelt! Mach ihn aus.');
+    if (S.hat('tagEnde')) return S.hinweis('Schlaf gut. Morgen geht es weiter.');
+    await S.sag('', 'Du liegst im Dunkeln und hörst dem Regen zu. Eine schwarz-weiße Feder. Ein Mann, der hinkt. Und Otto, der auf der ganzen Rückfahrt kein Wort gesagt hat. Dann fallen dir die Augen zu.');
+    S.flag('tagEnde'); S.uhr('00:05'); S.ziel('Tag 1 geschafft!', null); S.speichern();
     await S.ende('Ende von Tag 1', 'Wer schlägt für ein altes Buch einen Wärter nieder? Wer ist der Mann, der hinkt? Und was ist vor dreißig Jahren passiert?');
   },
 };
@@ -899,11 +1090,17 @@ export const ZONEN = [
   { id: 'zh1', ort: 'wache', x: 6, z: 14, r: 4.5, akt: 'z_hof1', wenn: 'gefangen1', bis: 'hof1' },
   { id: 'zh2', ort: 'wache', x: 6, z: 14, r: 4.5, akt: 'z_hof2', wenn: 'gefangen2', bis: 'hof2' },
   { id: 'zmu', ort: 'stadt', x: 80, z: 30, r: 12, akt: 'z_museum', wenn: 'alarm' },
+  // Morgens: Wer in die Wache kommt, wird von Otto begrüßt. Abends: zurück auf Platz 8, dann nach Hause vor das Haus Fleetufer 7.
+  { id: 'zd', ort: 'wache', x: 1, z: 3.2, r: 3.4, akt: 'dienstbeginn', wenn: 'unterwegs', bis: 'dienst' },
+  { id: 'zf', ort: 'wache', x: 6, z: 14, r: 5, akt: 'z_feierabend', wenn: 'museumFertig', bis: 'feierabend' },
+  { id: 'zz', ort: 'stadt', x: 303.85, z: 85, r: 8, akt: 'z_zuhause', wenn: 'umgezogen', bis: 'daheim' },
 ];
 
 // Ein kompletter Durchlauf zum Prüfen (tools/story.mjs und der Test im Browser):
 // [Aktion, Ding-Nummer oder null, Antworten auf die Auswahl-Fragen, true = nur ein Fehlversuch (fehlt im besten Durchlauf)]
 export const DURCHLAUF = [
+  ['bett', null, [], true], ['wecker', null, []], ['dusche', null, []], ['waschbecken', null, []], ['kleiderschrank', null, []], ['kaffee', null, []], ['kuehlschrank', null, [1]],
+  ['wohnungstuer', null, [], true], ['schluesselbrett', null, []], ['wohnungstuer', null, []], ['haustuer', null, [], true], ['dienstbeginn', null, []],
   ['spind', null, []], ['harms', null, [0, 1, 0, 2, 1]], ['selin', null, [0]],
   ['check', 'c_vorn', []], ['check', 'c_reifen1', []], ['check', 'c_reifen2', []], ['check', 'c_heck', []],
   ['einsteigen_hof', null, []], ['f_anmelden', null, []], ['z_kita', null, []],
@@ -917,10 +1114,12 @@ export const DURCHLAUF = [
   ['ruf_museum', null, []], ['z_museum', null, []], ['museumstuer', null, []], ['brinkmann', null, [0, 2]], ['thomsen', null, []],
   ['spur', 'spur_feder', []], ['spur', 'spur_fuss', []], ['fenster', null, []], ['spur', 'spur_kratzer', [0, 2]],
   ['otto', null, [0, 1]], ['brinkmann', null, [1, 0]],
+  ['ausgang', null, []], ['z_feierabend', null, []], ['einsteigen_hof', null, [], true], ['spind', null, [], true], ['harms', null, [0, 2, 1]], ['spind', null, []],
+  ['z_zuhause', null, []], ['haustuer', null, []], ['fernseher', null, []], ['handy', null, []], ['gitarre', null, []], ['dusche', null, []], ['bett', null, []],
 ];
 // Die Antworten, mit denen es beim ersten Versuch klappt (für die Rechnung der besten Punktzahl).
 // Steht eine Aktion zweimal im Durchlauf, sind es zwei Listen hintereinander.
 export const BESTE = {
-  harms: [[1, 1]], baecker: [[0, 0]], verletzte: [[2]], unfallfahrer: [[0]], f_unfall: [[2]], jagd_ende: [[2, 1]], gewahrsam: [[1], [1]], opfer: [[0]], 'verdacht:w2': [[2, 1, 1]],
+  kuehlschrank: [[0]], harms: [[1, 1], [1]], baecker: [[0, 0]], verletzte: [[2]], unfallfahrer: [[0]], f_unfall: [[2]], jagd_ende: [[2, 1]], gewahrsam: [[1], [1]], opfer: [[0]], 'verdacht:w2': [[2, 1, 1]],
   brinkmann: [[2], [0]], 'spur:spur_kratzer': [[2]], otto: [[1]],
 };
