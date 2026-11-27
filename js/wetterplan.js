@@ -36,7 +36,7 @@ export const PLAN = [
   { wenn: 'jagdFertig', wetter: 'truebe', text: '☁️ Der Himmel zieht sich zu, Wind kommt auf' },     // Markt
   { wenn: 'abend', wetter: 'sturm', text: '💨 Sturm zieht auf – über der See leuchtet es schon' },   // 21:30
   { wenn: 'alarm', wetter: 'gewitter', text: '⛈️ Das Gewitter ist da!', einschlag: true },           // Alarm im Museum
-  { wenn: 'tagEnde', wetter: 'regen', text: '🌧️ Das Gewitter zieht ab, es regnet weiter' },
+  { wenn: 'museumFertig', wetter: 'regen', text: '🌧️ Das Gewitter zieht ab, es regnet weiter' },
 ];
 
 // Welche Zeile des Plans gilt gerade? flags = die Merker der Geschichte (Z.flags)

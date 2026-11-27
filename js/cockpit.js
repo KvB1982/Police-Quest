@@ -36,13 +36,19 @@ function baueEinsatzSchirm(breite, hoehe) {
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(breite, hoehe), new THREE.MeshBasicMaterial({ map: bild, toneMapped: false }));
   mesh.rotation.y = Math.PI;
   let zuletzt = '';
-  function male(stufe, uhr, funk) {
-    const key = stufe + '|' + uhr + '|' + (funk ? 1 : 0);
+  function male(stufe, uhr, funk, privat) {
+    const key = stufe + '|' + uhr + '|' + (funk ? 1 : 0) + (privat ? 'p' : '');
     if (key === zuletzt) return; zuletzt = key;
     g.fillStyle = '#08111f'; g.fillRect(0, 0, B, H);
+    if (privat) {       // dein eigenes Auto: Statt der Einsatz-Anzeige läuft hier nur das Radio
+      g.textBaseline = 'middle'; g.textAlign = 'center';
+      g.fillStyle = '#ffb347'; g.font = `bold ${H * 0.26}px sans-serif`; g.fillText(uhr || '', B * 0.5, H * 0.3);
+      g.fillStyle = '#9fb3d1'; g.font = `bold ${H * 0.13}px sans-serif`; g.fillText('📻 Radio Möwenwelle 98,4', B * 0.5, H * 0.68);
+      bild.needsUpdate = true; return;
+    }
     g.fillStyle = '#12233f'; g.fillRect(0, 0, B, H * 0.2);
     g.textBaseline = 'middle'; g.textAlign = 'left';
-    g.fillStyle = '#cfe0ff'; g.font = `bold ${H * 0.13}px sans-serif`; g.fillText('MÖWE 7', B * 0.05, H * 0.105);
+    g.fillStyle = '#cfe0ff'; g.font = `bold ${H * 0.13}px sans-serif`; g.fillText('MÖWE 14', B * 0.05, H * 0.105);
     g.textAlign = 'right'; g.fillText(uhr || '', B * 0.95, H * 0.105);
     // drei Felder: aus · Blaulicht · Blaulicht mit Sirene (das gewählte leuchtet)
     const felder = [['AUS', '#3a4658'], ['BLAU', '#1e66ff'], ['SIRENE', '#ff3b30']];
@@ -223,8 +229,8 @@ export function baueCockpit() {
     lenk.stelle(-(a.lenkWinkel || 0) * LENKRAD_MAL);
     zeig.u = a.v; zeig.drehzahl = a.drehzahl; zeig.gang = a.gang || 1; zeig.p.drehzahlMax = STREIFE.drehzahlMax + 500; zeig.p.vMax = s.max || 26;
     anz.male(zeig);
-    schirm.male(s.blaulicht, s.uhr, s.funk && Math.floor(performance.now() / 400) % 2 === 0);
-    lampAus.emissiveIntensity = s.blaulicht ? 0 : 0.5; lampBlau.emissiveIntensity = s.blaulicht ? 2 : 0; lampSirene.emissiveIntensity = s.blaulicht === 2 ? 2 : 0;
+    schirm.male(s.blaulicht, s.uhr, s.funk && Math.floor(performance.now() / 400) % 2 === 0, s.privat);
+    lampAus.emissiveIntensity = s.blaulicht || s.privat ? 0 : 0.5; lampBlau.emissiveIntensity = s.blaulicht ? 2 : 0; lampSirene.emissiveIntensity = s.blaulicht === 2 ? 2 : 0;
     // Licht von draußen: gleiche Farben, etwas dunkler; die Sonne steht für den Wagen woanders, wenn er sich dreht
     if (s.oben) { himmelLicht.color.copy(s.oben.color); himmelLicht.groundColor.copy(s.oben.groundColor); himmelLicht.intensity = s.oben.intensity * INNEN_HELL; }
     if (s.sonne && s.sonneRichtung) {

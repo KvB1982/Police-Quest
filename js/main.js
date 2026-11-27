@@ -24,11 +24,12 @@ import { baueVerkehr } from './verkehrbau.js';
 import { woBinIch, UFER, imHindernis } from './stadtplan.js';
 import * as JAGD from './jagd.js';
 import { WACHE_X, WACHE_Z, WACHE_KAMERA, WACHE_PLATZ8, inWache, imWachHaus } from './wache.js';
+import { PRIVAT_ZUHAUSE, PRIVAT_WACHE } from './wohnung.js';
 import * as FAHR from './fahrphysik.js';
 import { baueCockpit } from './cockpit.js';
 
 // ------------------------------------------------------------------ Zahlen zum Einstellen
-const LAUF_TEMPO = 4.6;          // Meter pro Sekunde zu Fuß
+const LAUF_TEMPO = 4.6;          // Meter pro Sekunde zu Fuß (in der Wohnung geht man langsamer: "tempo" in js/wohnung.js)
 const NAH = 2.1;                 // so nah muss man an etwas heran, um es zu benutzen
 const LAMPE_WINKEL = 0.8;        // halbe Breite des Lichtkegels (Bogenmaß)
 // Wie der Streifenwagen fährt (Gas, Bremse, Reifen, Lenkung), steht seit 27.11.2026 in js/fahrphysik.js (aus dem Rennspiel übernommen).
@@ -46,6 +47,9 @@ const LICHT = {                  // Himmel (drinnen), Licht von oben, Sonne, Tas
   abend: { himmel: '#e39a6b', oben: 1.15, sonne: 1.5, lampe: 0, auto: 250, farbe: '#ffa868' },
   nacht: { himmel: '#0b1430', oben: 0.5, sonne: 0.3, lampe: 25, auto: 500, farbe: '#9db8ff' },
   dunkel: { himmel: '#040508', oben: 0.32, sonne: 0, lampe: 70, auto: 0 },
+  // Nur für drinnen (die Wohnung): früher Morgen mit erstem Sonnenlicht · abends bei warmem Lampenlicht
+  frueh: { himmel: '#f1c7a6', oben: 1.6, sonne: 2.0, lampe: 0, auto: 0, farbe: '#ffd6ac' },
+  lampe: { himmel: '#0e1528', oben: 1.2, sonne: 1.25, lampe: 0, auto: 0, farbe: '#ffc98a' },
 };
 const SICHT = 4300;              // so weit sieht man in der Stadt, dahinter verschwindet alles im Dunst
 const SCHATTEN = 95;             // die Sonne wirft Schatten in diesem Umkreis um dich (Meter)
@@ -54,9 +58,12 @@ const SCHNITT_VOR = 0.5;         // zu Fuß wird von der Stadt alles weggeschnit
 // ------------------------------------------------------------------ Spielstand
 let Z = neuerStand();
 function neuerStand() {
-  // Der Streifenwagen parkt am Anfang im Hof der Wache auf Platz 8, die Nase zum Tor.
-  return { fassung: 2, flags: {}, punkte: 0, sachen: [], notizen: [], ziel: null, ort: 'stadt', licht: STORY.START.licht, uhr: STORY.START.uhr,
-    imAuto: false, blaulicht: AUS, auto: { x: WACHE_PLATZ8[0], z: WACHE_PLATZ8[1], h: 0, v: 0 }, sp: { x: STORY.START.x, z: STORY.START.z } };
+  // Der Tag beginnt zu Hause: Du bist in Zivil, dein eigenes Auto steht vor der Haustür am Fleetufer.
+  // Es gibt zwei Autos. "auto" ist immer das, das du gerade fährst (privat: true = dein eigenes, sonst der Streifenwagen),
+  // "park" ist das andere – es steht, wo du es abgestellt hast. Der Streifenwagen parkt im Hof der Wache auf Platz 8, die Nase zum Tor.
+  return { fassung: 3, flags: {}, punkte: 0, sachen: [], notizen: [], ziel: null, ort: STORY.START.ort, licht: STORY.START.licht, uhr: STORY.START.uhr,
+    imAuto: false, blaulicht: AUS, zivil: true, privat: true, auto: { x: PRIVAT_ZUHAUSE[0], z: PRIVAT_ZUHAUSE[1], h: PRIVAT_ZUHAUSE[2], v: 0 },
+    park: { x: WACHE_PLATZ8[0], z: WACHE_PLATZ8[1], h: 0 }, sp: { x: STORY.START.x, z: STORY.START.z } };
 }
 // Die Polizeiwache gehört zur Stadt (js/wache.js). Die Geschichte darf trotzdem weiter in "Wache-Maßen" rechnen:
 // ['wache', x, z] ist eine Stelle in der Wache (0/6 = die Hoftür), ['wagen'] ist dort, wo der Streifenwagen gerade steht.
@@ -68,7 +75,17 @@ function stelle(w) {
 }
 // Ein Spielstand von früher (als die Wache noch ein eigener Ort war) wird beim Laden umgerechnet.
 function altenStand(A) {
-  if (A.fassung === 2) return A;
+  if (A.fassung === 3) return A;
+  if (A.fassung !== 2) altenStand2(A);
+  // Stände von vor dem 27.11.2026 kennen weder Wohnung noch eigenes Auto: Der Morgen gilt als erledigt, dein Auto steht im Hof der Wache.
+  for (const m of ['weckerAus', 'geduscht', 'zaehne', 'angezogen', 'fruehstueck', 'bereit', 'unterwegs', 'dienst', 'zone_zd']) A.flags[m] = true;
+  if (A.flags.tagEnde) { delete A.flags.tagEnde; A.flags.museumFertig = true; }       // der Tag war schon zu Ende: Jetzt geht er mit dem Feierabend weiter
+  A.zivil = false; A.privat = false; A.park = { x: PRIVAT_WACHE[0], z: PRIVAT_WACHE[1], h: PRIVAT_WACHE[2] };
+  if (!A.sachen.includes('privatschluessel')) A.sachen.push('privatschluessel');
+  A.fassung = 3;
+  return A;
+}
+function altenStand2(A) {
   const liefert = [1, 2].find(n => A.flags['gefangen' + n] && !A.flags['abgabe' + n]);
   if (A.ort === 'wache') {
     A.ort = 'stadt'; A.sp = { x: A.sp.x + WACHE_X, z: A.sp.z + WACHE_Z }; A.imAuto = false;
@@ -76,8 +93,6 @@ function altenStand(A) {
     if (liefert) { A.flags['hof' + liefert] = A.flags['zone_zh' + liefert] = true; }
     if (liefert || A.flags.angemeldet) A.flags.los = true;
   } else if (A.flags.wagen) A.flags.los = true;
-  A.fassung = 2;
-  return A;
 }
 const spieler = { x: 0, z: 0, h: Math.PI, tap: null, tempo: 0 };
 let welt = null;
@@ -135,16 +150,35 @@ function sichtZeigen() { const k = document.getElementById('sichtKnopf'); if (k)
 // So stark spiegelt der Lack des Streifenwagens bei welchem Licht.
 const SPIEGELN = { tag: 0.9, abend: 0.5, nacht: 0.22, dunkel: 0.12 };
 const wagen = autoModell('#f4f4f4', true);
+// Dein eigenes Auto: ein dunkelblauer Kleinwagen. Damit fährst du morgens zur Wache und abends nach Hause.
+const privat = autoModell('#27407a', false, 'auto_kompakt');
+{ const sw = new THREE.SpotLight('#fff4d0', 0, 60, 0.6, 0.5, 1.2); sw.position.set(0, 1, 2.2); sw.target.position.set(0, 0, 14); privat.add(sw, sw.target); privat.userData.sw = sw; }
+// Welches der beiden Autos fährst du gerade – und welches steht geparkt?
+const meinWagen = () => Z.privat ? privat : wagen, parkWagen = () => Z.privat ? wagen : privat;
+// Die Autos tauschen: Wer Zivil trägt, fährt sein eigenes Auto, wer Uniform trägt, den Streifenwagen. Das andere bleibt stehen, wo es ist.
+function wagenTauschen(eigenes) {
+  if (!!Z.privat === !!eigenes) return;
+  const a = Z.auto; Z.auto = { x: Z.park.x, z: Z.park.z, h: Z.park.h, v: 0 }; Z.park = { x: a.x, z: a.z, h: a.h }; Z.privat = !!eigenes;
+  FAHR.halt(Z.auto); blaulichtSetzen(AUS);
+  for (const w of [wagen, privat]) { w.userData.drin = false; w.traverse(o => { if (o.isMesh) o.layers.set(0); }); }
+  lichtSetzen(Z.licht);
+}
+// Uniform oder Zivil? Kim hat für beides eine eigene Figur (assets/modelle/polizist.glb und kim_zivil.glb).
+function kleidungSetzen(zivil) {
+  Z.zivil = !!zivil;
+  if (!!kim.userData.zivil !== Z.zivil) { kim.userData.zivil = Z.zivil; if (Z.zivil) ladePolizist(kim, 'kim_zivil', 'mann'); else ladePolizist(kim); }
+  wagenTauschen(Z.zivil);
+}
 // Damit der Lack des Streifenwagens glänzt, braucht er etwas zum Spiegeln: ein unsichtbares helles Zimmer rund um das Auto.
 { const pm = new THREE.PMREMGenerator(renderer); spiegelBild(pm.fromScene(new RoomEnvironment(), 0.04).texture); pm.dispose(); }
 const zielSaeule = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 120, 20, 1, true),
   new THREE.MeshBasicMaterial({ color: '#ffd23a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
-kim.traverse(o => { if (o.isMesh) o.castShadow = true; }); ladePolizist(kim); wagen.traverse(o => { if (o.isMesh) o.castShadow = true; });
+kim.traverse(o => { if (o.isMesh) o.castShadow = true; }); ladePolizist(kim); for (const w of [wagen, privat]) w.traverse(o => { if (o.isMesh) o.castShadow = true; });
 // Für die Verfolgungsfahrt: der Fluchtwagen (man sieht ihn nur, wenn die Geschichte ihn braucht)
 const fluchtwagen = autoModell('#1c2333');
 fluchtwagen.visible = false; fluchtwagen.traverse(o => { if (o.isMesh) o.castShadow = true; });
 let jagd = null;
-szene.add(kim, wagen, zielSaeule, fluchtwagen);
+szene.add(kim, wagen, privat, zielSaeule, fluchtwagen);
 
 function groesse() {
   renderer.setSize(innerWidth, innerHeight, false);
@@ -161,7 +195,7 @@ function lichtSetzen(name) {
   Z.licht = name;
   const l = LICHT[name], draussen = !!(welt && welt.stadt);
   oben.intensity = l.oben; sonne.intensity = l.sonne; sonne.color.set(l.farbe || '#fff4e0');
-  lampe.intensity = l.lampe; wagen.userData.sw.intensity = l.auto;
+  lampe.intensity = l.lampe; wagen.userData.sw.intensity = Z.privat ? 0 : l.auto; privat.userData.sw.intensity = Z.privat ? l.auto : 0;
   if (wagen.userData.lack) wagen.userData.lack.envMapIntensity = SPIEGELN[name] ?? 0.5;
   const innen = !draussen && ORTE[Z.ort].schatten;       // auch die Wache hat Schatten: Sie ist klein, das kostet fast nichts
   sonne.castShadow = (draussen || !!innen) && name !== 'dunkel' && !sparsam;
@@ -183,12 +217,15 @@ function lichtSetzen(name) {
 }
 
 // ------------------------------------------------------------------ Orte wechseln
+let stadtWelt = null;
 function ortLaden(name, x, z) {
   [name, x, z] = stelle([name, x, z]);       // 'wache' ist kein eigener Ort mehr: Das ist die Stadt, nur in Wache-Maßen
   // Die Stadt ist groß. Steht sie schon, wird sie nicht noch einmal gebaut – dann wird nur die Figur umgesetzt.
   if (!(welt && welt.stadt && name === 'stadt')) {
     if (welt) szene.remove(welt.gruppe);
-    welt = baueOrt(ORTE[name]);
+    // Die Stadt bleibt gemerkt, auch wenn du in ein Haus gehst (Museum, Wohnung): So muss sie beim Hinausgehen nicht noch einmal gebaut werden.
+    welt = name === 'stadt' && stadtWelt ? stadtWelt : baueOrt(ORTE[name]);
+    if (welt.stadt) stadtWelt = welt;
     szene.add(welt.gruppe);
     for (const g of [himmel, umland, verkehrBild, markt]) if (g) { if (welt.stadt) szene.add(g.gruppe); else szene.remove(g.gruppe); }
     rasterBauen();
@@ -197,7 +234,7 @@ function ortLaden(name, x, z) {
   lichtSetzen(Z.licht);
   KARTE.radarZeigen(!!welt.stadt);
   spieler.x = x; spieler.z = z; spieler.tap = null;
-  wagen.visible = name === 'stadt';
+  wagen.visible = privat.visible = name === 'stadt';
   for (const o of welt.objekte) o.da = undefined;       // alle tauchen neu auf: Wer dir folgt, steht dann neben dir
   wachFern = null; kam.innen = wacheNah() ? 1 : 0;
   sichtbarkeit();
@@ -267,6 +304,13 @@ const S = {
   punkte(n, wofuer) { Z.punkte = Math.max(0, Z.punkte + n); UI.toast(`${n > 0 ? '+' : ''}${n} ⭐ ${wofuer}`); if (n > 0) KLANG.spiel('pling'); anzeigen(); },
   notiz(t) { if (!Z.notizen.includes(t)) Z.notizen.push(t); },
   gib(s) { if (!Z.sachen.includes(s)) Z.sachen.push(s); },
+  nimm(s) { Z.sachen = Z.sachen.filter(x => x !== s); },       // etwas wieder abgeben (abends in den Spind, die Waffe zu Harms)
+  // Umziehen: 'zivil' oder 'dienst'. Mit der Kleidung wechselt auch das Auto: in Zivil dein eigenes, in Uniform der Streifenwagen.
+  kleidung(art) {
+    // Wer morgens zu Fuß zur Wache gegangen ist, hätte abends kein Auto da. Dann steht es trotzdem auf dem Parkplatz hinter der Wache.
+    if (art === 'zivil' && !Z.privat && Math.hypot(Z.park.x - PRIVAT_WACHE[0], Z.park.z - PRIVAT_WACHE[1]) > 150) Z.park = { x: PRIVAT_WACHE[0], z: PRIVAT_WACHE[1], h: PRIVAT_WACHE[2] };
+    kleidungSetzen(art === 'zivil'); sichtbarkeit();
+  },
   ziel(text, wo) { Z.ziel = { text, wo }; anzeigen(); },
   ort(name, x, z) { ortLaden(name, x, z); KLANG.spiel('tuer'); anzeigen(); },
   klang: name => KLANG.spiel(name),
@@ -333,7 +377,7 @@ function geraeusche(dt) {
   KLANG.schleife('motor', Z.imAuto ? 0.55 + dz * 0.35 + (tasten.hoch ? 0.15 : 0) : 0, 0.75 + dz * 1.25);
   KLANG.schleife('markt', stadt && Z.licht === 'tag' ? nah(-40, -30, 60) : 0);
   KLANG.schleife('moewen', stadt && Z.licht !== 'nacht' ? (0.25 + Math.max(0, 1 - (spieler.z - UFER) / 160) * 0.75) * haus : 0);      // am Wasser lauter
-  KLANG.schleife('alarm', stadt && Z.flags.alarm && !Z.flags.tagEnde ? nah(74, 30, 70) : 0);
+  KLANG.schleife('alarm', stadt && Z.flags.alarm && !Z.flags.museumFertig ? nah(74, 30, 70) : 0);
   if (!Z.imAuto && spieler.tempo > 0 && (schrittZeit -= dt) <= 0) { schrittZeit = 0.34; KLANG.spiel('schritt'); }
   KLANG.musik(musikWahl());
 }
@@ -349,8 +393,9 @@ function musikWahl() {
   // Es liegt etwas in der Luft: der Fahrer ohne Papiere neben dem kurzgeschlossenen Wagen, der Dieb irgendwo zwischen den Ständen
   if (stadt && ((Z.flags.uPapiere && !Z.flags.flucht) || (Z.flags.opfer && !Z.flags.marktFertig))) return 'spannung';
   if (Z.ort === 'museum') return 'museum';
+  if (Z.ort === 'wohnung') return 'hafen';       // zu Hause: das ruhige Stück
   if (wacheNah()) return 'wache';
-  if (Z.licht === 'nacht' || Z.licht === 'dunkel' || (Z.flags.alarm && !Z.flags.tagEnde)) return 'spannung';
+  if (Z.licht === 'nacht' || Z.licht === 'dunkel' || (Z.flags.alarm && !Z.flags.museumFertig)) return 'spannung';
   if (!Z.imAuto && spieler.z - UFER < HAFEN_NAH) return 'hafen';
   return 'streife';
 }
@@ -395,7 +440,7 @@ function moeglich() {
   const l = welt.objekte.filter(erreichbar)
     .sort((a, b) => abstand(spieler.x, spieler.z, a.x ?? a.def.x, a.z ?? a.def.z) - abstand(spieler.x, spieler.z, b.x ?? b.def.x, b.z ?? b.def.z))
     .slice(0, 3).map(o => ({ text: (o.typ === 'leut' ? '💬 ' : '') + o.def.name, tun: () => tu(o.def.akt, o.def) }));
-  if (Z.ort === 'stadt' && abstand(spieler.x, spieler.z, Z.auto.x, Z.auto.z) < 3.6) l.unshift({ text: 'In den Streifenwagen einsteigen', tun: einsteigen });
+  if (Z.ort === 'stadt' && abstand(spieler.x, spieler.z, Z.auto.x, Z.auto.z) < 3.6) l.unshift({ text: Z.privat ? 'In dein Auto einsteigen' : 'In den Streifenwagen einsteigen', tun: einsteigen });
   return l;
 }
 
@@ -410,6 +455,7 @@ function aussteigen() {
 }
 function einsteigenJetzt() { neigung.kalibrieren(); FAHR.halt(Z.auto); cockpit.neu(); Z.imAuto = true; spieler.tap = null; sichtbarkeit(); }
 function einsteigen() {
+  if (Z.privat) return einsteigenJetzt();       // dein eigenes Auto: einfach einsteigen und losfahren
   // Steht der Wagen im Hof der Wache, entscheidet die Geschichte, ob es schon losgehen darf (erst den Wagen prüfen, erst die Zellentür zu …).
   if (inWache(Z.auto.x, Z.auto.z)) return tu('einsteigen_hof');
   einsteigenJetzt(); tu('eingestiegen');
@@ -421,6 +467,7 @@ function blaulichtSetzen(stufe) {
 }
 // Der Knopf 🚨 und die Taste B schalten reihum: aus → nur Blaulicht → Blaulicht mit Sirene → aus
 function blaulichtWeiter() {
+  if (Z.privat) return UI.toast('Dein eigenes Auto hat kein Blaulicht.');
   blaulichtSetzen((Z.blaulicht + 1) % 3);
   UI.toast(['Blaulicht aus', 'Nur Blaulicht – ohne Sirene', 'Blaulicht mit Sirene'][Z.blaulicht]);
 }
@@ -501,6 +548,10 @@ function schieben(x, z, r, wagen = false) {
   for (const G of gaeste) {       // Rettungswagen und die zweite Streife stehen auch im Weg
     const dx = x - G.x, dz = z - G.z, d = Math.hypot(dx, dz), min = r + 1.4;
     if (d < min && d > 0.001) { x = G.x + dx / d * min; z = G.z + dz / d * min; }
+  }
+  if (welt.stadt && Z.park) for (const k of [1.2, -1.2]) {       // dein zweites Auto, das gerade geparkt steht (zwei Kreise: vorn und hinten)
+    const cx = Z.park.x + Math.sin(Z.park.h) * k, cz = Z.park.z + Math.cos(Z.park.h) * k, dx = x - cx, dz = z - cz, d = Math.hypot(dx, dz), min = r + 0.95;
+    if (d < min && d > 0.001) { x = cx + dx / d * min; z = cz + dz / d * min; }
   }
   if (fluchtwagen.visible && welt.stadt) {       // der Fluchtwagen auch
     const dx = x - fluchtwagen.position.x, dz = z - fluchtwagen.position.z, d = Math.hypot(dx, dz), min = r + 1.3;
@@ -608,13 +659,13 @@ function zuFuss(dt) {
     if (!t.weg.length || (t.zeit += dt) > 60) spieler.tap = null;
     else { const dx = t.weg[0][0] - spieler.x, dz = t.weg[0][1] - spieler.z, d = Math.hypot(dx, dz); vx = dx / d; vz = dz / d; }
   }
-  const n = Math.hypot(vx, vz), T = LAUF_TEMPO * (lauf ? lauf.H.kimMal : 1);       // wer bei einer Verfolgung stolpert, ist kurz langsamer
-  spieler.tempo = n ? T : 0;
+  const n = Math.hypot(vx, vz), tempo = (ORTE[Z.ort].tempo || LAUF_TEMPO) * (lauf ? lauf.H.kimMal : 1);       // drinnen langsamer; wer bei einer Verfolgung stolpert, ist kurz langsamer
+  spieler.tempo = n ? tempo : 0;
   if (!n) return;
   spieler.h = Math.atan2(vx, vz);
   const ax = spieler.x, az = spieler.z;
-  [spieler.x, spieler.z] = schieben(spieler.x + vx / n * T * dt, spieler.z + vz / n * T * dt, 0.4);
-  if (spieler.tap && abstand(ax, az, spieler.x, spieler.z) < LAUF_TEMPO * dt * 0.2) spieler.tap.zeit += dt * 40;   // hängt fest: bald aufgeben
+  [spieler.x, spieler.z] = schieben(spieler.x + vx / n * tempo * dt, spieler.z + vz / n * tempo * dt, ORTE[Z.ort].tempo ? 0.3 : 0.4);
+  if (spieler.tap && abstand(ax, az, spieler.x, spieler.z) < (ORTE[Z.ort].tempo || LAUF_TEMPO) * dt * 0.2) spieler.tap.zeit += dt * 40;   // hängt fest: bald aufgeben
 }
 
 function fahren(dt) {
@@ -637,7 +688,7 @@ function fahren(dt) {
   a.lenk = a.lenkWinkel / 0.45;       // für die Vorderräder im Bild (autoRaeder)
   const kmh = Math.abs(a.v) * 3.6;
   zuSchnellZeit = (!Z.blaulicht && kmh > ZU_SCHNELL) ? zuSchnellZeit + dt : 0;
-  if (zuSchnellZeit > 1.5 && zeit > schimpfZeit) { schimpfZeit = zeit + 15; S.punkte(-1, 'Otto: „In der Stadt gilt 50!“'); }
+  if (zuSchnellZeit > 1.5 && zeit > schimpfZeit) { schimpfZeit = zeit + 15; S.punkte(-1, Z.privat ? 'In der Stadt gilt 50 – auch nach Feierabend!' : 'Otto: „In der Stadt gilt 50!“'); }
   spieler.x = a.x; spieler.z = a.z;
   UI.tacho(kmh);
 }
@@ -702,8 +753,8 @@ function rundenSchritt(dt) {
 
 // Türen, Spind und Schrank: jedes Bild ein Stück weiter auf oder zu. Türen in den Wänden gehen von selbst auf, wenn du oder Otto davorstehen.
 function klappenSchritt(dt) {
-  if (wachFern) return;       // weit weg von der Wache bewegt sich dort nichts (in der Stadt gibt es sonst nur die Museumstür, und die öffnet die Geschichte)
   for (const k of Object.values(welt.klappen)) {
+    if (wachFern && !k.wartet) continue;       // weit weg von der Wache bewegt sich dort nichts – nur Türen, die die Geschichte gerade öffnet (Museum, Haustür)
     if (k.auto) {
       const nah = (x, z) => abstand(x, z, k.auto.x, k.auto.z) < k.auto.r;
       // Das Schiebetor (k.auto.wagen) geht nur für dich auf – zu Fuß oder im Wagen. Türen öffnen auch die Kollegen.
@@ -889,7 +940,7 @@ function stadtSchritt(dt) {
 function kartenStand() {
   const w = stelle(Z.ziel && Z.ziel.wo);
   return { x: spieler.x, z: spieler.z, h: Z.imAuto ? Z.auto.h : spieler.h, imAuto: Z.imAuto, ziel: w && w[0] === 'stadt' ? [w[1], w[2]] : null, zielText: Z.ziel && Z.ziel.text,
-    wagen: [Z.auto.x, Z.auto.z], autos: verkehr.autos };
+    wagen: [Z.auto.x, Z.auto.z], wagenName: Z.privat ? 'Dein Auto' : 'Streifenwagen', autos: verkehr.autos };
 }
 function karteAuf() { if (welt.stadt && !beschaeftigt && !UI.offen()) { if (KARTE.kartOffen()) KARTE.karteZu(); else KARTE.karteAuf(kartenStand()); } }
 
@@ -920,12 +971,15 @@ function schritt(dt) {
   // Figuren und Wagen an ihre Plätze setzen
   kim.visible = !Z.imAuto; kim.position.set(spieler.x, 0, spieler.z); kim.rotation.y = spieler.h; figurBewegen(kim, dt, spieler.tempo);
   const blink = Z.blaulicht && Math.floor(zeit * 5) % 2;
+  // mein = das Auto, das du gerade fährst (Streifenwagen oder dein eigenes), das andere steht geparkt.
+  const mein = meinWagen(), steht = parkWagen();
   // Die Karosserie neigt sich in der Kurve und nickt beim Bremsen (nur fürs Bild, die Zahlen kommen aus der Fahrphysik)
-  wagen.rotation.order = 'YXZ'; wagen.rotation.x = Z.imAuto ? Z.auto.nicken || 0 : 0; wagen.rotation.z = Z.imAuto ? Z.auto.kippen || 0 : 0;
+  mein.rotation.order = 'YXZ'; mein.rotation.x = Z.imAuto ? Z.auto.nicken || 0 : 0; mein.rotation.z = Z.imAuto ? Z.auto.kippen || 0 : 0;
   // Im Cockpit malt die Stadt-Kamera den eigenen Wagen nicht (sonst säße man in seinem Blech) – seine Lampen leuchten weiter.
-  const drin = imCockpit(); if (wagen.userData.drin !== drin || bildNr % 60 === 0) { wagen.userData.drin = drin; wagen.traverse(o => { if (o.isMesh) o.layers.set(drin ? 1 : 0); }); }
-  if (drin) cockpit.schritt(dt, Z.auto, { blaulicht: Z.blaulicht, blink, uhr: Z.uhr, funk: !!(Z.streife && Z.streife.ruf), oben, sonne, sonneRichtung: himmel && himmel.sonneRichtung, regen: wetter ? wetter.jetzt.regen : 0, max: V_MAX_BLAU });
-  wagen.position.set(Z.auto.x, 0, Z.auto.z); wagen.rotation.y = Z.auto.h; autoRaeder(wagen, Z.auto.weg || 0, Z.imAuto ? Z.auto.lenk || 0 : 0);
+  const drin = imCockpit(); if (mein.userData.drin !== drin || bildNr % 60 === 0) { mein.userData.drin = drin; mein.traverse(o => { if (o.isMesh) o.layers.set(drin ? 1 : 0); }); }
+  if (drin) cockpit.schritt(dt, Z.auto, { blaulicht: Z.blaulicht, blink, uhr: Z.uhr, funk: !!(Z.streife && Z.streife.ruf), privat: !!Z.privat, oben, sonne, sonneRichtung: himmel && himmel.sonneRichtung, regen: wetter ? wetter.jetzt.regen : 0, max: V_MAX_BLAU });
+  mein.position.set(Z.auto.x, 0, Z.auto.z); mein.rotation.y = Z.auto.h; autoRaeder(mein, Z.auto.weg || 0, Z.imAuto ? Z.auto.lenk || 0 : 0);
+  if (Z.park) { steht.rotation.x = steht.rotation.z = 0; steht.position.set(Z.park.x, 0, Z.park.z); steht.rotation.y = Z.park.h; }
   const u = wagen.userData;
   u.blau[0].material.emissiveIntensity = Z.blaulicht && blink ? 3 : 0; u.blau[1].material.emissiveIntensity = Z.blaulicht && !blink ? 3 : 0;
   u.blitz.intensity = Z.blaulicht ? (blink ? 70 : 28) : 0;
@@ -949,7 +1003,7 @@ function schritt(dt) {
   const E = einsatz();
   if (E && !Z.flags.verstTipp && !beschaeftigt && !UI.offen() && !Z.imAuto) { Z.flags.verstTipp = true; UI.toast('Neu im Einsatz: Mit 📻 Verstärkung rufst du die Kollegen von Möwe 12'); }
   UI.verst(!!E && !KARTE.kartOffen() && !UI.offen() && !UI.bildOffen() && (!beschaeftigt || laufAktiv()), E && Z.flags['verst_' + E]);
-  UI.fahrKnoepfe(Z.imAuto);
+  UI.fahrKnoepfe(Z.imAuto, !Z.privat);       // im eigenen Auto gibt es keinen Blaulicht-Knopf
   markenZeigen();
 }
 
@@ -986,21 +1040,26 @@ addEventListener('keyup', e => { const k = e.key.length === 1 ? e.key.toLowerCas
 const VERBEN = { geh: ['🚶', 'Gehen'], sieh: ['👁', 'Ansehen'], rede: ['💬', 'Reden'], nimm: ['✋', 'Benutzen'] };
 const VERB_TASTE = { 1: 'geh', 2: 'sieh', 3: 'rede', 4: 'nimm' };
 let verb = 'geh', markenBis = 0, markenAn = false;
-const wagenDing = { wagen: true };       // der Streifenwagen in der Stadt ist auch etwas zum Anklicken
+const wagenDing = { wagen: true }, parkDing = { wagen: true, park: true };       // deine beiden Autos sind auch etwas zum Anklicken: das, das du gerade fährst, und das geparkte
+const eigenes = o => o.park ? !Z.privat : !!Z.privat;       // ist dieses Auto dein eigenes (und nicht der Streifenwagen)?
+const autoOrt = o => o.park ? Z.park : Z.auto;
 
 function verbSetzen(v) { verb = v; UI.verb(v); UI.satz(`${VERBEN[v][0]} ${VERBEN[v][1]}`); }
 // Welche Tätigkeit passt zu einem Ding? Leute spricht man an, Dinge benutzt man – außer in daten.js steht verb: 'sieh'.
 const verbVon = o => o.wagen ? 'nimm' : o.def.verb || (o.typ === 'leut' ? 'rede' : 'nimm');
-const nameVon = o => o.wagen ? 'Streifenwagen Möwe 14' : o.def.name;
-const ortVon = o => o.wagen ? [Z.auto.x, Z.auto.z] : [o.x ?? o.def.x, o.z ?? o.def.z];
-const nahGenug = o => o.wagen ? abstand(spieler.x, spieler.z, Z.auto.x, Z.auto.z) < 3.6 : erreichbar(o);
-function benutze(o) { if (o.wagen) einsteigen(); else tu(o.def.akt, o.def); }
+const nameVon = o => o.wagen ? (eigenes(o) ? 'Dein Auto' : 'Streifenwagen Möwe 14') : o.def.name;
+const ortVon = o => o.wagen ? [autoOrt(o).x, autoOrt(o).z] : [o.x ?? o.def.x, o.z ?? o.def.z];
+const nahGenug = o => o.wagen ? abstand(spieler.x, spieler.z, autoOrt(o).x, autoOrt(o).z) < 3.6 : erreichbar(o);
+function benutze(o) {
+  if (o.park) return UI.toast(eigenes(o) ? 'Dein eigenes Auto bleibt stehen, bis du Feierabend hast.' : 'Den Streifenwagen fährst du nur im Dienst – in Uniform.');
+  if (o.wagen) einsteigen(); else tu(o.def.akt, o.def);
+}
 
 // Alles, was man gerade antippen kann. Spuren im Dunkeln zählen erst, wenn die Taschenlampe darauf zeigt – sonst wäre das Suchen zu leicht.
 function antippbar() {
   if (!welt || Z.imAuto) return [];
   const l = welt.objekte.filter(o => o.da && o.def.name && (o.def.akt || o.def.sieh) && (!o.def.licht || erreichbar(o)));
-  if (Z.ort === 'stadt') l.push(wagenDing);
+  if (Z.ort === 'stadt') l.push(wagenDing, parkDing);
   return l;
 }
 // Wo ist ein Ding auf dem Bildschirm? Zurück kommt [x, y] in Bildpunkten oder null, wenn es hinter der Kamera liegt.
@@ -1029,7 +1088,7 @@ function hinlaufen(o, tun) {
 // Etwas nur ansehen: ein kurzer Satz, ohne hinzulaufen.
 async function ansehen(o) {
   if (beschaeftigt) return;
-  const text = o.wagen ? 'Dein Streifenwagen, Funkname Möwe 14. Blau-silber, mit Blaulicht auf dem Dach. Otto hat ihn heute Morgen noch gewaschen.'
+  const text = o.wagen ? (eigenes(o) ? STORY.PRIVATWAGEN_SIEH : 'Dein Streifenwagen, Funkname Möwe 14. Blau-silber, mit Blaulicht auf dem Dach. Otto hat ihn heute Morgen noch gewaschen.')
     : o.def.sieh || (o.typ === 'leut' ? `Das ist ${o.def.name}.` : `${o.def.name}. Nichts Auffälliges.`);
   beschaeftigt = true; spieler.tap = null;
   KLANG.sprich('', text);
@@ -1279,7 +1338,7 @@ function einsatz() {
   if (f.unfall && !f.flucht) return 'unfall';
   if (f.flucht && !f.jagdFertig) return 'jagd';
   if (f.markt && !f.marktFertig) return 'markt';
-  if (f.alarm && !f.tagEnde) return 'museum';
+  if (f.alarm && !f.museumFertig) return 'museum';
   return null;
 }
 function verstDruck() {
@@ -1457,10 +1516,10 @@ async function start() {
   const was = await UI.menue(!!alt);
   KLANG.an();
   if (was === 'weiter') {
-    Z = altenStand(alt); blaulichtSetzen(AUS); FAHR.halt(Z.auto);
+    Z = altenStand(alt); blaulichtSetzen(AUS); FAHR.halt(Z.auto); kleidungSetzen(Z.zivil);
     lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
   } else {
-    Z = neuerStand(); blaulichtSetzen(AUS); lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
+    Z = neuerStand(); blaulichtSetzen(AUS); kleidungSetzen(Z.zivil); lichtSetzen(Z.licht); ortLaden(Z.ort, Z.sp.x, Z.sp.z); anzeigen();
     beschaeftigt = true;
     await STORY.beginn(S);
     beschaeftigt = false; anzeigen();

@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import * as BILD from './bilder.js';
+import { wohnForm } from './wohnmoebel.js';       // die Möbel für Kims Wohnung stehen in einer eigenen Datei
 
 const mat = (farbe, extra = {}) => new THREE.MeshLambertMaterial({ color: farbe, ...extra });
 const dunkel = (farbe, k = 0.72) => '#' + new THREE.Color(farbe).multiplyScalar(k).getHexString();
@@ -110,6 +111,7 @@ function fleckBild(art) {
 // Die Möbel und Sachen selbst
 // ---------------------------------------------------------------------------------------------
 export function moebelForm(q) {
+  { const w = wohnForm(q); if (w) return w; }       // Bett, Sofa, Gitarre …: die Formen aus js/wohnmoebel.js
   // Steht ein Möbel quer (um eine Vierteldrehung gedreht), sind seine Breite und Tiefe vertauscht: q.b und q.t gelten immer für den Raum.
   const quer = q.t !== undefined && q.h !== undefined && Math.abs(Math.sin(q.dreh || 0)) > 0.7;
   const g = new THREE.Group(), f = q.farbe || '#7a5a3a', b = (quer ? q.t : q.b) || 1, t = (quer ? q.b : q.t) || 1, h = q.h || 1;

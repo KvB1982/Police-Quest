@@ -128,7 +128,7 @@ function marken() {
   k.drawImage(gross, 0, 0);
   const marke = (x, z, farbe, r, text) => { k.fillStyle = farbe; k.strokeStyle = '#1a2440'; k.lineWidth = 3; k.beginPath(); k.arc(kx(x), kz(z), r, 0, 7); k.fill(); k.stroke();
     if (text) { k.font = 'bold 15px system-ui, sans-serif'; k.textAlign = 'center'; k.lineWidth = 4; k.strokeStyle = '#fff'; k.strokeText(text, kx(x), kz(z) - r - 9); k.fillStyle = '#1a2440'; k.fillText(text, kx(x), kz(z) - r - 9); } };
-  if (s.wagen) marke(s.wagen[0], s.wagen[1], '#ffffff', 9, s.imAuto ? '' : 'Streifenwagen');
+  if (s.wagen) marke(s.wagen[0], s.wagen[1], '#ffffff', 9, s.imAuto ? '' : s.wagenName || 'Streifenwagen');
   if (s.ziel) marke(s.ziel[0], s.ziel[1], '#ffd23a', 13, 'Ziel');
   marke(s.x, s.z, '#1e66ff', 11, 'Du');
 }

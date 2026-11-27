@@ -321,7 +321,9 @@ export function wacheDaten({ POLIZEI, KOLLEGE, OTTO_LOOK, OTTO_SIEH }) {
       { id: 'otto', amWagen: true, x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'hof1', bis: 'abgabe1', look: OTTO_LOOK },
       { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'abgabe1', bis: 'hof2', look: OTTO_LOOK },
       { id: 'otto', amWagen: true, x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'hof2', bis: 'abgabe2', look: OTTO_LOOK },
-      { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'abgabe2', look: OTTO_LOOK },
+      { id: 'otto', folgt: true, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'abgabe2', bis: 'feierabend', look: OTTO_LOOK },
+      // Feierabend: Otto bleibt noch am Wagen stehen und schließt ihn ab. Du gehst allein hinein.
+      { id: 'otto', amWagen: true, x: 2.5, z: 15, name: 'Otto Brandl', akt: 'otto', sieh: OTTO_SIEH, wenn: 'feierabend', look: OTTO_LOOK },
       { id: 'selin', x: 0, z: -7.5, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', bis: 'briefing', look: { ...POLIZEI, haar: '#1e1a17', muetze: null, modell: 'selin', art: 'frau' }, sieh: 'Selin Aydin leitet die Wache. Kerzengerade, die Uniform wie gebügelt. Sie sieht von ihren Unterlagen auf, bevor du etwas sagst.' },
       // Nach der Besprechung sitzt sie in ihrem Büro am Rechner
       { id: 'selin', x: 16.5, z: -6.28, h: 0, name: 'Selin Aydin (Leiterin der Wache)', akt: 'selin', wenn: 'briefing', nah: 2.6, look: { ...POLIZEI, haar: '#1e1a17', muetze: null, modell: 'selin', art: 'frau', arbeit: 'tippen' }, sieh: 'Selin Aydin sitzt in ihrem Büro am Rechner und schreibt den Dienstplan für nächste Woche. Kerzengerade, auch im Sitzen.' },

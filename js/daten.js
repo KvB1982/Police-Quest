@@ -22,6 +22,7 @@
 
 import { PLAN, GROSS } from './stadtplan.js';
 import { wacheDaten } from './wache.js';
+import { WOHNUNG, HAUSTUER } from './wohnung.js';
 import { hindernisse as marktHindernisse } from './markt.js';
 
 const OTTO_SIEH = 'Otto Brandl, dein Ausbilder. Grauer Bart, breite Schultern, die Mütze gerade. Seine Stiefel sind die saubersten der ganzen Wache.';
@@ -68,6 +69,7 @@ const stadt = {
     // Der Verkehrsunfall in der Marktstraße (gibt es erst, wenn die Leitstelle ihn meldet)
     { id: 'unfallwagen', x: -87.2, z: 99.4, name: 'Dunkelblauer Kombi', art: 'auto', farbe: '#1c2333', h: -0.12, akt: 'unfallwagen', verb: 'sieh', wenn: 'unfall', bis: 'flucht', fest: [2.2, 4.6], nah: 3.6, verkehr: true },
     { id: 'roterwagen', x: -92, z: 107.2, name: 'Roter Wagen', art: 'auto', farbe: '#b8322a', h: -0.5, akt: 'roterwagen', verb: 'sieh', wenn: 'unfall', bis: 'marktFertig', fest: [3, 4.4], nah: 3.8, verkehr: true },
+    { id: 'haustuer', x: HAUSTUER[0], z: HAUSTUER[1], name: 'Haustür Fleetufer 7', art: 'tuer', akt: 'haustuer', nah: 2.4, sieh: 'Die Haustür von Fleetufer 7. Sechs Klingelschilder, auf dem dritten steht: K. Berger. Der Briefkasten darunter quillt über vor Werbung.' },
     { id: 'museumstuer', x: 74, z: 30, name: 'Tür zum Stadtmuseum', art: 'tuer', akt: 'museumstuer', nah: 2.4, sieh: 'Eine schwere Holztür mit Messinggriff. Daneben ein Schild: Stadtmuseum Möwenbrück, geöffnet 10 bis 17 Uhr.' },
   ],
   leute: [
@@ -136,4 +138,5 @@ const museum = {
 };
 
 // Die Wache ist kein eigener Ort mehr (sie gehört zur Stadt). Wo sie steht, sagt WACHE_X / WACHE_Z in js/wache.js.
-export const ORTE = { stadt, museum };
+// Kims Wohnung am Fleetufer 7 steht in js/wohnung.js.
+export const ORTE = { stadt, museum, wohnung: WOHNUNG };

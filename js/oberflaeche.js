@@ -149,7 +149,7 @@ export function toast(text) {
 }
 
 // Im Auto: Knöpfe zum Fahren und das Blaulicht. Zu Fuß: die Leiste mit den vier Tätigkeiten.
-export function fahrKnoepfe(an) { $('kamKnoepfe').hidden = false; $('fahren').hidden = !an; $('neigLeiste').hidden = !an; $('blaulicht').hidden = !an; $('verben').hidden = an; if (an) $('satz').hidden = true; document.body.classList.toggle('imAuto', an); }
+export function fahrKnoepfe(an, blau = true) { $('kamKnoepfe').hidden = false; $('fahren').hidden = !an; $('neigLeiste').hidden = !an; $('blaulicht').hidden = !an || !blau; $('verben').hidden = an; if (an) $('satz').hidden = true; document.body.classList.toggle('imAuto', an); }
 
 // Der Blaulicht-Knopf zeigt, welche Stufe gerade läuft: 0 = aus, 1 = nur Blaulicht, 2 = Blaulicht mit Sirene.
 export function blaulicht(stufe) {
