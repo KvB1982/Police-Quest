@@ -309,7 +309,7 @@ export const AKT = {
     } else if (S.hat('flucht') && !S.hat('jagdFertig')) {
       if (schon('jagd')) return schon('jagd');
       await S.sag(KIM, 'Möwe 14 an alle: Wir brauchen Verstärkung bei der Verfolgung! Dunkelblauer Kombi, MÖ-TR 388.');
-      await S.sag(FUNK, 'Möwe 12 hängt sich hinter euch, Möwe 14. Bleibt dran, aber riskiert nichts.');
+      await S.sag(FUNK, 'Möwe 12 fährt euch hinterher, Möwe 14. Bleibt dran und passt auf euch auf.');
       S.flag('verst_jagd'); S.punkte(1, 'Verstärkung gerufen');
     } else if (S.hat('markt') && !S.hat('marktFertig')) {
       if (schon('markt')) return schon('markt');

@@ -107,3 +107,11 @@ Selbst gemalt (in `js/bilder.js`, keine Datei): alle Hausfassaden mit Fenstern, 
 `besucher/b1.glb` … `b7.glb`, kopiert aus `Powershot/assets/besucher/`. Menschen aus MakeHuman / MPFB2 (nur CC0-Pakete, Herkunft in
 `Powershot/assets/QUELLEN_MENSCHEN.md`), dort mit `tools/mensch/menge.mjs` auf etwa 1.800 Dreiecke verkleinert und in 13 Haltungen gebacken.
 Benutzt in `js/marktbau.js`.
+
+## Szenen-Bilder (`assets/szenen/`)
+
+- `stoss_markt.jpg`, `festnahme_markt.jpg`, `stoss_otto.jpg`, `kombi_flieht.jpg`, `tuer_auf.jpg`, `festnahme_timo.jpg`, `schatten_fenster.jpg` – am 27.11.2026 mit 3D AI Studio erzeugt (Bild-Modell „Nano Banana 2“), auf 1280 Bildpunkte Breite verkleinert. Keine echten Menschen, keine Fotos als Vorlage.
+
+## Zusatz-Bewegung
+
+- `modelle/bewegungen_mann_plus.glb` – Bewegung `fallen`: Mixamo (Adobe) „Start Plank“, von Kristian heruntergeladen, mit `tools/figur/uebertragen.js` umgerechnet. Die FBX-Datei liegt nicht im Repository.

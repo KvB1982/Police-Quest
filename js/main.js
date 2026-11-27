@@ -1139,7 +1139,7 @@ function jagdLauf(dt, frei) {
     if (Z.imAuto && jagd.abstand > 150 && zeit > schimpfZeit) { schimpfZeit = zeit + 10; UI.toast('Otto: „Wir verlieren ihn! Gib Gas!“'); }
     if (jagd.fertig) KLANG.spiel('rumms');
   }
-  if (Z.ziel && !Z.flags.jagdFertig) Z.ziel.wo = ['stadt', jagd.x, jagd.z];       // der Wegweiser zeigt immer auf den Fluchtwagen
+  if (Z.ziel && !Z.flags.jagdFertig) Z.ziel.wo = lauf ? null : ['stadt', jagd.x, jagd.z];       // der Wegweiser zeigt immer auf den Fluchtwagen (nicht, wenn der Fahrer zu Fuß flieht)
   // Am Ende steht der Wagen quer am Bordstein. Kommt man nah heran, geht die Geschichte weiter.
   fluchtwagen.position.set(jagd.x, 0, jagd.z); fluchtwagen.rotation.y = jagd.h + (jagd.fertig ? 0.7 : 0); autoRaeder(fluchtwagen, jagd.s);
   // Am Ziel geht es erst weiter, wenn man in der Nähe angehalten hat.
@@ -1155,6 +1155,7 @@ function jagdLauf(dt, frei) {
 // zu Boden stoßen oder festhalten. Otto und die Kollegen von Möwe 12 schneiden ihm den Weg ab, wenn du sie rufst.
 const OTTO_RENNT = 3.3, HELFER_TEMPO = 4.3;       // so schnell laufen Otto und die Kollegen bei einer Verfolgung (m/s)
 const GRIFF_TEXT = { stoss: '💥 Zu Boden stoßen', halt: '✋ Festhalten', gestellt: '✋ Festnehmen' };
+const KAM_SCHWENK = 1.6;       // so schnell dreht sich die Kamera bei einer Verfolgung zu Fuß höchstens hinter Kim (Bogenmaß je Sekunde)
 let lauf = null, zeitlupe = 0, ruck = 0;       // zeitlupe = so viele Sekunden läuft alles noch langsam · ruck = so stark wackelt die Kamera gerade
 const hatzDinge = [];                          // umgerissene Kisten und Tonnen (bleiben liegen, bis die nächste Verfolgung anfängt)
 const laufFigur = id => welt.objekte.find(o => o.def.id === id && o.da);
@@ -1231,6 +1232,11 @@ function laufSchritt(dt) {
   figurBewegen(o.mesh, dt, H.phase === 'lauf' ? H.v : 0);
   ruck = Math.max(0, ruck - dt * 2.5);
   if (L.nachher && (L.nachher.zeit -= dt) <= 0) { L.nachher.tun(); L.nachher = null; }
+  // Die Kamera schwenkt hinter Kim, sodass der Flüchtende immer vor dir im Bild ist (nicht ruckartig, und nicht, wenn er direkt neben dir läuft).
+  if (!H.vorlauf && !L.ende && H.abstand > 3.5) {
+    let kw = Math.atan2(spieler.x - o.x, spieler.z - o.z) - kam.zw; while (kw > Math.PI) kw -= 2 * Math.PI; while (kw < -Math.PI) kw += 2 * Math.PI;
+    const mehr = Math.max(-KAM_SCHWENK * dt, Math.min(KAM_SCHWENK * dt, kw * 2.5 * dt)); kam.zw += mehr; kam.w += mehr;
+  }
   // Anzeige: Abstand, roter Rand und Herzschlag (je näher, desto schneller), großer Knopf
   if (H.vorlauf) { UI.hatz(null); UI.griff(null); return; }
   const nahK = Math.max(0, 1 - H.abstand / 22);
