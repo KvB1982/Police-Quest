@@ -302,7 +302,11 @@ const S = {
   gib(s) { if (!Z.sachen.includes(s)) Z.sachen.push(s); },
   nimm(s) { Z.sachen = Z.sachen.filter(x => x !== s); },       // etwas wieder abgeben (abends in den Spind, die Waffe zu Harms)
   // Umziehen: 'zivil' oder 'dienst'. Mit der Kleidung wechselt auch das Auto: in Zivil dein eigenes, in Uniform der Streifenwagen.
-  kleidung(art) { kleidungSetzen(art === 'zivil'); sichtbarkeit(); },
+  kleidung(art) {
+    // Wer morgens zu Fuß zur Wache gegangen ist, hätte abends kein Auto da. Dann steht es trotzdem auf dem Parkplatz hinter der Wache.
+    if (art === 'zivil' && !Z.privat && Math.hypot(Z.park.x - PRIVAT_WACHE[0], Z.park.z - PRIVAT_WACHE[1]) > 150) Z.park = { x: PRIVAT_WACHE[0], z: PRIVAT_WACHE[1], h: PRIVAT_WACHE[2] };
+    kleidungSetzen(art === 'zivil'); sichtbarkeit();
+  },
   ziel(text, wo) { Z.ziel = { text, wo }; anzeigen(); },
   ort(name, x, z) { ortLaden(name, x, z); KLANG.spiel('tuer'); anzeigen(); },
   klang: name => KLANG.spiel(name),
@@ -722,8 +726,8 @@ function rundenSchritt(dt) {
 
 // Türen, Spind und Schrank: jedes Bild ein Stück weiter auf oder zu. Türen in den Wänden gehen von selbst auf, wenn du oder Otto davorstehen.
 function klappenSchritt(dt) {
-  if (wachFern) return;       // weit weg von der Wache bewegt sich dort nichts (in der Stadt gibt es sonst nur die Museumstür, und die öffnet die Geschichte)
   for (const k of Object.values(welt.klappen)) {
+    if (wachFern && !k.wartet) continue;       // weit weg von der Wache bewegt sich dort nichts – nur Türen, die die Geschichte gerade öffnet (Museum, Haustür)
     if (k.auto) {
       const nah = (x, z) => abstand(x, z, k.auto.x, k.auto.z) < k.auto.r;
       // Das Schiebetor (k.auto.wagen) geht nur für dich auf – zu Fuß oder im Wagen. Türen öffnen auch die Kollegen.
