@@ -109,7 +109,7 @@ const LACK_METALL = 0.35;
 // Der Streifenwagen im Stil des Spiels (seit 28.11.2026): schlichte Formen, matte Farben, kein Spiegeln.
 // Mit ?altesauto in der Adresse kommt zum Vergleich der alte, fotoechte Wagen.
 export const STREIFE_STIL = typeof location === 'undefined' || !new URLSearchParams(location.search).has('altesauto');
-const STREIFE_DATEI = STREIFE_STIL ? 'streifenwagen_stil' : 'streifenwagen';
+const STREIFE_DATEI = STREIFE_STIL ? 'streifenwagen_modern' : 'streifenwagen';
 const LEISTE_HOCH = 0.968, LEISTE_VOR = -0.05;
 // Das Spiegelbild für den Lack: main.js baut es einmal und gibt es hierher (spiegelBild).
 let spiegel = null; const lacke = [];
@@ -174,7 +174,7 @@ function folieKleben(material, gr) {
 }
 
 // Nummernschilder vorn und hinten am Streifenwagen (ausgedachtes Kennzeichen). Zahlen: wo sie sitzen, als Anteil an Höhe und Länge.
-const SCHILD = { vornHoch: 0.30, vornZ: 0.5, hintenHoch: 0.31, hintenZ: 0.5, breit: 0.52, hoch: 0.115 };
+const SCHILD = { vornHoch: 0.30, vornZ: 0.5, hintenHoch: 0.49, hintenZ: 0.485, breit: 0.52, hoch: 0.115 };
 let schildBild = null;
 function kennzeichen(g, gr) {
   if (!schildBild) {
