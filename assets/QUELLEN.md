@@ -82,6 +82,7 @@ Kopiert aus `Powershot/assets/gelaende/` (die Bank aus `Powershot/assets/`). Dor
 |---|---|---|
 | `modelle/auto_kombi.glb`, `auto_kompakt.glb`, `auto_van.glb`, `auto_suv.glb` | 3D AI Studio (von uns erzeugt, kein Logo) | Verkehr, parkende Autos, Falschparker |
 | `modelle/streifenwagen.glb` | 3D AI Studio (von uns erzeugt, „Gelände: Auto Kombi“, kein Logo), in voller Qualität: 19.000 Dreiecke, Bilder 2048 und 1024 | Streifenwagen; Polizei-Folie und Blaulicht baut das Spiel selbst |
+| `modelle/streifenwagen_stil.glb` | 3D AI Studio (von uns erzeugt am 28.11.2026: Bild im Stil des Spiels, daraus Modell „P2“, kein Logo), 4.900 Dreiecke, Farbbild 1024 | Streifenwagen im Stil des Spiels |
 | `modelle/laterne.glb`, `baum_laub.glb`, `baum_fichte.glb`, `baum_laub_flach.webp` | 3D AI Studio | Straßen (Laterne modern), Bäume in der Nähe |
 | `modelle/stand.glb`, `schirmtisch.glb`, `absperrgitter.glb`, `mal_brunnen.glb`, `mal_yacht.glb`, `bank.glb` | 3D AI Studio | Marktstände, Brunnen auf dem Markt, Yachten im Hafen, Parkbank |
 | `modelle/laterne_alt.glb` | Poly Haven „street_lamp_01“ – https://polyhaven.com/a/street_lamp_01 (CC0) | Altstadt und Hafen |

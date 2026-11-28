@@ -106,6 +106,10 @@ function hund() {
 // Wo die Blaulicht-Leiste auf dem Streifenwagen sitzt (Anteil an Höhe und Länge des Autos).
 // So stark ist der Lack ein Spiegel (0 = gar nicht, 1 = ganz).
 const LACK_METALL = 0.35;
+// Der Streifenwagen im Stil des Spiels (seit 28.11.2026): schlichte Formen, matte Farben, kein Spiegeln.
+// Mit ?altesauto in der Adresse kommt zum Vergleich der alte, fotoechte Wagen.
+export const STREIFE_STIL = typeof location === 'undefined' || !new URLSearchParams(location.search).has('altesauto');
+const STREIFE_DATEI = STREIFE_STIL ? 'streifenwagen_stil' : 'streifenwagen';
 const LEISTE_HOCH = 0.968, LEISTE_VOR = -0.05;
 // Das Spiegelbild für den Lack: main.js baut es einmal und gibt es hierher (spiegelBild).
 let spiegel = null; const lacke = [];
@@ -123,7 +127,9 @@ function haube(b, h, t) {
 // Die Polizei-Folie: Ein gemaltes Bild (blaues Band, gelber Streifen, Schrift POLIZEI) wird von der Seite auf den Lack "geklebt".
 // Das macht das Malprogramm der Grafikkarte: Nur helle Stellen (Lack) an den Seiten bekommen Folie, Fenster und Reifen bleiben frei.
 // Zahlen: wo das Band sitzt, als Anteil an der Höhe des Autos (0 = Boden, 1 = Dach).
-const FOLIE = { unten: 0.47, oben: 0.66, vorn: 0.88, hinten: 0.05 };
+const FOLIE = STREIFE_STIL ? { unten: 0.40, oben: 0.60, vorn: 0.90, hinten: 0.04 } : { unten: 0.47, oben: 0.66, vorn: 0.88, hinten: 0.05 };
+// Ab dieser Helligkeit gilt eine Stelle als Lack. Der neue Wagen hat graublaue Scheiben und graue Leisten, die frei bleiben sollen.
+const LACK_AB = STREIFE_STIL ? '0.30' : '0.10';
 let folienBild = null;
 function folie() {
   if (folienBild) return folienBild;
@@ -163,8 +169,28 @@ function folieKleben(material, gr) {
       .replace('void main() {', 'float folieStark = 0.0;\nvoid main() {')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.1, folieStark);')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.45, folieStark);');
-    sh.fragmentShader = '#define LACK_AB 0.10\n' + sh.fragmentShader;
+    sh.fragmentShader = `#define LACK_AB ${LACK_AB}\n` + sh.fragmentShader;
   };
+}
+
+// Nummernschilder vorn und hinten am Streifenwagen (ausgedachtes Kennzeichen). Zahlen: wo sie sitzen, als Anteil an Höhe und Länge.
+const SCHILD = { vornHoch: 0.30, vornZ: 0.5, hintenHoch: 0.31, hintenZ: 0.5, breit: 0.52, hoch: 0.115 };
+let schildBild = null;
+function kennzeichen(g, gr) {
+  if (!schildBild) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 112; const x = c.getContext('2d');
+    x.fillStyle = '#111'; x.fillRect(0, 0, 512, 112); x.fillStyle = '#f6f6f2'; x.beginPath(); x.roundRect(5, 5, 502, 102, 12); x.fill();
+    x.fillStyle = '#1b3fa6'; x.beginPath(); x.roundRect(5, 5, 52, 102, [12, 0, 0, 12]); x.fill();
+    x.fillStyle = '#111'; x.font = '700 78px "Arial Narrow", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('MB·P 114', 284, 60, 430);
+    schildBild = new THREE.CanvasTexture(c); schildBild.colorSpace = THREE.SRGBColorSpace; schildBild.anisotropy = 8;
+  }
+  const m = new THREE.MeshStandardMaterial({ map: schildBild, roughness: 0.6 });
+  for (const vorn of [1, -1]) {
+    const s = new THREE.Mesh(new THREE.PlaneGeometry(SCHILD.breit, SCHILD.hoch), m);
+    s.position.set(0, gr.y * (vorn > 0 ? SCHILD.vornHoch : SCHILD.hintenHoch), vorn * (gr.z * (vorn > 0 ? SCHILD.vornZ : SCHILD.hintenZ) + 0.012));
+    if (vorn < 0) s.rotation.y = Math.PI;
+    g.add(s);
+  }
 }
 
 // Die Räder eines Wagens drehen: weg = wie weit er schon gerollt ist (Meter), lenk = Einschlag der Vorderräder (−1 … 1)
@@ -209,7 +235,7 @@ export function autoModell(farbe = '#f4f4f4', polizei = false, sorte = 'auto_kom
   }
   // Das fertige Modell ersetzt die Kisten, sobald es geladen ist.
   // Der Streifenwagen bekommt die Vorlage in voller Qualität (19.000 Dreiecke, scharfes Bild, Glanz), die anderen Autos die kleine Datei.
-  MOD.lade(polizei ? 'streifenwagen' : sorte).then(m => {
+  MOD.lade(polizei ? STREIFE_DATEI : sorte).then(m => {
     if (!m) return;
     const material = m.mat.clone(); if (!polizei) material.color.set(farbe);
     g.userData.hoch = m.geo.boundingBox ? m.geo.boundingBox.max.y : 1.6;
@@ -225,10 +251,9 @@ export function autoModell(farbe = '#f4f4f4', polizei = false, sorte = 'auto_kom
       netz.receiveShadow = true;
       for (const s of streifen) s.visible = false;
       // Die Vorlage ist ganz aus spiegelndem Metall gemalt. Ohne echte Umgebung zum Spiegeln sähe das schwarz aus, deshalb spiegelt der Lack hier nur zum Teil.
-      material.metalness = LACK_METALL; material.roughness = 1;
       folieKleben(material, m.gr);
-      lacke.push(material); if (spiegel) material.envMap = spiegel;
-      g.userData.lack = material;
+      if (STREIFE_STIL) { material.metalness = 0; material.roughness = 0.62; kennzeichen(g, m.gr); }       // matt wie die Häuser und Möbel, dazu Nummernschilder
+      else { material.metalness = LACK_METALL; material.roughness = 1; lacke.push(material); if (spiegel) material.envMap = spiegel; g.userData.lack = material; }
       g.userData.leiste.position.set(0, m.gr.y * LEISTE_HOCH, m.gr.z * LEISTE_VOR);
     }
   });
