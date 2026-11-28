@@ -12,6 +12,7 @@ const V = Math.PI / 2;
 export const MODELLE = {
   // echt: true = das Material bleibt, wie es aus der Vorlage kommt (mit Glanz und feinen Beulen). Das kostet mehr, deshalb nur beim Streifenwagen.
   streifenwagen: { l: 5.0, dreh: -V, echt: true },
+  streifenwagen_stil: { l: 4.8, dreh: -V },      // der Streifenwagen im Stil des Spiels: 4.900 Dreiecke, nur ein Farbbild
   auto_kombi: { l: 4.6, dreh: -V }, auto_kompakt: { l: 4.0, dreh: -V }, auto_van: { l: 5.0 }, auto_suv: { l: 4.7 },
   laterne: { h: 6.5, dreh: V }, laterne_alt: { h: 4.2 }, laterne_hafen: { h: 1.1 },
   baum_laub: { h: 8 }, baum_fichte: { h: 9 },
